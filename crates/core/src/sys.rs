@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -26,13 +27,79 @@ pub fn pid_is_alive(pid: u32) -> bool {
 #[must_use]
 pub fn pid_cmdline(pid: u32) -> Vec<u8> {
     if has_proc() {
-        return std::fs::read(format!("/proc/{pid}/cmdline")).unwrap_or_default();
+        return fs::read(format!("/proc/{pid}/cmdline")).unwrap_or_default();
     }
     Command::new("ps")
         .args(["-p", &pid.to_string(), "-o", "args="])
         .output()
         .map(|o| o.stdout)
         .unwrap_or_default()
+}
+
+#[must_use]
+pub fn pid_ppid(pid: u32) -> Option<u32> {
+    if has_proc() {
+        return proc_status_u32(pid, "PPid:");
+    }
+    let out = Command::new("ps")
+        .args(["-p", &pid.to_string(), "-o", "ppid="])
+        .output()
+        .ok()?;
+    String::from_utf8(out.stdout).ok()?.trim().parse().ok()
+}
+
+#[must_use]
+pub fn pid_children(pid: u32) -> Vec<u32> {
+    if has_proc() {
+        let path = format!("/proc/{pid}/task/{pid}/children");
+        if let Ok(raw) = fs::read_to_string(path) {
+            let kids: Vec<u32> = raw
+                .split_whitespace()
+                .filter_map(|s| s.parse().ok())
+                .collect();
+            if !kids.is_empty() {
+                return kids;
+            }
+        }
+        return scan_proc_children(pid);
+    }
+    let out = Command::new("pgrep")
+        .args(["-P", &pid.to_string()])
+        .output();
+    let Ok(out) = out else {
+        return Vec::new();
+    };
+    String::from_utf8(out.stdout)
+        .unwrap_or_default()
+        .split_whitespace()
+        .filter_map(|s| s.parse().ok())
+        .collect()
+}
+
+fn proc_status_u32(pid: u32, key: &str) -> Option<u32> {
+    let raw = fs::read_to_string(format!("/proc/{pid}/status")).ok()?;
+    for line in raw.lines() {
+        if let Some(rest) = line.strip_prefix(key) {
+            return rest.split_whitespace().next()?.parse().ok();
+        }
+    }
+    None
+}
+
+fn scan_proc_children(parent: u32) -> Vec<u32> {
+    let Ok(dir) = fs::read_dir("/proc") else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for ent in dir.flatten() {
+        let Ok(child) = ent.file_name().to_string_lossy().parse::<u32>() else {
+            continue;
+        };
+        if pid_ppid(child) == Some(parent) {
+            out.push(child);
+        }
+    }
+    out
 }
 
 #[must_use]

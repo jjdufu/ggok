@@ -38,6 +38,7 @@ impl Agent {
             .and_then(Value::as_str)
             .ok_or_else(|| anyhow::anyhow!("session/new missing sessionId"))?
             .to_string();
+        self.yield_web_active(&id).await;
         self.apply_session_result(&id, cwd.to_string_lossy().as_ref(), &result)
             .await;
         if model.as_ref().is_some_and(|s| !s.is_empty())
@@ -121,6 +122,7 @@ impl Agent {
         if !occ.writable {
             bail!(SESSION_BUSY);
         }
+        self.yield_web_active(id).await;
         self.ensure().await?;
         let occ = self.occupancy_of(id, Some(cwd)).await;
         if !occ.writable {
@@ -168,6 +170,33 @@ impl Agent {
         let mut g = self.inner.lock().await;
         g.sessions.remove(id);
         g.in_flight.retain(|_, sid| sid.as_str() != id);
+    }
+
+    async fn session_is_tui_held(&self, id: &str) -> bool {
+        let s3 = ggok_core::occupy::cli_sessions(&self.grok_home);
+        let our = ggok_core::occupy::our_runtime_pid(self.inner.lock().await.child_pid);
+        ggok_core::occupy::tui_held(&s3, id, our)
+    }
+
+    async fn yield_web_active(&self, new_id: &str) {
+        let prev = self.inner.lock().await.web_active_id.clone();
+        if let Some(prev) = prev {
+            let prev_is_tui = self.session_is_tui_held(&prev).await;
+            if ggok_core::occupy::should_cancel_web_peer(&prev, new_id, prev_is_tui) {
+                let occ = self.occupancy_of(&prev, None).await;
+                if occ.source == Source::Attached && occ.running {
+                    let _ = self
+                        .notify("session/cancel", json!({ "sessionId": prev }))
+                        .await;
+                }
+                self.drop_session(&prev).await;
+            }
+        }
+        self.inner.lock().await.web_active_id = Some(new_id.to_string());
+        let _ = ggok_core::occupy::write_web_active(
+            &ggok_core::occupy::web_active_path(&self.leader_json),
+            new_id,
+        );
     }
 
     pub async fn queue_list(&self, id: &str) -> Vec<QueueItem> {

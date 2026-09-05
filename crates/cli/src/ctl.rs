@@ -403,6 +403,19 @@ fn saved_grok_home() -> Result<PathBuf> {
     config::default_grok_home()
 }
 
+fn status_can_attach(leftover: bool) -> bool {
+    if leftover {
+        return false;
+    }
+    let Ok(path) = leader_json_file() else {
+        return false;
+    };
+    let Some(rec) = read_leader_record(&path) else {
+        return false;
+    };
+    pid_is_alive(rec.pid) && occupy::cmdline_matches_grok(&ggok_core::sys::pid_cmdline(rec.pid))
+}
+
 fn running_session_ids(grok_home: &Path, leftover_file: Option<&Path>) -> Vec<String> {
     let Ok(index) = scan::scan(grok_home) else {
         return Vec::new();
@@ -418,6 +431,7 @@ fn running_session_ids(grok_home: &Path, leftover_file: Option<&Path>) -> Vec<St
             s3: &s3,
             leftover_noleader_alive: leftover,
             jsonl_running: occupy::jsonl_running(&meta.dir),
+            can_attach: status_can_attach(leftover),
         });
         if occ.running {
             ids.push(id.clone());
@@ -519,6 +533,7 @@ fn print_status_extra(grok_home: &Path) {
                 s3: &s3,
                 leftover_noleader_alive: leftover,
                 jsonl_running: occupy::jsonl_running(&meta.dir),
+                can_attach: status_can_attach(leftover),
             });
             println!(
                 "session {id} source={} running={} writable={}",

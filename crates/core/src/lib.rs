@@ -12,9 +12,13 @@ pub mod workspace;
 
 pub use config::{ConfigOverrides, RuntimeConfig, agent_pid_file, leader_json_file};
 pub use occupy::{
-    ClassifyInput, LeaderRecord, LiveView, Occupancy, SESSION_BUSY, SessionOp, Source, classify,
-    cli_sessions, cmdline_matches_grok, conflict_busy, is_noleader_stdio, jsonl_running,
-    leftover_noleader_pid, our_runtime_pid, read_leader_record, write_leader_record,
+    ClassifyInput, LeaderListEntry, LeaderRecord, LiveView, Occupancy, SESSION_BUSY, SessionOp,
+    Source, classify, cli_sessions, cmdline_matches_grok, conflict_busy, first_reachable_leader_pid,
+    is_auto_spawned_leader_cmd, is_ggok_spawned_leader_cmd, is_leader_server_cmd, is_noleader_stdio,
+    is_stdio_client_cmd, is_tui_cmd, jsonl_running, leader_is_independent, leftover_noleader_pid,
+    our_runtime_pid, parse_leader_list, read_leader_record, read_web_active, s3_is_hard_foreign,
+    should_cancel_web_peer, stdio_holds_leader, tui_held, web_active_path, write_leader_record,
+    write_web_active,
 };
 pub use parse::{
     ParsedSession, Parser, blocks_to_markdown, context_window, extract_tool, merge_live_over_disk,

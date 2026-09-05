@@ -70,6 +70,7 @@ pub struct ClassifyInput<'a> {
     pub s3: &'a HashMap<String, u32>,
     pub leftover_noleader_alive: bool,
     pub jsonl_running: bool,
+    pub can_attach: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -112,8 +113,64 @@ pub fn cmdline_matches_grok(cmd: &[u8]) -> bool {
 
 #[must_use]
 pub fn is_noleader_stdio(cmd: &[u8]) -> bool {
-    let text = String::from_utf8_lossy(cmd);
+    let text = cmdline_haystack(cmd);
     text.contains("grok") && text.contains("--no-leader") && text.contains("stdio")
+}
+
+fn cmdline_haystack(cmd: &[u8]) -> String {
+    String::from_utf8_lossy(cmd).replace('\0', " ")
+}
+
+#[must_use]
+pub fn is_stdio_client_cmd(cmd: &[u8]) -> bool {
+    let text = cmdline_haystack(cmd);
+    text.contains("grok") && text.contains("stdio")
+}
+
+#[must_use]
+pub fn is_leader_server_cmd(cmd: &[u8]) -> bool {
+    let text = cmdline_haystack(cmd);
+    text.contains("grok") && text.contains("leader") && !text.contains("stdio")
+}
+
+#[must_use]
+pub fn is_auto_spawned_leader_cmd(cmd: &[u8]) -> bool {
+    let text = cmdline_haystack(cmd);
+    is_leader_server_cmd(cmd) && text.contains("--relay-on-demand")
+}
+
+#[must_use]
+pub fn is_ggok_spawned_leader_cmd(cmd: &[u8]) -> bool {
+    let text = cmdline_haystack(cmd);
+    is_leader_server_cmd(cmd)
+        && text.contains("--no-auto-update")
+        && text.contains("--no-exit-on-disconnect")
+}
+
+#[must_use]
+pub fn is_tui_cmd(cmd: &[u8]) -> bool {
+    let text = cmdline_haystack(cmd);
+    text.contains("grok") && !text.contains("stdio") && !is_leader_server_cmd(cmd)
+}
+
+#[must_use]
+pub fn tui_held<S: ::std::hash::BuildHasher>(
+    s3: &HashMap<String, u32, S>,
+    id: &str,
+    our_runtime_pid: Option<u32>,
+) -> bool {
+    let Some(&pid) = s3.get(id) else {
+        return false;
+    };
+    if Some(pid) == our_runtime_pid {
+        return false;
+    }
+    is_tui_cmd(&crate::sys::pid_cmdline(pid))
+}
+
+#[must_use]
+pub fn should_cancel_web_peer(prev: &str, next: &str, prev_is_tui: bool) -> bool {
+    prev != next && !prev_is_tui
 }
 
 fn argv0_is_grok(cmd: &[u8]) -> bool {
@@ -223,16 +280,24 @@ pub fn classify(input: &ClassifyInput<'_>) -> Occupancy {
             running: input.jsonl_running,
         };
     }
-    if let Some(&pid) = input.s3.get(input.id)
-        && Some(pid) != input.our_runtime_pid
-    {
-        return Occupancy {
-            source: Source::Foreign,
-            writable: false,
-            running: true,
-        };
+    if let Some(&pid) = input.s3.get(input.id) {
+        let cmd = crate::sys::pid_cmdline(pid);
+        if s3_is_hard_foreign(pid, input.our_runtime_pid, input.can_attach, &cmd) {
+            return Occupancy {
+                source: Source::Foreign,
+                writable: false,
+                running: true,
+            };
+        }
     }
     if input.jsonl_running {
+        if input.can_attach {
+            return Occupancy {
+                source: Source::Disk,
+                writable: true,
+                running: true,
+            };
+        }
         return Occupancy {
             source: Source::Observe,
             writable: false,
@@ -244,6 +309,22 @@ pub fn classify(input: &ClassifyInput<'_>) -> Occupancy {
         writable: true,
         running: false,
     }
+}
+
+#[must_use]
+pub fn s3_is_hard_foreign(
+    holder: u32,
+    our_runtime_pid: Option<u32>,
+    can_attach: bool,
+    cmd: &[u8],
+) -> bool {
+    if Some(holder) == our_runtime_pid {
+        return false;
+    }
+    if is_noleader_stdio(cmd) || is_tui_cmd(cmd) {
+        return true;
+    }
+    !can_attach
 }
 
 #[must_use]
@@ -351,6 +432,136 @@ pub fn write_leader_record(path: &Path, rec: &LeaderRecord) -> std::io::Result<(
     let json = serde_json::to_vec_pretty(rec)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
     fs::write(path, json)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WebActiveRecord {
+    pub id: String,
+}
+
+#[must_use]
+pub fn web_active_path(leader_json: &Path) -> PathBuf {
+    leader_json
+        .parent()
+        .unwrap_or(Path::new("."))
+        .join("web-active.json")
+}
+
+#[must_use]
+pub fn read_web_active(path: &Path) -> Option<String> {
+    let raw = fs::read_to_string(path).ok()?;
+    let rec: WebActiveRecord = serde_json::from_str(&raw).ok()?;
+    uuid::Uuid::parse_str(rec.id.trim()).ok()?;
+    Some(rec.id)
+}
+
+/// # Errors
+/// Returns an error if `id` is not a UUID or the file cannot be written.
+pub fn write_web_active(path: &Path, id: &str) -> std::io::Result<()> {
+    if uuid::Uuid::parse_str(id).is_err() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "invalid session id",
+        ));
+    }
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let json = serde_json::to_vec_pretty(&WebActiveRecord { id: id.to_string() })
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, json)?;
+    fs::rename(&tmp, path)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LeaderListEntry {
+    pub classification: String,
+    pub pid_live: Option<u32>,
+}
+
+#[must_use]
+pub fn parse_leader_list(raw: &str) -> Vec<LeaderListEntry> {
+    let Ok(v) = serde_json::from_str::<Value>(raw.trim()) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    visit_leader_rows(&v, &mut |row| {
+        let classification = row
+            .get("classification")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let pid_live = json_pid(row.get("pidLive")).or_else(|| json_pid(row.get("pid_live")));
+        out.push(LeaderListEntry {
+            classification,
+            pid_live,
+        });
+    });
+    out
+}
+
+#[must_use]
+pub fn first_reachable_leader_pid(raw: &str) -> Option<u32> {
+    for row in parse_leader_list(raw) {
+        if row.classification.eq_ignore_ascii_case("unreachable") {
+            continue;
+        }
+        if let Some(pid) = row.pid_live.filter(|p| *p != 0) {
+            return Some(pid);
+        }
+    }
+    None
+}
+
+fn visit_leader_rows(v: &Value, visit: &mut dyn FnMut(&Value)) {
+    if let Some(arr) = v.as_array() {
+        for row in arr {
+            visit(row);
+        }
+        return;
+    }
+    if let Some(arr) = v.get("leaders").and_then(Value::as_array) {
+        for row in arr {
+            visit(row);
+        }
+        return;
+    }
+    if let Some(arr) = v.get("items").and_then(Value::as_array) {
+        for row in arr {
+            visit(row);
+        }
+        return;
+    }
+    if v.is_object() {
+        visit(v);
+    }
+}
+
+fn json_pid(v: Option<&Value>) -> Option<u32> {
+    let v = v?;
+    v.as_u64()
+        .and_then(|n| u32::try_from(n).ok())
+        .or_else(|| v.as_i64().and_then(|n| u32::try_from(n).ok()))
+        .filter(|p| *p != 0)
+}
+
+#[must_use]
+pub fn leader_is_independent(pid: u32) -> bool {
+    let Some(parent) = crate::sys::pid_ppid(pid) else {
+        return false;
+    };
+    if parent <= 1 {
+        return true;
+    }
+    !is_stdio_client_cmd(&crate::sys::pid_cmdline(parent))
+}
+
+#[must_use]
+pub fn stdio_holds_leader(stdio_pid: u32) -> bool {
+    crate::sys::pid_children(stdio_pid)
+        .into_iter()
+        .any(|child| is_leader_server_cmd(&crate::sys::pid_cmdline(child)))
 }
 
 #[must_use]

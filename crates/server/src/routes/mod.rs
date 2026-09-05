@@ -14,25 +14,12 @@ use axum::extract::DefaultBodyLimit;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch, post};
-use ggok_core::occupy::{self, Occupancy, SESSION_BUSY};
+use ggok_core::occupy::{Occupancy, SESSION_BUSY};
 use std::sync::Arc;
 
 pub(crate) async fn occupancy(state: &AppState, id: &str) -> Occupancy {
-    let live = state.agent.live_view(id).await;
-    let our = occupy::our_runtime_pid(state.agent.child_pid().await);
-    let leftover = occupy::leftover_noleader_pid(&state.agent_pid_file).is_some();
-    let s3 = occupy::cli_sessions(&state.grok_home);
-    let jsonl = state
-        .session(id)
-        .is_some_and(|m| occupy::jsonl_running(&m.dir));
-    occupy::classify(&occupy::ClassifyInput {
-        id,
-        live: live.as_ref(),
-        our_runtime_pid: our,
-        s3: &s3,
-        leftover_noleader_alive: leftover,
-        jsonl_running: jsonl,
-    })
+    let cwd = state.session(id).map(|m| m.cwd);
+    state.agent.occupancy_of(id, cwd.as_deref()).await
 }
 
 pub(crate) fn session_busy() -> Response {

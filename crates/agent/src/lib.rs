@@ -66,6 +66,7 @@ pub(crate) struct Inner {
     pub(crate) commands: Vec<SlashCommand>,
     pub(crate) sessions: HashMap<String, Live>,
     pub(crate) child_pid: Option<u32>,
+    pub(crate) web_active_id: Option<String>,
 }
 
 pub(crate) struct Live {
@@ -119,6 +120,7 @@ impl Agent {
                 commands: Vec::new(),
                 sessions: HashMap::new(),
                 child_pid: None,
+                web_active_id: occupy::read_web_active(&occupy::web_active_path(&leader_json)),
             })),
             bus: Arc::new(parking_lot::Mutex::new(HashMap::new())),
             grok_bin,

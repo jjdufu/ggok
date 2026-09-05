@@ -1,6 +1,10 @@
 use ggok_core::occupy::{
-    ClassifyInput, LiveView, SESSION_BUSY, SessionOp, Source, classify, cli_sessions,
-    cmdline_matches_grok, conflict_busy, is_noleader_stdio, jsonl_running, read_pid_file,
+    ClassifyInput, LeaderRecord, LiveView, SESSION_BUSY, SessionOp, Source, classify, cli_sessions,
+    cmdline_matches_grok, conflict_busy, first_reachable_leader_pid, is_auto_spawned_leader_cmd,
+    is_ggok_spawned_leader_cmd, is_leader_server_cmd, is_noleader_stdio, is_stdio_client_cmd,
+    is_tui_cmd, jsonl_running, leader_is_independent, parse_leader_list, read_leader_record,
+    read_pid_file, read_web_active, s3_is_hard_foreign, should_cancel_web_peer, stdio_holds_leader,
+    tui_held, web_active_path, write_leader_record, write_web_active,
 };
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -30,6 +34,7 @@ fn occ(
         s3,
         leftover_noleader_alive: leftover,
         jsonl_running: jsonl,
+        can_attach: false,
     })
 }
 
@@ -113,6 +118,70 @@ fn classify_jsonl_running_without_attach_is_observe() {
 }
 
 #[test]
+fn tui_cmd_and_hard_foreign() {
+    let tui = b"/home/grok/.grok/bin/grok\0--permission-mode\0bypassPermissions\0";
+    let noleader = b"grok\0agent\0--no-leader\0stdio\0";
+    let stdio = b"grok\0agent\0--leader\0stdio\0";
+    let leader = b"grok\0agent\0leader\0--no-exit-on-disconnect\0";
+    assert!(is_tui_cmd(tui));
+    assert!(!is_tui_cmd(noleader));
+    assert!(!is_tui_cmd(stdio));
+    assert!(!is_tui_cmd(leader));
+    assert!(s3_is_hard_foreign(9, Some(3), true, tui));
+    assert!(s3_is_hard_foreign(9, Some(3), false, tui));
+    assert!(!s3_is_hard_foreign(3, Some(3), false, tui));
+    assert!(s3_is_hard_foreign(9, Some(3), true, noleader));
+    assert!(!s3_is_hard_foreign(9, Some(3), true, stdio));
+}
+
+#[test]
+fn should_cancel_web_peer_skips_tui() {
+    assert!(should_cancel_web_peer("aaa", "bbb", false));
+    assert!(!should_cancel_web_peer("aaa", "aaa", false));
+    assert!(!should_cancel_web_peer("aaa", "bbb", true));
+}
+
+#[test]
+fn classify_s3_non_tui_with_can_attach_is_writable() {
+    let s3 = HashMap::from([("s1".into(), 9_u32)]);
+    let got = classify(&ClassifyInput {
+        id: "s1",
+        live: None,
+        our_runtime_pid: Some(3),
+        s3: &s3,
+        leftover_noleader_alive: false,
+        jsonl_running: false,
+        can_attach: true,
+    });
+    let cmd = ggok_core::sys::pid_cmdline(9);
+    if is_tui_cmd(&cmd) || is_noleader_stdio(&cmd) {
+        assert_eq!(got.source, Source::Foreign);
+        assert!(!got.writable);
+    } else {
+        assert_eq!(got.source, Source::Disk);
+        assert!(got.writable);
+        assert!(!conflict_busy(got, SessionOp::Prompt));
+    }
+}
+
+#[test]
+fn classify_jsonl_running_with_can_attach_is_writable() {
+    let got = classify(&ClassifyInput {
+        id: "s1",
+        live: None,
+        our_runtime_pid: Some(3),
+        s3: &HashMap::new(),
+        leftover_noleader_alive: false,
+        jsonl_running: true,
+        can_attach: true,
+    });
+    assert_eq!(got.source, Source::Disk);
+    assert!(got.writable);
+    assert!(got.running);
+    assert!(!conflict_busy(got, SessionOp::Prompt));
+}
+
+#[test]
 fn leftover_idle_returns_to_disk() {
     let got = occ("s1", None, None, &HashMap::new(), false, false);
     assert_eq!(got.source, Source::Disk);
@@ -144,6 +213,100 @@ fn cmdline_match_and_stale() {
     assert!(cmdline_matches_grok(b"grok\0agent\0leader\0"));
     assert!(!cmdline_matches_grok(b"/usr/lib/systemd/systemd\0"));
     assert!(!is_noleader_stdio(b"/sbin/init\0"));
+}
+
+#[test]
+fn leader_and_stdio_cmd_kinds() {
+    let stdio = b"grok\0agent\0--leader\0--leader-socket\0/home/grok/.grok/leader.sock\0stdio\0";
+    let owned = b"/home/grok/.grok/bin/grok\0agent\0leader\0--no-exit-on-disconnect\0--no-auto-update\0--leader-socket\0/home/grok/.grok/leader.sock\0";
+    let auto = b"/home/grok/.grok/bin/grok\0agent\0leader\0--no-exit-on-disconnect\0--relay-on-demand\0--grok-ws-url\0wss://code.grok.com/ws/code-agent\0";
+    assert!(is_stdio_client_cmd(stdio));
+    assert!(!is_leader_server_cmd(stdio));
+    assert!(!is_auto_spawned_leader_cmd(stdio));
+    assert!(!is_ggok_spawned_leader_cmd(stdio));
+
+    assert!(is_leader_server_cmd(owned));
+    assert!(is_ggok_spawned_leader_cmd(owned));
+    assert!(!is_auto_spawned_leader_cmd(owned));
+    assert!(!is_stdio_client_cmd(owned));
+
+    assert!(is_leader_server_cmd(auto));
+    assert!(is_auto_spawned_leader_cmd(auto));
+    assert!(!is_ggok_spawned_leader_cmd(auto));
+    assert!(!is_stdio_client_cmd(auto));
+}
+
+#[test]
+fn first_reachable_leader_pid_skips_unreachable() {
+    assert_eq!(first_reachable_leader_pid(""), None);
+    assert_eq!(first_reachable_leader_pid("not-json"), None);
+    assert_eq!(first_reachable_leader_pid("[]"), None);
+    assert_eq!(
+        first_reachable_leader_pid(
+            r#"[{"pid":1,"pidLive":null,"classification":"Unreachable","socketPath":"/tmp/x"}]"#
+        ),
+        None
+    );
+    assert_eq!(
+        first_reachable_leader_pid(
+            r#"[{"pid":70175,"pidFromLock":70175,"pidLive":70175,"classification":"Reachable","socketPath":"/home/grok/.grok/leader.sock"}]"#
+        ),
+        Some(70175)
+    );
+    assert_eq!(
+        first_reachable_leader_pid(
+            r#"{"leaders":[{"classification":"unreachable","pidLive":9},{"classification":"Reachable","pid_live":42}]}"#
+        ),
+        Some(42)
+    );
+    assert_eq!(
+        first_reachable_leader_pid(r#"{"classification":"Reachable","pidLive":7}"#),
+        Some(7)
+    );
+    let rows = parse_leader_list(
+        r#"[{"classification":"Unreachable","pidLive":1},{"classification":"Reachable","pidLive":2}]"#,
+    );
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].pid_live, Some(1));
+    assert_eq!(first_reachable_leader_pid(
+        r#"[{"classification":"Unreachable","pidLive":1},{"classification":"Reachable","pidLive":2}]"#
+    ), Some(2));
+}
+
+#[test]
+fn leader_record_roundtrip() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("grok-leader.json");
+    let rec = LeaderRecord {
+        pid: 99,
+        owned: true,
+        socket: "/tmp/leader.sock".into(),
+    };
+    write_leader_record(&path, &rec).expect("write");
+    assert_eq!(read_leader_record(&path), Some(rec));
+}
+
+#[test]
+fn web_active_roundtrip_and_reject_bad_id() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let leader = dir.path().join("grok-leader.json");
+    let path = web_active_path(&leader);
+    assert!(path.ends_with("web-active.json"));
+    let id = "01234567-89ab-4cde-8f01-23456789abcd";
+    write_web_active(&path, id).expect("write");
+    assert_eq!(read_web_active(&path).as_deref(), Some(id));
+    assert!(write_web_active(&path, "not-a-uuid").is_err());
+    assert!(!tui_held(&HashMap::new(), id, None));
+}
+
+#[test]
+fn current_process_does_not_hold_a_grok_leader() {
+    let pid = std::process::id();
+    assert!(!stdio_holds_leader(pid));
+    assert!(
+        leader_is_independent(pid),
+        "test process parent is not a grok stdio client"
+    );
 }
 
 #[test]

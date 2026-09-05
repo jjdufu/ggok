@@ -44,6 +44,7 @@ pub(crate) async fn api_sessions(
     let live = state.agent.live_map().await;
     let our = occupy::our_runtime_pid(state.agent.child_pid().await);
     let leftover = occupy::leftover_noleader_pid(&state.agent_pid_file).is_some();
+    let can_attach = state.agent.can_attach().await;
     let s3 = occupy::cli_sessions(&state.grok_home);
     let pins = session::load_pins(&state.pins_path);
     let index = state.sessions.read();
@@ -58,6 +59,7 @@ pub(crate) async fn api_sessions(
             s3: &s3,
             leftover_noleader_alive: leftover,
             jsonl_running: jsonl,
+            can_attach,
         });
         row.running = occ.running;
         row.source = occ.source.as_str().to_string();

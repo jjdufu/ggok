@@ -69,6 +69,7 @@ fn current_occ(job: &TailJob) -> occupy::Occupancy {
         s3: &s3,
         leftover_noleader_alive: leftover,
         jsonl_running: occupy::jsonl_running(&job.session_dir),
+        can_attach: job.our_runtime_pid.is_some() && !leftover,
     })
 }
 

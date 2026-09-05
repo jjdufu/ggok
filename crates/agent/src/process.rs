@@ -6,6 +6,7 @@ use ggok_core::occupy::{
 };
 use ggok_core::scan;
 use serde_json::{Value, json};
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, Instant};
@@ -16,7 +17,7 @@ use tracing::{info, warn};
 impl Agent {
     pub async fn shutdown(&self) {
         let mut g = self.inner.lock().await;
-        stop_client(&mut g);
+        release_client(&mut g);
     }
 
     /// Connect an ACP client if a leader is already reachable. Does not spawn a leader.
@@ -49,6 +50,8 @@ impl Agent {
         };
         if spawned {
             self.initialize_client().await?;
+            let acp = self.inner.lock().await.child_pid;
+            self.persist_leader_record(false, acp);
             return Ok(());
         }
         {
@@ -91,70 +94,103 @@ impl Agent {
             }
             return Ok(false);
         }
-        let existing = reachable_leader(&self.grok_bin, &self.grok_home, &sock);
-        if let Some(pid) = existing {
-            let prev = read_leader_record(&self.leader_json);
-            let owned = prev.is_some_and(|p| p.owned && p.pid == pid);
-            let _ = write_leader_record(
-                &self.leader_json,
-                &LeaderRecord {
-                    pid,
-                    owned,
-                    socket: sock.to_string_lossy().into_owned(),
-                },
-            );
-        } else if spawn_leader {
-            self.spawn_leader(&sock)?;
-        } else {
-            return Ok(false);
-        }
+        let spawned_leader = match reachable_leader(&self.grok_bin, &self.grok_home, &sock) {
+            Some(_) => false,
+            None if spawn_leader => {
+                self.spawn_leader(&sock).await?;
+                true
+            }
+            None => return Ok(false),
+        };
         self.wait_leader(&sock).await?;
+        if let Some(pid) = reachable_leader(&self.grok_bin, &self.grok_home, &sock) {
+            info!(pid, spawned_leader, "grok leader reachable");
+        }
+        self.persist_leader_record(spawned_leader, None);
         self.spawn_acp(inner, &sock)?;
+        self.persist_leader_record(spawned_leader, inner.child_pid);
         Ok(true)
     }
 
-    fn spawn_leader(&self, sock: &Path) -> Result<u32> {
-        let mut cmd = if command_exists("setsid") {
-            let mut c = Command::new("setsid");
-            c.arg(&self.grok_bin);
-            c
+    async fn spawn_leader(&self, sock: &Path) -> Result<()> {
+        if setsid_can_fork() {
+            self.spawn_leader_setsid(sock).await
         } else {
-            Command::new(&self.grok_bin)
-        };
-        cmd.arg("agent")
-            .arg("leader")
-            .arg("--no-exit-on-disconnect")
-            .arg("--no-auto-update")
-            .arg("--leader-socket")
-            .arg(sock)
+            self.spawn_leader_shell(sock).await
+        }
+    }
+
+    async fn spawn_leader_setsid(&self, sock: &Path) -> Result<()> {
+        let log = open_append(&self.leader_stderr_log())?;
+        let mut cmd = Command::new("setsid");
+        cmd.arg("-f");
+        apply_leader_args(&mut cmd, &self.grok_bin, sock, &self.grok_home);
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::from(log))
+            .kill_on_drop(false);
+        let status = cmd.status().await.context("spawn grok agent leader")?;
+        if !status.success() {
+            bail!("setsid grok agent leader exited {status}");
+        }
+        Ok(())
+    }
+
+    async fn spawn_leader_shell(&self, sock: &Path) -> Result<()> {
+        let log_path = self.leader_stderr_log();
+        let _ = open_append(&log_path)?;
+        let mut cmd = Command::new("sh");
+        cmd.arg("-c")
+            .arg(
+                r#""$GGOK_GROK_BIN" agent leader --no-exit-on-disconnect --no-auto-update --leader-socket "$GGOK_LEADER_SOCK" </dev/null >>"$GGOK_LOG" 2>&1 &"#,
+            )
+            .env("GGOK_GROK_BIN", &self.grok_bin)
+            .env("GGOK_LEADER_SOCK", sock)
+            .env("GGOK_LOG", &log_path)
             .env("GROK_HOME", &self.grok_home)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::null())
             .kill_on_drop(false);
-        let mut child = cmd.spawn().context("spawn grok agent leader")?;
-        let pid = child.id().context("leader pid")?;
-        if let Some(err) = child.stderr.take() {
-            tokio::spawn(async move {
-                let mut lines = BufReader::new(err).lines();
-                while let Ok(Some(line)) = lines.next_line().await {
-                    if !line.is_empty() {
-                        tracing::warn!("grok leader stderr: {line}");
-                    }
-                }
-            });
+        let status = cmd.status().await.context("spawn grok agent leader")?;
+        if !status.success() {
+            bail!("shell grok agent leader exited {status}");
         }
-        tokio::spawn(async move {
-            let _ = child.wait().await;
-        });
-        let rec = LeaderRecord {
-            pid,
-            owned: true,
-            socket: sock.to_string_lossy().into_owned(),
+        Ok(())
+    }
+
+    fn persist_leader_record(&self, spawned_now: bool, acp_pid: Option<u32>) {
+        let sock = leader_socket(&self.grok_home);
+        let Some(pid) = reachable_leader(&self.grok_bin, &self.grok_home, &sock) else {
+            return;
         };
-        write_leader_record(&self.leader_json, &rec).context("write grok-leader.json")?;
-        info!(pid, "grok leader started");
-        Ok(pid)
+        let held = acp_pid.is_some_and(occupy::stdio_holds_leader)
+            || acp_pid.is_some_and(|p| ggok_core::sys::pid_ppid(pid) == Some(p));
+        let independent = occupy::leader_is_independent(pid) && !held;
+        let prev = read_leader_record(&self.leader_json);
+        let owned = independent && (spawned_now || prev.is_some_and(|p| p.owned && p.pid == pid));
+        if held {
+            warn!(
+                pid,
+                acp_pid,
+                "grok leader is a child of the ACP client; that client will not be killed"
+            );
+        }
+        let _ = write_leader_record(
+            &self.leader_json,
+            &LeaderRecord {
+                pid,
+                owned,
+                socket: sock.to_string_lossy().into_owned(),
+            },
+        );
+    }
+
+    fn leader_stderr_log(&self) -> PathBuf {
+        self.leader_json
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join("ggok.log")
     }
 
     async fn wait_leader(&self, sock: &Path) -> Result<()> {
@@ -171,7 +207,7 @@ impl Agent {
     }
 
     fn spawn_acp(&self, inner: &mut Inner, sock: &Path) -> Result<()> {
-        stop_client(inner);
+        release_client(inner);
         let mut cmd = Command::new(&self.grok_bin);
         cmd.arg("agent")
             .arg("--leader")
@@ -182,7 +218,7 @@ impl Agent {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .kill_on_drop(true);
+            .kill_on_drop(false);
         let mut child = cmd.spawn().context("spawn grok agent stdio client")?;
         let stdin = child.stdin.take().context("grok stdin")?;
         let stdout = child.stdout.take().context("grok stdout")?;
@@ -273,28 +309,43 @@ impl Agent {
         if leftover_noleader_pid(&self.pid_file).is_some() {
             return;
         }
+        let id = self.inner.lock().await.web_active_id.clone();
+        let Some(id) = id else {
+            return;
+        };
         let Ok(index) = scan::scan(&self.grok_home) else {
             return;
         };
         let s3 = occupy::cli_sessions(&self.grok_home);
         let our = occupy::our_runtime_pid(self.inner.lock().await.child_pid);
-        for (id, meta) in index.sessions {
-            if s3.get(&id).is_some_and(|pid| Some(*pid) != our) {
-                continue;
-            }
-            if !occupy::jsonl_running(&meta.dir) {
-                continue;
-            }
-            if let Err(e) = self.session_load_inner(&id, &meta.cwd).await {
-                warn!("attach {id}: {e:#}");
-            }
+        if occupy::tui_held(&s3, &id, our) {
+            return;
+        }
+        let Some(meta) = index.get(&id) else {
+            return;
+        };
+        if let Err(e) = self.session_load_inner(&id, &meta.cwd).await {
+            warn!("attach {id}: {e:#}");
         }
     }
 
-    pub(crate) async fn occupancy_of(&self, id: &str, cwd: Option<&str>) -> occupy::Occupancy {
+    #[must_use]
+    pub async fn can_attach(&self) -> bool {
+        if leftover_noleader_pid(&self.pid_file).is_some() {
+            return false;
+        }
+        let g = self.inner.lock().await;
+        g.initialized && child_alive(g.child_pid)
+    }
+
+    pub async fn occupancy_of(&self, id: &str, cwd: Option<&str>) -> occupy::Occupancy {
         let live = self.live_view(id).await;
         let our = occupy::our_runtime_pid(self.inner.lock().await.child_pid);
         let leftover = leftover_noleader_pid(&self.pid_file).is_some();
+        let can_attach = {
+            let g = self.inner.lock().await;
+            g.initialized && child_alive(g.child_pid) && !leftover
+        };
         let s3 = occupy::cli_sessions(&self.grok_home);
         let dir = cwd
             .filter(|c| !c.is_empty())
@@ -312,6 +363,7 @@ impl Agent {
             s3: &s3,
             leftover_noleader_alive: leftover,
             jsonl_running: jsonl,
+            can_attach,
         })
     }
 
@@ -362,25 +414,25 @@ impl Agent {
     }
 }
 
-fn stop_client(inner: &mut Inner) {
-    if let Some(child) = inner.child.as_mut() {
-        let _ = child.start_kill();
-    }
-    inner.child = None;
+fn release_client(inner: &mut Inner) {
+    let acp_pid = inner.child_pid;
+    let held = acp_pid.is_some_and(occupy::stdio_holds_leader);
     inner.stdin = None;
     inner.initialized = false;
     inner.child_pid = None;
+    let Some(mut child) = inner.child.take() else {
+        return;
+    };
+    if !held {
+        let _ = child.start_kill();
+    }
+    tokio::spawn(async move {
+        let _ = child.wait().await;
+    });
 }
 
 pub(crate) fn child_alive(pid: Option<u32>) -> bool {
     pid.is_some_and(ggok_core::sys::pid_is_alive)
-}
-
-pub(crate) fn command_exists(name: &str) -> bool {
-    std::process::Command::new("sh")
-        .args(["-c", &format!("command -v {name} >/dev/null")])
-        .status()
-        .is_ok_and(|s| s.success())
 }
 
 fn leader_socket(grok_home: &Path) -> PathBuf {
@@ -413,42 +465,42 @@ fn reachable_leader(bin: &Path, grok_home: &Path, sock: &Path) -> Option<u32> {
     if !out.status.success() {
         return None;
     }
-    let raw = String::from_utf8_lossy(&out.stdout);
-    parse_reachable_pid(&raw)
+    occupy::first_reachable_leader_pid(&String::from_utf8_lossy(&out.stdout))
 }
 
-fn parse_reachable_pid(raw: &str) -> Option<u32> {
-    let v: Value = serde_json::from_str(raw.trim()).ok()?;
-    let rows: Vec<Value> = if let Some(arr) = v.as_array() {
-        arr.clone()
-    } else if let Some(arr) = v.get("leaders").and_then(Value::as_array) {
-        arr.clone()
-    } else if let Some(arr) = v.get("items").and_then(Value::as_array) {
-        arr.clone()
-    } else if v.is_object() {
-        vec![v]
-    } else {
-        return None;
-    };
-    for row in rows {
-        let class = row
-            .get("classification")
-            .and_then(Value::as_str)
-            .unwrap_or("");
-        if class.eq_ignore_ascii_case("unreachable") {
-            continue;
-        }
-        if let Some(pid) = json_pid(row.get("pidLive")).or_else(|| json_pid(row.get("pid_live"))) {
-            return Some(pid);
-        }
+fn apply_leader_args(cmd: &mut Command, grok_bin: &Path, sock: &Path, grok_home: &Path) {
+    cmd.arg(grok_bin)
+        .arg("agent")
+        .arg("leader")
+        .arg("--no-exit-on-disconnect")
+        .arg("--no-auto-update")
+        .arg("--leader-socket")
+        .arg(sock)
+        .env("GROK_HOME", grok_home);
+}
+
+fn open_append(path: &Path) -> Result<File> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
     }
-    None
+    File::options()
+        .create(true)
+        .append(true)
+        .open(path)
+        .with_context(|| format!("open {}", path.display()))
 }
 
-fn json_pid(v: Option<&Value>) -> Option<u32> {
-    let v = v?;
-    v.as_u64()
-        .and_then(|n| u32::try_from(n).ok())
-        .or_else(|| v.as_i64().and_then(|n| u32::try_from(n).ok()))
-        .filter(|p| *p != 0)
+fn setsid_can_fork() -> bool {
+    let probe = if Path::new("/bin/true").is_file() {
+        "/bin/true"
+    } else {
+        "true"
+    };
+    std::process::Command::new("setsid")
+        .args(["-f", probe])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
 }
