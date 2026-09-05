@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/jjdufu/ggok/compare/v0.1.1...v0.1.2) (2026-09-05)
+
+
+### Features
+
+* attach to grok leader instead of --no-leader stdio ([26ae7ec](https://github.com/jjdufu/ggok/commit/26ae7ec34697eeca8bf4ec162c57bf9c533a8b3a))
+
 ## [0.1.1](https://github.com/jjdufu/ggok/compare/v0.1.0...v0.1.1) (2026-09-05)
 
 
