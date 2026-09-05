@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/jjdufu/ggok/compare/v0.1.2...v0.1.3) (2026-09-05)
+
+
+### Features
+
+* web session tracking and independent leader detection ([9ebacbb](https://github.com/jjdufu/ggok/commit/9ebacbb50b4310bb10a998d38518091536ed7644))
+
 ## [0.1.2](https://github.com/jjdufu/ggok/compare/v0.1.1...v0.1.2) (2026-09-05)
 
 
