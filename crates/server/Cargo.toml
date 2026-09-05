@@ -1,0 +1,36 @@
+[package]
+name = "ggok-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "HTTP control plane, authentication, and REST/SSE routes for ggok"
+
+[dependencies]
+ggok-core = { workspace = true }
+ggok-agent = { workspace = true }
+anyhow = { workspace = true }
+axum = { workspace = true }
+axum-server = { workspace = true }
+chrono = { workspace = true }
+cookie = { workspace = true }
+hex = { workspace = true }
+hmac = { workspace = true }
+http = { workspace = true }
+mime_guess = { workspace = true }
+oxipng = { workspace = true }
+parking_lot = { workspace = true }
+percent-encoding = { workspace = true }
+rust-embed = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+subtle = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

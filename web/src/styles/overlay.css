@@ -1,0 +1,31 @@
+.ui-scrim[hidden],
+.ui-dialog[hidden] { display: none !important; }
+
+.ui-scrim {
+  background: oklch(0.1157 0 none / 0.5);
+  @apply backdrop-blur-[2px];
+}
+
+.ui-scrim[data-state="open"] {
+  --tw-enter-opacity: 0;
+  animation: enter 0.2s ease backwards;
+}
+
+.ui-scrim[data-state="closed"] {
+  --tw-exit-opacity: 0;
+  animation: exit 0.2s ease both;
+  pointer-events: none;
+}
+
+.ui-dialog[data-state="open"] {
+  --tw-enter-opacity: 0;
+  --tw-enter-scale: 0.95;
+  animation: enter 0.2s ease backwards;
+}
+
+.ui-dialog[data-state="closed"] {
+  --tw-exit-opacity: 0;
+  --tw-exit-scale: 0.95;
+  animation: exit 0.2s ease both;
+  pointer-events: none;
+}

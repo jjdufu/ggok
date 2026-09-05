@@ -1,0 +1,74 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/agent",
+    "crates/server",
+    "crates/cli",
+    "test",
+]
+default-members = ["crates/cli"]
+
+[workspace.package]
+version = "0.0.0" # x-release-please-version
+edition = "2024"
+rust-version = "1.98"
+authors = ["Reid Harlan"]
+license = "Apache-2.0"
+description = "webui for grok build cli"
+
+[workspace.dependencies]
+ggok-core = { path = "crates/core" }
+ggok-agent = { path = "crates/agent" }
+ggok-server = { path = "crates/server" }
+
+anyhow = { version = "1.0" }
+base64 = { version = "0.22" }
+axum = { version = "0.8.8", features = ["macros", "multipart"] }
+axum-server = { version = "0.7" }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+cookie = { version = "0.18" }
+daemonize = { version = "0.5" }
+hex = { version = "0.4" }
+ignore = { version = "0.4" }
+hmac = { version = "0.12" }
+http = { version = "1.4.0" }
+mime_guess = { version = "2.0" }
+oxipng = { version = "10", default-features = false, features = ["parallel"] }
+parking_lot = { version = "0.12" }
+percent-encoding = { version = "2.3" }
+rusqlite = { version = "0.32", features = ["bundled"] }
+rust-embed = { version = "8.7", features = ["interpolate-folder-path"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
+sha2 = { version = "0.10" }
+subtle = { version = "2" }
+tempfile = { version = "3" }
+tokio = { version = "1.35", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+toml = { version = "0.8", default-features = false, features = ["parse"] }
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.21", features = ["serde", "v4"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 16
+strip = true
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = 2
+debug-assertions = true
+overflow-checks = true

@@ -1,0 +1,25 @@
+[package]
+name = "ggok"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description.workspace = true
+
+[[bin]]
+name = "ggok"
+path = "src/main.rs"
+
+[dependencies]
+ggok-core = { workspace = true }
+ggok-agent = { workspace = true }
+ggok-server = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+daemonize = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[lints]
+workspace = true

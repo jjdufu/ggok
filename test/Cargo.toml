@@ -1,0 +1,20 @@
+[package]
+name = "ggok-tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+description = "Isolated tests for ggok crates"
+
+[dependencies]
+ggok-core = { workspace = true }
+ggok-agent = { workspace = true }
+ggok-server = { workspace = true }
+anyhow = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+uuid = { workspace = true }
+
+[lints.rust]
+unsafe_code = "forbid"

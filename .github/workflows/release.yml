@@ -1,0 +1,205 @@
+name: Release
+
+on:
+  # Called by release-please.yml after it creates the tag + GitHub Release.
+  # Do not add push/tags or workflow_dispatch: GITHUB_TOKEN tag/release events
+  # do not start other workflows, and manual dispatch is not a release path.
+  workflow_call:
+    inputs:
+      version:
+        description: "Release version (with or without v prefix); must match [workspace.package] version"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_VERSION: "1.98.0"
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve version
+        id: ver
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          V="${INPUT_VERSION#v}"
+          if [ -z "$V" ]; then
+            echo "version is empty" >&2
+            exit 1
+          fi
+          CARGO_V="$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml','rb'))['workspace']['package']['version'])")"
+          if [ "$CARGO_V" != "$V" ]; then
+            echo "version mismatch: release=$V workspace=$CARGO_V" >&2
+            echo "update [workspace.package] version in Cargo.toml before tagging/releasing" >&2
+            exit 1
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Release version: $V (matches Cargo workspace)"
+
+  build:
+    needs: meta
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            goos: linux
+            goarch: amd64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            goos: linux
+            goarch: arm64
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+            goos: darwin
+            goarch: amd64
+          - os: macos-14
+            target: aarch64-apple-darwin
+            goos: darwin
+            goarch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24.19.0"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build web UI
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: ${{ matrix.target }}
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: cli-${{ matrix.target }}
+
+      - name: Build ggok
+        run: cargo build --release --locked -p ggok --target ${{ matrix.target }}
+
+      - name: Smoke test
+        run: |
+          BIN="target/${{ matrix.target }}/release/ggok"
+          chmod +x "$BIN"
+          "$BIN" --help
+
+      - name: Package tarball
+        run: |
+          set -euo pipefail
+          chmod +x .github/scripts/release/pack-release.sh
+          ./.github/scripts/release/pack-release.sh \
+            --name ggok \
+            --version "${{ needs.meta.outputs.version }}" \
+            --os "${{ matrix.goos }}" \
+            --arch "${{ matrix.goarch }}" \
+            --outdir dist/release \
+            --bin "target/${{ matrix.target }}/release/ggok" \
+            --config config/config.toml
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: ggok-${{ matrix.target }}
+          path: dist/release/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: [meta, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: artifacts
+          pattern: ggok-*
+          merge-multiple: true
+
+      - name: List artifacts
+        run: find artifacts -type f | sort
+
+      - name: Checksums and installer
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp artifacts/*.tar.gz dist/
+          cp .github/scripts/install/install.sh dist/install.sh
+          chmod +x dist/install.sh
+          (
+            cd dist
+            sha256sum *.tar.gz install.sh > SHA256SUMS
+          )
+          ls -lh dist
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ needs.meta.outputs.version }}
+          name: v${{ needs.meta.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          draft: false
+          prerelease: ${{ contains(needs.meta.outputs.version, '-') }}
+          generate_release_notes: false
+          files: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+            dist/install.sh
+          body: |
+            Install:
+
+            ```shell
+            curl -fsSL https://github.com/jjdufu/ggok/releases/latest/download/install.sh | bash
+            ggok start
+            ```
+
+            Pin this release:
+
+            ```shell
+            curl -fsSL https://github.com/jjdufu/ggok/releases/latest/download/install.sh | bash -s -- ${{ needs.meta.outputs.version }}
+            ggok start
+            ```
+
+            Uninstall:
+
+            ```shell
+            ggok uninstall
+            ```
+
+            Archives:
+
+            | Platform | Archive |
+            | --- | --- |
+            | macOS Apple silicon | `ggok_${{ needs.meta.outputs.version }}_darwin_arm64.tar.gz` |
+            | macOS Intel | `ggok_${{ needs.meta.outputs.version }}_darwin_amd64.tar.gz` |
+            | Linux x86_64 | `ggok_${{ needs.meta.outputs.version }}_linux_amd64.tar.gz` |
+            | Linux ARM64 | `ggok_${{ needs.meta.outputs.version }}_linux_arm64.tar.gz` |
+
+            Each tarball contains the `ggok` binary and a sample `config.toml`.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

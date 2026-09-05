@@ -1,0 +1,33 @@
+pub mod config;
+pub mod occupy;
+pub mod parse;
+pub mod paths;
+pub mod scan;
+pub mod search;
+pub mod session;
+pub mod slash_docs;
+pub mod sys;
+pub mod types;
+pub mod workspace;
+
+pub use config::{ConfigOverrides, RuntimeConfig, agent_pid_file};
+pub use occupy::{LiveView, Occupancy, Source, agent_pid, classify, cli_sessions};
+pub use parse::{
+    ParsedSession, Parser, blocks_to_markdown, context_window, extract_tool, merge_live_over_disk,
+    models_from_cache, parse_updates_file,
+};
+pub use paths::{
+    DirEntry, FsEntry, compress_upload, cwd_allowed, fs_complete, is_under, list_dirs, open_upload,
+    resolve_existing_dir, save_upload, under_any_root,
+};
+pub use scan::{SessionIndex, scan};
+pub use search::search_session_ids;
+pub use session::{is_pinned, load_pins, pins_path_from_agent_pid, rename_summary, set_pinned};
+pub use slash_docs::from_docs;
+pub use sys::{effective_uid, pid_cmdline, pid_is_alive, resolve_default_grok_bin};
+pub use types::{
+    Block, ContextUse, EffortInfo, ModelInfo, ModelUsageRow, ProjectRow, PromptFile, QueueItem,
+    SessionDetail, SessionMeta, SessionRow, SlashCommand, SubagentMeta, SummaryFile, SummaryInfo,
+    TokenUsage, ToolDetail,
+};
+

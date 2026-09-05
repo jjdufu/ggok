@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-i18n-doc-title="loginTitle">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录 · GGOK</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <script>
+    (function () {
+      var p = localStorage.getItem("ggok-theme");
+      var dark = p === "dark" || (p !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+      document.documentElement.style.colorScheme = dark ? "dark" : "light";
+      var stored;
+      try { stored = localStorage.getItem("ggok-lang"); } catch (e) { stored = null; }
+      var lang;
+      if (stored === "zh" || stored === "en") lang = stored;
+      else {
+        var n = ((navigator.languages && navigator.languages[0]) || navigator.language || "").toLowerCase();
+        lang = n.indexOf("zh") === 0 ? "zh" : "en";
+      }
+      document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+      document.documentElement.dataset.lang = lang;
+      if (lang !== "zh") {
+        document.documentElement.dataset.i18nPending = "1";
+        setTimeout(function () {
+          document.documentElement.removeAttribute("data-i18n-pending");
+        }, 2000);
+      }
+    })();
+  </script>
+  <link rel="preload" href="/fonts/albert-sans/albert-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body class="login-body">
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="i-mark" viewBox="0 0 32 32">
+      <rect x="4" y="4" width="10" height="10" rx="2.5" fill="currentColor"/>
+      <rect x="19" y="5" width="8" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <rect x="5" y="19" width="8" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+      <rect x="18" y="18" width="10" height="10" rx="2.5" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3.75" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.64 5.64l1.41 1.41M16.95 16.95l1.41 1.41M5.64 18.36l1.41-1.41M16.95 7.05l1.41-1.41" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/>
+    </symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24">
+      <path d="M15 4.2A8 8 0 1 0 19.8 15 6.4 6.4 0 0 1 15 4.2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-up" viewBox="0 0 24 24">
+      <path d="M6 11L12 5M12 5L18 11M12 5V19" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="square"/>
+    </symbol>
+  </svg>
+
+  <header class="login-top">
+    <a class="brand" href="/login" aria-label="GGOK">
+      <span class="brand-mark" aria-hidden="true">
+        <svg class="logo-mark" viewBox="0 0 32 32"><use href="#i-mark"/></svg>
+      </span>
+      <span class="brand-text">GGOK</span>
+    </a>
+    <div class="login-top-actions">
+      <button type="button" id="lang-btn" class="lang-btn" data-tip="中文" aria-label="中文">
+        <span class="lang-icon" data-lang-icon="zh">中</span>
+        <span class="lang-icon" data-lang-icon="en">EN</span>
+      </button>
+      <button type="button" id="theme-btn" class="theme-btn" data-tip="浅色" aria-label="浅色">
+        <svg class="theme-icon" data-theme-icon="light" viewBox="0 0 24 24"><use href="#i-sun"/></svg>
+        <svg class="theme-icon" data-theme-icon="dark" viewBox="0 0 24 24"><use href="#i-moon"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <form id="login" class="login-card" autocomplete="off">
+    <div class="login-hero">
+      <svg class="hero-mark" viewBox="0 0 32 32" aria-hidden="true"><use href="#i-mark"/></svg>
+      <h1>GGOK</h1>
+    </div>
+    <div class="login-bar">
+      <input id="token" name="token" type="password" placeholder="Token" autofocus required>
+      <button type="submit" class="submit-orb" data-tip="进入" data-i18n-title="enter">
+        <svg viewBox="0 0 24 24"><use href="#i-up"/></svg>
+      </button>
+    </div>
+    <p id="err" class="error" hidden></p>
+  </form>
+
+  <script src="/i18n.js"></script>
+  <script>
+    (function () {
+      const KEY = "ggok-theme";
+      const btn = document.getElementById("theme-btn");
+      const tx = (k, v) => (window.I18n && window.I18n.t ? window.I18n.t(k, v) : k);
+      function pref() {
+        const p = localStorage.getItem(KEY);
+        return p === "light" || p === "dark" ? p : "system";
+      }
+      function effective(p) {
+        if (p === "light" || p === "dark") return p;
+        return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+      function apply(p) {
+        const t = effective(p);
+        document.documentElement.dataset.theme = t;
+        document.documentElement.style.colorScheme = t;
+        const label = tx(t === "dark" ? "themeDark" : "themeLight");
+        if (window.I18n && typeof window.I18n.setTip === "function") window.I18n.setTip(btn, label);
+        else {
+          btn.setAttribute("data-tip", label);
+          btn.removeAttribute("title");
+        }
+        btn.setAttribute("aria-label", label);
+      }
+      apply(pref());
+      btn.addEventListener("click", () => {
+        const next = effective(pref()) === "light" ? "dark" : "light";
+        localStorage.setItem(KEY, next);
+        apply(next);
+      });
+      matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+        if (pref() === "system") apply("system");
+      });
+      document.addEventListener("i18n-change", () => apply(pref()));
+
+      const form = document.getElementById("login");
+      const err = document.getElementById("err");
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        err.hidden = true;
+        const token = document.getElementById("token").value;
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ token }),
+          redirect: "manual",
+          credentials: "same-origin"
+        });
+        if (res.status === 429) {
+          err.textContent = tx("rateLimited");
+          err.hidden = false;
+          return;
+        }
+        if (res.status === 401) {
+          err.textContent = tx("badToken");
+          err.hidden = false;
+          return;
+        }
+        if (res.status === 0 || res.status === 302 || res.ok) {
+          location.href = "/";
+          return;
+        }
+        err.textContent = tx("loginFailed", { status: res.status });
+        err.hidden = false;
+      });
+    })();
+  </script>
+</body>
+</html>

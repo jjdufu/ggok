@@ -1,0 +1,16 @@
+# 完整配置示例。复制为 ~/.config/ggok/config.toml 后按需修改。
+# 省略某一项则使用该键的默认值。
+#
+# token_file、grok_home 不支持 ~，需要绝对路径；不写则用默认位置。
+# workspace_roots 支持 ~/... ，目录不存在的项会跳过。
+
+bind = "0.0.0.0:9888"
+
+# token_file = "/home/you/.config/ggok/token"
+# grok_home = "/home/you/.grok"
+
+grok_bin = "grok"
+poll_secs = 5
+permission_mode = "always-approve"
+upload_max_bytes = 20971520
+workspace_roots = ["~/workspace"]

@@ -1,0 +1,15 @@
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "./styles/motion.css";
+@import "./styles/theme-base.css";
+@import "./styles/layout.css";
+@import "./styles/sidebar.css";
+@import "./styles/chat.css";
+@import "./styles/composer.css";
+@import "./styles/drawer.css";
+@import "./styles/ext-modal.css";
+@import "./styles/finder.css";
+@import "./styles/dir-modal.css";
+@import "./styles/overlay.css";
+@import "./styles/workspace.css";
+@import "./tokens.css";

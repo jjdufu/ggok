@@ -1,0 +1,28 @@
+# Rust
+/target/
+
+# Node / Vite
+node_modules/
+web/dist/
+
+# Local pack-release output
+/dist/
+
+# Python (scripts/)
+__pycache__/
+*.py[cod]
+
+# Secrets / env
+.env
+token
+
+# Editor / OS
+.idea/
+*.swp
+*~
+*.rs.bk
+.DS_Store
+Thumbs.db
+
+# Local cargo config
+.cargo/
