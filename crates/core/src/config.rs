@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
@@ -35,6 +35,7 @@ pub struct RuntimeConfig {
     pub log_file: PathBuf,
     pub state_file: PathBuf,
     pub agent_pid_file: PathBuf,
+    pub leader_json_file: PathBuf,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -146,6 +147,7 @@ fn build(overrides: ConfigOverrides, create_token: bool) -> Result<RuntimeConfig
         log_file: state.join("ggok.log"),
         state_file: state.join("state.json"),
         agent_pid_file: state.join("grok-agent.pid"),
+        leader_json_file: state.join("grok-leader.json"),
     })
 }
 
@@ -256,6 +258,12 @@ pub fn agent_pid_file() -> Result<PathBuf> {
     Ok(state_dir()?.join("grok-agent.pid"))
 }
 
+/// # Errors
+/// Returns an error if the state directory cannot be resolved.
+pub fn leader_json_file() -> Result<PathBuf> {
+    Ok(state_dir()?.join("grok-leader.json"))
+}
+
 fn resolve_grok_home(explicit: Option<PathBuf>) -> Result<PathBuf> {
     if let Some(p) = explicit {
         if p.as_os_str().is_empty() {
@@ -317,12 +325,12 @@ pub fn prepare_token(token_file: Option<&PathBuf>) -> Result<String> {
 
 #[must_use]
 pub fn display_token() -> String {
-    if let Ok(path) = default_token_file() {
-        if let Ok(raw) = fs::read_to_string(&path) {
-            let token = raw.trim();
-            if !token.is_empty() {
-                return token.to_string();
-            }
+    if let Ok(path) = default_token_file()
+        && let Ok(raw) = fs::read_to_string(&path)
+    {
+        let token = raw.trim();
+        if !token.is_empty() {
+            return token.to_string();
         }
     }
     if let Some(token) = env_nonempty("GGOK_TOKEN") {

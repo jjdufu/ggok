@@ -245,7 +245,10 @@ pub fn fs_complete(cwd: &str, q: &str) -> Result<Vec<FsEntry>> {
             },
         ));
     }
-    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.path.to_lowercase().cmp(&b.1.path.to_lowercase())));
+    scored.sort_by(|a, b| {
+        b.0.cmp(&a.0)
+            .then_with(|| a.1.path.to_lowercase().cmp(&b.1.path.to_lowercase()))
+    });
     scored.truncate(OUT_CAP);
     Ok(scored.into_iter().map(|(_, e)| e).collect())
 }
@@ -253,11 +256,7 @@ pub fn fs_complete(cwd: &str, q: &str) -> Result<Vec<FsEntry>> {
 fn strip_line_range(q: &str) -> &str {
     if let Some(i) = q.rfind(':') {
         let rest = &q[i + 1..];
-        if !rest.is_empty()
-            && rest
-                .bytes()
-                .all(|b| b.is_ascii_digit() || b == b'-')
-        {
+        if !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit() || b == b'-') {
             return &q[..i];
         }
     }

@@ -1,5 +1,5 @@
 use ggok_server::{
-    LoginLimiter, bearer_token, cookie_from_header, cookie_name_for_bind, constant_time_eq,
+    LoginLimiter, bearer_token, constant_time_eq, cookie_from_header, cookie_name_for_bind,
     port_of_bind, sign_cookie, verify_cookie,
 };
 use std::net::IpAddr;

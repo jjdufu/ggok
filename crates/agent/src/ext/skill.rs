@@ -25,7 +25,11 @@ pub fn list(grok_home: &Path, cwd: Option<&Path>) -> Value {
     if let Some(cwd) = cwd {
         scan_dir(&cwd.join(".grok").join("skills"), "project", &mut skills);
     }
-    scan_dir(&grok_home.join("bundled").join("skills"), "bundled", &mut skills);
+    scan_dir(
+        &grok_home.join("bundled").join("skills"),
+        "bundled",
+        &mut skills,
+    );
     json!({ "skills": skills })
 }
 
@@ -55,7 +59,11 @@ fn scan_dir(root: &Path, scope: &str, out: &mut Vec<SkillInfo>) {
             .as_ref()
             .filter(|s| !s.is_empty())
             .map(ToOwned::to_owned)
-            .or_else(|| path.file_name().and_then(|s| s.to_str()).map(ToOwned::to_owned))
+            .or_else(|| {
+                path.file_name()
+                    .and_then(|s| s.to_str())
+                    .map(ToOwned::to_owned)
+            })
             .unwrap_or_else(|| "skill".to_string());
         let description = card_description(&meta);
         let label = skill_label(&name);
@@ -82,7 +90,9 @@ fn parse_frontmatter(text: &str) -> Frontmatter {
     let mut description = None;
     let mut short_description = None;
     let trimmed = text.trim_start_matches('\u{feff}');
-    let rest = trimmed.strip_prefix("---").or_else(|| trimmed.strip_prefix("---\r\n"));
+    let rest = trimmed
+        .strip_prefix("---")
+        .or_else(|| trimmed.strip_prefix("---\r\n"));
     let Some(rest) = rest else {
         return Frontmatter {
             name,
@@ -90,7 +100,10 @@ fn parse_frontmatter(text: &str) -> Frontmatter {
             short_description,
         };
     };
-    let rest = rest.strip_prefix('\n').or_else(|| rest.strip_prefix("\r\n")).unwrap_or(rest);
+    let rest = rest
+        .strip_prefix('\n')
+        .or_else(|| rest.strip_prefix("\r\n"))
+        .unwrap_or(rest);
     let end = rest.find("\n---").or_else(|| rest.find("\r\n---"));
     let block = end.map_or(rest, |i| &rest[..i]);
     for raw in block.lines() {
@@ -126,7 +139,12 @@ fn looks_folded(raw: &str) -> bool {
 }
 
 fn card_description(meta: &Frontmatter) -> String {
-    if let Some(s) = meta.short_description.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+    if let Some(s) = meta
+        .short_description
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
         return s.to_string();
     }
     let raw = meta.description.as_deref().unwrap_or("").trim();
@@ -196,10 +214,7 @@ fn slug_name(raw: &str) -> Result<String> {
         let c = c.to_ascii_lowercase();
         if c.is_ascii_alphanumeric() {
             out.push(c);
-        } else if (c == '-' || c == '_' || c == ' ')
-            && !out.ends_with('-')
-            && !out.is_empty()
-        {
+        } else if (c == '-' || c == '_' || c == ' ') && !out.ends_with('-') && !out.is_empty() {
             out.push('-');
         }
     }
@@ -232,8 +247,22 @@ fn yaml_escape(raw: &str) -> String {
         || flat.chars().any(|c| {
             matches!(
                 c,
-                ':' | '#' | '"' | '\'' | '{' | '}' | '[' | ']' | ',' | '&' | '*' | '!' | '|' | '>'
-                    | '%' | '@' | '`'
+                ':' | '#'
+                    | '"'
+                    | '\''
+                    | '{'
+                    | '}'
+                    | '['
+                    | ']'
+                    | ','
+                    | '&'
+                    | '*'
+                    | '!'
+                    | '|'
+                    | '>'
+                    | '%'
+                    | '@'
+                    | '`'
             ) || c.is_whitespace() && c != ' '
         })
         || matches!(flat.as_bytes().first(), Some(b) if *b == b' ' || *b == b'-' || *b == b'?');
@@ -498,7 +527,12 @@ const MAX_TEXT: u64 = 512 * 1024;
 
 /// # Errors
 /// Returns an error if `name` is empty, the skill is missing, or the file cannot be read.
-pub fn detail(grok_home: &Path, cwd: Option<&Path>, name: &str, scope: Option<&str>) -> Result<Value> {
+pub fn detail(
+    grok_home: &Path,
+    cwd: Option<&Path>,
+    name: &str,
+    scope: Option<&str>,
+) -> Result<Value> {
     let raw = name.trim();
     if raw.is_empty() {
         bail!("name required");
@@ -509,7 +543,11 @@ pub fn detail(grok_home: &Path, cwd: Option<&Path>, name: &str, scope: Option<&s
     if let Some(cwd) = cwd {
         scan_dir(&cwd.join(".grok").join("skills"), "project", &mut skills);
     }
-    scan_dir(&grok_home.join("bundled").join("skills"), "bundled", &mut skills);
+    scan_dir(
+        &grok_home.join("bundled").join("skills"),
+        "bundled",
+        &mut skills,
+    );
     let found = skills.into_iter().find(|s| {
         if want_scope.is_some_and(|sc| s.scope != sc) {
             return false;
@@ -612,11 +650,7 @@ fn walk_files(root: &Path, dir: &Path, out: &mut Vec<Value>, depth: usize) -> Re
             None
         };
         let kind = if text.is_none() && kind != "markdown" {
-            if bytes > MAX_TEXT {
-                "binary"
-            } else {
-                kind
-            }
+            if bytes > MAX_TEXT { "binary" } else { kind }
         } else {
             kind
         };
@@ -638,10 +672,10 @@ fn file_kind(rel: &str) -> &'static str {
         .unwrap_or("");
     match ext {
         "md" | "markdown" => "markdown",
-        "py" | "sh" | "bash" | "zsh" | "js" | "mjs" | "cjs" | "ts" | "tsx" | "jsx" | "rb" | "pl"
-        | "lua" | "r" | "go" | "rs" | "java" | "php" => "script",
-        "png" | "jpg" | "jpeg" | "gif" | "webp" | "ico" | "pdf" | "zip" | "gz" | "woff" | "woff2"
-        | "bin" => "binary",
+        "py" | "sh" | "bash" | "zsh" | "js" | "mjs" | "cjs" | "ts" | "tsx" | "jsx" | "rb"
+        | "pl" | "lua" | "r" | "go" | "rs" | "java" | "php" => "script",
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "ico" | "pdf" | "zip" | "gz" | "woff"
+        | "woff2" | "bin" => "binary",
         _ => "text",
     }
 }

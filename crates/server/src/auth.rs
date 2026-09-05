@@ -10,7 +10,7 @@ use std::time::{Duration as StdDuration, Instant, SystemTime, UNIX_EPOCH};
 use subtle::ConstantTimeEq;
 
 const COOKIE_TTL_SECS: i64 = 7 * 24 * 60 * 60;
-const FAIL_WINDOW: StdDuration = StdDuration::from_secs(15 * 60);
+const FAIL_WINDOW: StdDuration = StdDuration::from_mins(15);
 const FAIL_LIMIT: usize = 5;
 const MAX_TRACKED_IPS: usize = 2048;
 
@@ -28,6 +28,8 @@ pub fn constant_time_eq(a: &str, b: &str) -> bool {
     bool::from(aa.ct_eq(bb))
 }
 
+/// # Panics
+/// Panics if HMAC-SHA256 rejects a 32-byte key (it does not).
 #[must_use]
 pub fn sign_cookie(key: &[u8; 32], now_unix: i64) -> String {
     let exp = now_unix + COOKIE_TTL_SECS;
@@ -38,6 +40,8 @@ pub fn sign_cookie(key: &[u8; 32], now_unix: i64) -> String {
     format!("{payload}.{}", hex_encode(sig))
 }
 
+/// # Panics
+/// Panics if HMAC-SHA256 rejects a 32-byte key (it does not).
 #[must_use]
 pub fn verify_cookie(key: &[u8; 32], value: &str, now_unix: i64) -> bool {
     let Some((exp_s, sig_hex)) = value.split_once('.') else {

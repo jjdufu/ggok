@@ -119,17 +119,17 @@ fn extract_ticks(rest: &str) -> Vec<(String, Option<String>)> {
     let mut i = 0;
     let bytes = rest.as_bytes();
     while i < bytes.len() {
-        if bytes[i] == b'`' {
-            if let Some(end) = rest[i + 1..].find('`') {
-                let inner = &rest[i + 1..i + 1 + end];
-                i = i + 2 + end;
-                if let Some(cmd) = parse_tick(inner) {
-                    if !out.iter().any(|(n, _)| n == &cmd.0) {
-                        out.push(cmd);
-                    }
-                }
-                continue;
+        if bytes[i] == b'`'
+            && let Some(end) = rest[i + 1..].find('`')
+        {
+            let inner = &rest[i + 1..i + 1 + end];
+            i = i + 2 + end;
+            if let Some(cmd) = parse_tick(inner)
+                && !out.iter().any(|(n, _)| n == &cmd.0)
+            {
+                out.push(cmd);
             }
+            continue;
         }
         i += 1;
     }

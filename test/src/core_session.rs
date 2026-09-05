@@ -1,4 +1,6 @@
-use ggok_core::session::{is_pinned, load_pins, pins_path_from_agent_pid, rename_summary, set_pinned};
+use ggok_core::session::{
+    is_pinned, load_pins, pins_path_from_agent_pid, rename_summary, set_pinned,
+};
 use std::fs;
 use std::path::Path;
 
@@ -38,7 +40,11 @@ fn pin_unpin_and_reject_non_uuid() {
 fn load_pins_drops_invalid_ids() {
     let dir = tempfile::tempdir().expect("tempdir");
     let path = dir.path().join("pins.json");
-    fs::write(&path, r#"{"ids":["nope","550e8400-e29b-41d4-a716-446655440000"]}"#).expect("write");
+    fs::write(
+        &path,
+        r#"{"ids":["nope","550e8400-e29b-41d4-a716-446655440000"]}"#,
+    )
+    .expect("write");
     let ids = load_pins(&path);
     assert_eq!(ids.len(), 1);
 }

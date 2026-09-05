@@ -25,7 +25,10 @@ pub(crate) fn mcp_cwd(raw: Option<&str>, roots: &[PathBuf]) -> Result<PathBuf, S
     }
 }
 
-pub(crate) async fn api_mcp_get(State(state): State<Arc<AppState>>, Query(q): Query<McpQuery>) -> Response {
+pub(crate) async fn api_mcp_get(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<McpQuery>,
+) -> Response {
     let cwd = match mcp_cwd(q.cwd.as_deref(), &state.workspace_roots) {
         Ok(p) => p,
         Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
@@ -49,7 +52,10 @@ pub(crate) struct McpPost {
     pub headers: Option<Vec<String>>,
 }
 
-pub(crate) async fn api_mcp_post(State(state): State<Arc<AppState>>, Json(body): Json<McpPost>) -> Response {
+pub(crate) async fn api_mcp_post(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<McpPost>,
+) -> Response {
     let cwd = match mcp_cwd(body.cwd.as_deref(), &state.workspace_roots) {
         Ok(p) => p,
         Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
@@ -76,7 +82,18 @@ pub(crate) async fn api_mcp_post(State(state): State<Arc<AppState>>, Json(body):
             )
             .await
         }
-        "remove" => mcp::remove(&state.grok_bin, &cwd, name, body.scope.as_deref().map(str::trim).filter(|s| !s.is_empty())).await,
+        "remove" => {
+            mcp::remove(
+                &state.grok_bin,
+                &cwd,
+                name,
+                body.scope
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty()),
+            )
+            .await
+        }
         "enable" => mcp::enable(&state.grok_bin, &cwd, name).await,
         "disable" => mcp::disable(&state.grok_bin, &cwd, name).await,
         other => return (StatusCode::BAD_REQUEST, format!("unknown op {other}")).into_response(),
@@ -95,7 +112,10 @@ pub(crate) struct PluginPost {
     pub source: Option<String>,
 }
 
-pub(crate) async fn api_plugins_get(State(state): State<Arc<AppState>>, Query(q): Query<McpQuery>) -> Response {
+pub(crate) async fn api_plugins_get(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<McpQuery>,
+) -> Response {
     let cwd = match mcp_cwd(q.cwd.as_deref(), &state.workspace_roots) {
         Ok(p) => p,
         Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
@@ -106,7 +126,10 @@ pub(crate) async fn api_plugins_get(State(state): State<Arc<AppState>>, Query(q)
     }
 }
 
-pub(crate) async fn api_plugins_post(State(state): State<Arc<AppState>>, Json(body): Json<PluginPost>) -> Response {
+pub(crate) async fn api_plugins_post(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<PluginPost>,
+) -> Response {
     let cwd = match mcp_cwd(body.cwd.as_deref(), &state.workspace_roots) {
         Ok(p) => p,
         Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
@@ -118,11 +141,27 @@ pub(crate) async fn api_plugins_post(State(state): State<Arc<AppState>>, Json(bo
         "uninstall" => plugin::uninstall(&state.grok_bin, &cwd, name).await,
         "enable" => plugin::enable(&state.grok_bin, &cwd, name).await,
         "disable" => plugin::disable(&state.grok_bin, &cwd, name).await,
-        "update" => plugin::update(&state.grok_bin, &cwd, if name.is_empty() { None } else { Some(name) }).await,
+        "update" => {
+            plugin::update(
+                &state.grok_bin,
+                &cwd,
+                if name.is_empty() { None } else { Some(name) },
+            )
+            .await
+        }
         "marketplace_add" => plugin::marketplace_add(&state.grok_bin, &cwd, source).await,
         "marketplace_remove" => plugin::marketplace_remove(&state.grok_bin, &cwd, source).await,
         "marketplace_update" => {
-            plugin::marketplace_update(&state.grok_bin, &cwd, if source.is_empty() { None } else { Some(source) }).await
+            plugin::marketplace_update(
+                &state.grok_bin,
+                &cwd,
+                if source.is_empty() {
+                    None
+                } else {
+                    Some(source)
+                },
+            )
+            .await
         }
         other => return (StatusCode::BAD_REQUEST, format!("unknown op {other}")).into_response(),
     };
@@ -140,7 +179,10 @@ pub(crate) struct SkillPost {
     pub body: Option<String>,
 }
 
-pub(crate) async fn api_skills_get(State(state): State<Arc<AppState>>, Query(q): Query<McpQuery>) -> Response {
+pub(crate) async fn api_skills_get(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<McpQuery>,
+) -> Response {
     let cwd = match q.cwd.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         Some(raw) => match paths::cwd_allowed(raw, &state.workspace_roots) {
             Ok(p) => Some(p),
@@ -158,7 +200,10 @@ pub(crate) struct SkillItemQuery {
     pub cwd: Option<String>,
 }
 
-pub(crate) async fn api_skills_item(State(state): State<Arc<AppState>>, Query(q): Query<SkillItemQuery>) -> Response {
+pub(crate) async fn api_skills_item(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<SkillItemQuery>,
+) -> Response {
     let cwd = match q.cwd.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
         Some(raw) => match paths::cwd_allowed(raw, &state.workspace_roots) {
             Ok(p) => Some(p),
@@ -177,7 +222,10 @@ pub(crate) async fn api_skills_item(State(state): State<Arc<AppState>>, Query(q)
     }
 }
 
-pub(crate) async fn api_skills_post(State(state): State<Arc<AppState>>, Json(body): Json<SkillPost>) -> Response {
+pub(crate) async fn api_skills_post(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<SkillPost>,
+) -> Response {
     if body.op != "create" {
         return (StatusCode::BAD_REQUEST, format!("unknown op {}", body.op)).into_response();
     }
@@ -192,7 +240,10 @@ pub(crate) async fn api_skills_post(State(state): State<Arc<AppState>>, Json(bod
     }
 }
 
-pub(crate) async fn api_skills_upload(State(state): State<Arc<AppState>>, mut form: Multipart) -> Response {
+pub(crate) async fn api_skills_upload(
+    State(state): State<Arc<AppState>>,
+    mut form: Multipart,
+) -> Response {
     let mut uploaded_name = None;
     let mut bytes = None;
     while let Ok(Some(field)) = form.next_field().await {

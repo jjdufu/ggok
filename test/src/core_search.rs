@@ -9,6 +9,10 @@ fn search_empty_or_missing_db() {
     assert!(search_session_ids(dir.path(), "hello").is_none());
 
     fs::create_dir_all(dir.path().join("sessions")).expect("mkdir");
-    fs::write(dir.path().join("sessions/session_search.sqlite"), b"not sqlite").expect("write");
+    fs::write(
+        dir.path().join("sessions/session_search.sqlite"),
+        b"not sqlite",
+    )
+    .expect("write");
     assert!(search_session_ids(dir.path(), "hello").is_none());
 }

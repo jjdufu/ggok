@@ -24,7 +24,10 @@ fn fallback_window_by_model_id() {
 
 #[test]
 fn timestamp_ms_seconds_millis_and_rfc3339() {
-    assert_eq!(timestamp_ms(Some(&json!(1_700_000_000))), Some(1_700_000_000_000));
+    assert_eq!(
+        timestamp_ms(Some(&json!(1_700_000_000))),
+        Some(1_700_000_000_000)
+    );
     assert_eq!(
         timestamp_ms(Some(&json!(1_700_000_000_000_u64))),
         Some(1_700_000_000_000)
@@ -109,10 +112,16 @@ fn ingest_tool_and_usage() {
         Ingest::Tool
     );
     let tool = p.tool("t1").expect("tool");
-    assert!(matches!(tool, Block::Tool { id, title, status, .. } if id == "t1" && title == "read" && status == "completed"));
+    assert!(
+        matches!(tool, Block::Tool { id, title, status, .. } if id == "t1" && title == "read" && status == "completed")
+    );
 
     assert_eq!(
-        p.ingest_at(&json!({ "usage": { "inputTokens": 3, "outputTokens": 5 } }), "", None),
+        p.ingest_at(
+            &json!({ "usage": { "inputTokens": 3, "outputTokens": 5 } }),
+            "",
+            None
+        ),
         Ingest::Usage
     );
 }

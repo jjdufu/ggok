@@ -36,9 +36,10 @@ ggok start
 终端会打印监听地址和登录 token。浏览器打开 `http://127.0.0.1:9888`，用 token 登录。
 
 ```shell
-ggok status    # 是否在跑、地址、token
-ggok stop
-ggok restart   # 改配置后用这个
+ggok status    # pid、地址、token、leader、各会话占用
+ggok stop      # 只停 Web，不杀 grok leader
+ggok stop --all  # 无进行中会话且 leader 由 ggok 拉起时才停 leader
+ggok restart   # 改配置后用这个；`--all` 约束同 stop --all
 ```
 
 ## 日志

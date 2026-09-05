@@ -56,10 +56,7 @@ async fn security_headers(req: Request<Body>, next: Next) -> Response {
 }
 
 fn cache_control_for(path: &str) -> HeaderValue {
-    if path.starts_with("/fonts/")
-        || path == "/app.css"
-        || path == "/app.js"
-        || path == "/i18n.js"
+    if path.starts_with("/fonts/") || path == "/app.css" || path == "/app.js" || path == "/i18n.js"
     {
         HeaderValue::from_static("public, max-age=31536000, immutable")
     } else {
@@ -272,7 +269,9 @@ pub(crate) fn public_err(raw: &str) -> String {
     let line = s
         .lines()
         .map(str::trim)
-        .find(|l| !l.is_empty() && !l.eq_ignore_ascii_case("error") && !l.starts_with("stack backtrace"))
+        .find(|l| {
+            !l.is_empty() && !l.eq_ignore_ascii_case("error") && !l.starts_with("stack backtrace")
+        })
         .unwrap_or(s);
     let line = line.strip_prefix("Error: ").unwrap_or(line);
     let count = line.chars().count();

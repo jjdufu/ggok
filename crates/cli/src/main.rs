@@ -24,15 +24,9 @@ fn run() -> Result<i32> {
             ctl::start(&args)?;
             Ok(0)
         }
-        Commands::Restart(args) => {
-            ctl::restart(&args)?;
-            Ok(0)
-        }
-        Commands::Stop => {
-            ctl::stop()?;
-            Ok(0)
-        }
-        Commands::Uninstall => ctl::uninstall(),
+        Commands::Restart { args, all } => ctl::restart(&args, all),
+        Commands::Stop { all } => ctl::stop(all),
+        Commands::Uninstall => Ok(ctl::uninstall()),
         Commands::Status => ctl::status(),
         Commands::Daemon(args) => {
             ctl::daemon(args)?;

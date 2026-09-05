@@ -1,4 +1,4 @@
-use super::{Agent, PendingPerm, PermOpt};
+use super::{Agent, PendingPerm, PermOpt, live_entry};
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 use tokio::io::AsyncWriteExt;
@@ -185,6 +185,7 @@ impl Agent {
         let params = msg.get("params").unwrap_or(&Value::Null);
         match method {
             "session/update" | "_x.ai/session/update" => self.on_session_update(params).await,
+            "_x.ai/queue/changed" => self.on_queue_changed(params).await,
             "_x.ai/models/update" => {
                 let (current, models) = super::session::parse_models(params);
                 let sid = params
@@ -230,6 +231,30 @@ impl Agent {
             }
             _ => {}
         }
+    }
+
+    async fn on_queue_changed(&self, params: &Value) {
+        let sid = params
+            .get("sessionId")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        if sid.is_empty() {
+            return;
+        }
+        let items = params
+            .get("queue")
+            .or_else(|| params.get("items"))
+            .cloned()
+            .unwrap_or(Value::Null);
+        let parsed: Vec<ggok_core::types::QueueItem> =
+            serde_json::from_value(items).unwrap_or_default();
+        {
+            let mut g = self.inner.lock().await;
+            let sess = live_entry(&mut g, &sid, "");
+            sess.queue = parsed.iter().cloned().collect();
+        }
+        self.emit(&sid, "queue", &parsed);
     }
 }
 

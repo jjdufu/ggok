@@ -29,6 +29,20 @@
   margin: 0 auto;
 }
 
+.occupy-banner {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--composer) 80%, var(--muted));
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.composer-inner.spectating {
+  opacity: 0.72;
+}
+
 .composer-inner {
   position: relative;
   z-index: 6;

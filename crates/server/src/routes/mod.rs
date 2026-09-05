@@ -11,15 +11,43 @@ pub(crate) mod workspace;
 use crate::service::AppState;
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch, post};
-use ggok_core::occupy::{self, Occupancy};
+use ggok_core::occupy::{self, Occupancy, SESSION_BUSY};
 use std::sync::Arc;
 
 pub(crate) async fn occupancy(state: &AppState, id: &str) -> Occupancy {
     let live = state.agent.live_view(id).await;
-    let agent_pid = occupy::agent_pid(&state.agent_pid_file, state.agent.child_pid().await);
-    let cli = occupy::cli_sessions(&state.grok_home, agent_pid);
-    occupy::classify(id, live.as_ref(), &cli)
+    let our = occupy::our_runtime_pid(state.agent.child_pid().await);
+    let leftover = occupy::leftover_noleader_pid(&state.agent_pid_file).is_some();
+    let s3 = occupy::cli_sessions(&state.grok_home);
+    let jsonl = state
+        .session(id)
+        .is_some_and(|m| occupy::jsonl_running(&m.dir));
+    occupy::classify(&occupy::ClassifyInput {
+        id,
+        live: live.as_ref(),
+        our_runtime_pid: our,
+        s3: &s3,
+        leftover_noleader_alive: leftover,
+        jsonl_running: jsonl,
+    })
+}
+
+pub(crate) fn session_busy() -> Response {
+    (StatusCode::CONFLICT, SESSION_BUSY).into_response()
+}
+
+pub(crate) fn map_agent_err(err: &anyhow::Error) -> Response {
+    let msg = err.to_string();
+    if msg == SESSION_BUSY {
+        session_busy()
+    } else if msg.contains("invalid effort") {
+        (StatusCode::BAD_REQUEST, msg).into_response()
+    } else {
+        (StatusCode::BAD_GATEWAY, msg).into_response()
+    }
 }
 
 pub(crate) fn router(upload_max: usize) -> Router<Arc<AppState>> {
@@ -63,10 +91,7 @@ pub(crate) fn router(upload_max: usize) -> Router<Arc<AppState>> {
                 .patch(session::api_patch_session)
                 .delete(session::api_delete_session),
         )
-        .route(
-            "/api/sessions/{id}/tools/{tool_id}",
-            get(session::api_tool),
-        )
+        .route("/api/sessions/{id}/tools/{tool_id}", get(session::api_tool))
         .route("/api/sessions/{id}/load", post(session::api_load))
         .route("/api/sessions/{id}/prompt", post(prompt::api_prompt))
         .route("/api/sessions/{id}/cancel", post(prompt::api_cancel))

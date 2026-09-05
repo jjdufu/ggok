@@ -76,15 +76,54 @@ export function bindComposer(ctx) {
     return pid;
   }
 
+  function isSpectating() {
+    return ctx.source === "observe" || ctx.source === "foreign";
+  }
+
+  function syncOccupyBanner() {
+    const banner = document.getElementById("occupy-banner");
+    if (!banner) return;
+    if (ctx.source === "foreign") {
+      banner.hidden = false;
+      banner.textContent = t("occupyForeign");
+    } else if (ctx.source === "observe") {
+      banner.hidden = false;
+      banner.textContent = t("occupyObserve");
+    } else {
+      banner.hidden = true;
+      banner.textContent = "";
+    }
+  }
+
   function syncSendBtn() {
     if (!sendBtn) return;
-    sendBtn.disabled = false;
-    sendBtn.classList.toggle("stopping", !!ctx.running);
-    const sendTip = ctx.running ? t("stop") : t("send");
+    const spectating = isSpectating();
+    const attachedRunning = ctx.source === "attached" && !!ctx.running;
+    const canWrite = ctx.writable === true && !spectating;
+    sendBtn.disabled = spectating || (!canWrite && !attachedRunning);
+    sendBtn.classList.toggle("stopping", attachedRunning);
+    const sendTip = attachedRunning ? t("stop") : t("send");
     setTip(sendBtn, sendTip);
     sendBtn.setAttribute("aria-label", sendTip);
-    if (sendIcon) sendIcon.dataset.state = ctx.running ? "b" : "a";
-    if (modelBtn) modelBtn.disabled = false;
+    if (sendIcon) sendIcon.dataset.state = attachedRunning ? "b" : "a";
+    if (modelBtn) modelBtn.disabled = spectating || ctx.writable !== true;
+    const attachBtn = document.getElementById("attach-btn");
+    if (attachBtn) attachBtn.disabled = spectating;
+    if (composer) {
+      const inner = composer.querySelector(".composer-inner");
+      if (inner) inner.classList.toggle("spectating", spectating);
+    }
+    const editor = document.getElementById("prompt-editor");
+    if (editor) {
+      editor.setAttribute("contenteditable", spectating ? "false" : "true");
+      editor.setAttribute("aria-disabled", spectating ? "true" : "false");
+    }
+    if (queueEl) {
+      queueEl.querySelectorAll("button, textarea").forEach((el) => {
+        el.disabled = spectating;
+      });
+    }
+    syncOccupyBanner();
   }
 
   function clearAttachments() {
@@ -203,6 +242,7 @@ export function bindComposer(ctx) {
   }
 
   async function sendQueueNow(item) {
+    if (isSpectating() || ctx.writable !== true) return;
     if (!ctx.currentId || !item || !item.id) return;
     const snapshot = (ctx.queue || []).slice();
     applyQueue((ctx.queue || []).filter((q) => q.id !== item.id));
@@ -701,6 +741,8 @@ export function bindComposer(ctx) {
     ctx.currentId = null;
     ctx.running = false;
     ctx.awaitingAgent = false;
+    ctx.source = "disk";
+    ctx.writable = true;
     stopWorkWatch();
     if (ctx.syncWorkTimer) ctx.syncWorkTimer(false);
     ctx.queue = [];
@@ -725,15 +767,15 @@ export function bindComposer(ctx) {
   function applyOccupancy(detail) {
     if (!detail) return;
     if (detail.source) ctx.source = detail.source;
-    ctx.writable = detail.writable !== false;
+    ctx.writable = detail.writable === true;
     if (ctx.current) {
       ctx.current.source = ctx.source;
       ctx.current.writable = ctx.writable;
     }
-    if (ctx.source === "cli") {
-      if (!ctx.awaitingAgent) ctx.running = false;
-    } else if (typeof detail.running === "boolean") {
-      if (detail.running) {
+    if (typeof detail.running === "boolean") {
+      if (ctx.source === "observe" || ctx.source === "foreign") {
+        ctx.running = detail.running;
+      } else if (detail.running) {
         ctx.running = true;
         ctx.awaitingAgent = false;
       } else if (!ctx.awaitingAgent) {
@@ -792,7 +834,7 @@ export function bindComposer(ctx) {
       ctx.selectedCwd = detail.cwd || ctx.selectedCwd;
       if (ctx.syncDirLabel) ctx.syncDirLabel();
       if (ctx.syncWsButton) ctx.syncWsButton();
-      ctx.writable = detail.writable !== false;
+      ctx.writable = detail.writable === true;
       ctx.source = detail.source || "disk";
       if (detail.model) ctx.selectedModel = detail.model;
       if (detail.effort) ctx.selectedEffort = detail.effort;
@@ -804,15 +846,6 @@ export function bindComposer(ctx) {
       if (ctx.renderBlocks) ctx.renderBlocks(detail);
       if (ctx.connectEvents) await ctx.connectEvents(id);
       await pullSession(id);
-      if (ctx.writable) {
-        try {
-          const loaded = await post("/api/sessions/" + encodeURIComponent(id) + "/load", {});
-          if (loaded && loaded.model) ctx.selectedModel = loaded.model;
-          if (loaded && loaded.effort) ctx.selectedEffort = loaded.effort;
-          if (ctx.fillModels) ctx.fillModels();
-        } catch (e) {
-        }
-      }
       try {
         applyQueue(await api("/api/sessions/" + encodeURIComponent(id) + "/queue"));
       } catch (e) {
@@ -858,10 +891,10 @@ export function bindComposer(ctx) {
       blocks: existingBlocks,
       usage: {},
       writable: true,
-      source: "agent"
+      source: "attached"
     };
     ctx.writable = true;
-    ctx.source = "agent";
+    ctx.source = "attached";
     if (s.model) ctx.selectedModel = s.model;
     if (s.effort) ctx.selectedEffort = s.effort;
     if (ctx.fillModels) ctx.fillModels();
@@ -875,6 +908,10 @@ export function bindComposer(ctx) {
   }
 
   async function submitPrompt() {
+    if (isSpectating() || ctx.writable !== true) {
+      toast(ctx.source === "foreign" ? t("occupyForeign") : t("occupyObserve"));
+      return;
+    }
     const text = promptApi.getText();
     if (!text.trim() && !(ctx.attachments && ctx.attachments.length)) {
       if (ctx.running && ctx.queue && ctx.queue.length) {
@@ -921,7 +958,7 @@ export function bindComposer(ctx) {
         blocks: [],
         usage: {},
         writable: true,
-        source: "agent"
+        source: "disk"
       };
     }
     if (app) app.classList.add("has-session");
@@ -1051,7 +1088,8 @@ export function bindComposer(ctx) {
   if (sendBtn) {
     sendBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (ctx.running) {
+      if (isSpectating()) return;
+      if (ctx.source === "attached" && ctx.running) {
         ctx.running = false;
         ctx.awaitingAgent = false;
         stopWorkWatch();

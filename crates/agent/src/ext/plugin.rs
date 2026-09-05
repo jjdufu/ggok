@@ -19,7 +19,13 @@ pub async fn snapshot(bin: &Path, cwd: &Path) -> Result<Value> {
         LIST_TIMEOUT,
     )
     .await?;
-    let sources = run_json(bin, cwd, &["plugin", "marketplace", "list", "--json"], LIST_TIMEOUT).await?;
+    let sources = run_json(
+        bin,
+        cwd,
+        &["plugin", "marketplace", "list", "--json"],
+        LIST_TIMEOUT,
+    )
+    .await?;
     Ok(json!({
         "plugins": coerce_list(plugins),
         "sources": coerce_list(sources),
@@ -33,7 +39,12 @@ pub async fn install(bin: &Path, cwd: &Path, source: &str) -> Result<String> {
     run_text(
         bin,
         cwd,
-        &["plugin".into(), "install".into(), "--trust".into(), source.trim().into()],
+        &[
+            "plugin".into(),
+            "install".into(),
+            "--trust".into(),
+            source.trim().into(),
+        ],
         MUTATE_TIMEOUT,
     )
     .await
@@ -181,10 +192,10 @@ fn coerce_list(v: Value) -> Value {
     if v.is_array() {
         return v;
     }
-    if let Some(arr) = v.get("plugins").or_else(|| v.get("sources")).cloned() {
-        if arr.is_array() {
-            return arr;
-        }
+    if let Some(arr) = v.get("plugins").or_else(|| v.get("sources")).cloned()
+        && arr.is_array()
+    {
+        return arr;
     }
     json!([])
 }

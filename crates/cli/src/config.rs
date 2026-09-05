@@ -19,11 +19,19 @@ pub enum Commands {
     #[command(about = "Fork into the background and print the login token")]
     Start(StartArgs),
     #[command(about = "Stop if running, then start")]
-    Restart(StartArgs),
-    #[command(about = "Show pid, listen address, and login token")]
+    Restart {
+        #[command(flatten)]
+        args: StartArgs,
+        #[arg(long)]
+        all: bool,
+    },
+    #[command(about = "Show pid, listen address, leader, and session occupancy")]
     Status,
-    #[command(about = "SIGTERM, then SIGKILL")]
-    Stop,
+    #[command(about = "Stop the web daemon; --all also stops an idle leader this process started")]
+    Stop {
+        #[arg(long)]
+        all: bool,
+    },
     #[command(about = "Stop ggok and delete its binary, config, logs, and cache")]
     Uninstall,
     #[command(name = "__daemon", hide = true)]

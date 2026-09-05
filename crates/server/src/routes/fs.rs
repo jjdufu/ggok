@@ -13,7 +13,10 @@ pub(crate) struct DirsQuery {
     parent: Option<String>,
 }
 
-pub(crate) async fn api_dirs(State(state): State<Arc<AppState>>, Query(q): Query<DirsQuery>) -> Response {
+pub(crate) async fn api_dirs(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<DirsQuery>,
+) -> Response {
     match paths::list_dirs(q.parent.as_deref(), &state.workspace_roots) {
         Ok(rows) => json_ok(&rows),
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
@@ -26,7 +29,10 @@ pub(crate) struct FsQuery {
     q: Option<String>,
 }
 
-pub(crate) async fn api_fs(State(state): State<Arc<AppState>>, Query(q): Query<FsQuery>) -> Response {
+pub(crate) async fn api_fs(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<FsQuery>,
+) -> Response {
     if let Err(e) = paths::cwd_allowed(&q.cwd, &state.workspace_roots) {
         return (StatusCode::BAD_REQUEST, e.to_string()).into_response();
     }
@@ -74,7 +80,10 @@ pub(crate) async fn api_upload_get(Query(q): Query<UploadGetQuery>) -> Response 
     }
 }
 
-pub(crate) async fn api_uploads(State(state): State<Arc<AppState>>, mut form: Multipart) -> Response {
+pub(crate) async fn api_uploads(
+    State(state): State<Arc<AppState>>,
+    mut form: Multipart,
+) -> Response {
     let mut cwd = None;
     let mut uploaded_name = None;
     let mut bytes = None;

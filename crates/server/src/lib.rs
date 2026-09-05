@@ -8,7 +8,7 @@ pub(crate) mod static_files;
 
 pub use account::mask_email;
 pub use auth::{
-    LoginLimiter, bearer_token, build_session_cookie, clear_session_cookie, cookie_from_header,
-    cookie_name_for_bind, constant_time_eq, port_of_bind, sign_cookie, verify_cookie,
+    LoginLimiter, bearer_token, build_session_cookie, clear_session_cookie, constant_time_eq,
+    cookie_from_header, cookie_name_for_bind, port_of_bind, sign_cookie, verify_cookie,
 };
 pub use service::Service;

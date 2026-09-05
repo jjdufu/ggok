@@ -21,6 +21,10 @@ pub(crate) async fn api_permission(
     if !valid_id(&id) {
         return (StatusCode::BAD_REQUEST, "invalid session id").into_response();
     }
+    let occ = super::occupancy(&state, &id).await;
+    if ggok_core::occupy::conflict_busy(occ, ggok_core::occupy::SessionOp::Control) {
+        return super::session_busy();
+    }
     match state.agent.answer_permission(&id, &req, body.allow).await {
         Ok(()) => json_ok(&json!({ "ok": true })),
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),

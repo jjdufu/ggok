@@ -1,11 +1,13 @@
 use crate::config::StartArgs;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use daemonize::Daemonize;
 use ggok_core::config::{
-    self, display_token, log_file, pid_file, read_saved_state, running_pid, RuntimeConfig,
+    self, RuntimeConfig, display_token, log_file, pid_file, read_saved_state, running_pid,
 };
+use ggok_core::occupy::{self, ClassifyInput, leftover_noleader_pid, read_leader_record};
 use ggok_core::paths::UPLOAD_DIR;
-use ggok_core::{agent_pid_file, effective_uid, pid_is_alive};
+use ggok_core::scan;
+use ggok_core::{agent_pid_file, effective_uid, leader_json_file, pid_is_alive};
 use ggok_server::Service;
 use std::collections::BTreeSet;
 use std::fs::{self, File};
@@ -43,18 +45,38 @@ pub fn start(args: &StartArgs) -> Result<()> {
     Ok(())
 }
 
-pub fn restart(args: &StartArgs) -> Result<()> {
-    stop()?;
-    start(args)
+pub fn restart(args: &StartArgs, all: bool) -> Result<i32> {
+    let code = stop(all)?;
+    start(args)?;
+    Ok(code)
 }
 
-pub fn stop() -> Result<()> {
-    stop_with_output(true)
+pub fn stop(all: bool) -> Result<i32> {
+    stop_web(true)?;
+    if !all {
+        return Ok(0);
+    }
+    let grok_home = saved_grok_home()?;
+    let leftover_file = agent_pid_file().ok();
+    let running = running_session_ids(&grok_home, leftover_file.as_deref());
+    if !running.is_empty() {
+        for id in running {
+            println!("{id}");
+        }
+        eprintln!("sessions still running; not stopping leader");
+        return Ok(1);
+    }
+    match stop_owned_leader(&grok_home) {
+        Ok(()) => Ok(0),
+        Err(e) => {
+            eprintln!("leader: {e:#}");
+            Ok(1)
+        }
+    }
 }
 
-fn stop_with_output(print: bool) -> Result<()> {
+fn stop_web(print: bool) -> Result<()> {
     let pid_path = pid_file()?;
-    kill_stale_agent();
     let Some(pid) = running_pid(&pid_path) else {
         let _ = fs::remove_file(&pid_path);
         if print {
@@ -84,12 +106,11 @@ fn stop_with_output(print: bool) -> Result<()> {
 /// Stop ggok, then delete its binary, config, logs, pid files, and upload cache.
 /// Does not touch `~/.grok` or workspace files.
 ///
-/// # Errors
-/// Returns an error if `HOME` cannot be resolved while locating data dirs.
-pub fn uninstall() -> Result<i32> {
-    if let Err(err) = stop_with_output(false) {
+pub fn uninstall() -> i32 {
+    if let Err(err) = stop_web(false) {
         eprintln!("stop: {err:#}");
     }
+    warn_live_leader();
 
     let mut leftover = Vec::new();
     if let Ok(dir) = config::config_dir() {
@@ -111,14 +132,14 @@ pub fn uninstall() -> Result<i32> {
     if leftover.is_empty() {
         println!("uninstalled");
         println!("Grok CLI data under ~/.grok was not removed");
-        Ok(0)
+        0
     } else {
         eprintln!("uninstalled with leftovers:");
         for path in &leftover {
             eprintln!("  {}", path.display());
         }
         eprintln!("remove those paths manually (sudo if needed)");
-        Ok(1)
+        1
     }
 }
 
@@ -226,13 +247,15 @@ pub fn status() -> Result<i32> {
     let grok_home = saved
         .as_ref()
         .map_or(config::default_grok_home()?, |s| s.grok_home.clone());
-    if let Some(pid) = running_pid(&pid_path) {
+    let code = if let Some(pid) = running_pid(&pid_path) {
         print_report("running", Some(pid), &bind, &log, &grok_home);
-        Ok(0)
+        0
     } else {
         print_report("not running", None, &bind, &log, &grok_home);
-        Ok(3)
-    }
+        3
+    };
+    print_status_extra(&grok_home);
+    Ok(code)
 }
 
 pub fn daemon(args: StartArgs) -> Result<()> {
@@ -269,12 +292,10 @@ fn spawn_worker(args: &StartArgs) -> Result<Child> {
     } else if std::env::var("GGOK_TOKEN")
         .ok()
         .is_none_or(|s| s.is_empty())
+        && let Ok(path) = config::default_token_file()
+        && path.is_file()
     {
-        if let Ok(path) = config::default_token_file() {
-            if path.is_file() {
-                cmd.arg("--token-file").arg(path);
-            }
-        }
+        cmd.arg("--token-file").arg(path);
     }
     if let Some(path) = &args.grok_home {
         cmd.arg("--grok-home").arg(path);
@@ -375,19 +396,140 @@ fn signal(pid: u32, sig: &str) {
         .status();
 }
 
-fn kill_stale_agent() {
-    let Ok(path) = agent_pid_file() else {
-        return;
+fn saved_grok_home() -> Result<PathBuf> {
+    if let Some(saved) = read_saved_state() {
+        return Ok(saved.grok_home);
+    }
+    config::default_grok_home()
+}
+
+fn running_session_ids(grok_home: &Path, leftover_file: Option<&Path>) -> Vec<String> {
+    let Ok(index) = scan::scan(grok_home) else {
+        return Vec::new();
     };
-    let Ok(raw) = fs::read_to_string(&path) else {
-        return;
-    };
-    if let Ok(pid) = raw.trim().parse::<u32>() {
-        signal(pid, "TERM");
-        thread::sleep(Duration::from_millis(200));
-        if pid_is_alive(pid) {
-            signal(pid, "KILL");
+    let s3 = occupy::cli_sessions(grok_home);
+    let leftover = leftover_file.is_some_and(|p| leftover_noleader_pid(p).is_some());
+    let mut ids = Vec::new();
+    for (id, meta) in &index.sessions {
+        let occ = occupy::classify(&ClassifyInput {
+            id,
+            live: None,
+            our_runtime_pid: None,
+            s3: &s3,
+            leftover_noleader_alive: leftover,
+            jsonl_running: occupy::jsonl_running(&meta.dir),
+        });
+        if occ.running {
+            ids.push(id.clone());
         }
     }
-    let _ = fs::remove_file(&path);
+    ids.sort();
+    ids
+}
+
+fn stop_owned_leader(grok_home: &Path) -> Result<()> {
+    let path = leader_json_file()?;
+    let Some(rec) = read_leader_record(&path) else {
+        return Ok(());
+    };
+    if !rec.owned {
+        return Ok(());
+    }
+    if !pid_is_alive(rec.pid) {
+        return Ok(());
+    }
+    let cmd = ggok_core::sys::pid_cmdline(rec.pid);
+    if !occupy::cmdline_matches_grok(&cmd) {
+        return Ok(());
+    }
+    let grok_bin = resolve_grok_bin();
+    let status = Command::new(&grok_bin)
+        .args(["leader", "kill", "--leader-socket", &rec.socket])
+        .env("GROK_HOME", grok_home)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    if !pid_is_alive(rec.pid) {
+        return Ok(());
+    }
+    if status.is_err() || status.is_ok_and(|s| !s.success()) {
+        occupy::terminate_pid(rec.pid, "TERM");
+        thread::sleep(Duration::from_millis(200));
+        if pid_is_alive(rec.pid) {
+            occupy::terminate_pid(rec.pid, "KILL");
+        }
+    }
+    Ok(())
+}
+
+fn warn_live_leader() {
+    let Ok(path) = leader_json_file() else {
+        return;
+    };
+    let Some(rec) = read_leader_record(&path) else {
+        return;
+    };
+    if !pid_is_alive(rec.pid) {
+        return;
+    }
+    let cmd = ggok_core::sys::pid_cmdline(rec.pid);
+    if !occupy::cmdline_matches_grok(&cmd) {
+        return;
+    }
+    println!("leader still running pid={}", rec.pid);
+    println!(
+        "to stop it: grok leader kill --leader-socket {}",
+        rec.socket
+    );
+}
+
+fn print_status_extra(grok_home: &Path) {
+    println!("version {}", env!("CARGO_PKG_VERSION"));
+    match std::env::current_exe() {
+        Ok(p) => println!("binary {}", p.display()),
+        Err(_) => println!("binary unknown"),
+    }
+    let sock = grok_home.join("leader.sock");
+    println!("leader socket {}", sock.display());
+    let rec = leader_json_file().ok().and_then(|p| read_leader_record(&p));
+    if let Some(r) = rec {
+        println!("leader pid {}", r.pid);
+        println!("owned {}", r.owned);
+    } else {
+        println!("leader pid -");
+        println!("owned false");
+    }
+    let leftover_file = agent_pid_file().ok();
+    if let Ok(index) = scan::scan(grok_home) {
+        let s3 = occupy::cli_sessions(grok_home);
+        let leftover = leftover_file
+            .as_ref()
+            .is_some_and(|p| leftover_noleader_pid(p).is_some());
+        let mut ids: Vec<_> = index.sessions.keys().cloned().collect();
+        ids.sort();
+        for id in ids {
+            let Some(meta) = index.get(&id) else {
+                continue;
+            };
+            let occ = occupy::classify(&ClassifyInput {
+                id: &id,
+                live: None,
+                our_runtime_pid: None,
+                s3: &s3,
+                leftover_noleader_alive: leftover,
+                jsonl_running: occupy::jsonl_running(&meta.dir),
+            });
+            println!(
+                "session {id} source={} running={} writable={}",
+                occ.source.as_str(),
+                occ.running,
+                occ.writable
+            );
+        }
+    }
+}
+
+fn resolve_grok_bin() -> PathBuf {
+    ggok_core::sys::resolve_default_grok_bin()
 }

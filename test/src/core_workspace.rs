@@ -41,7 +41,12 @@ fn list_and_delete_file_but_not_cwd() {
 
     let listing = list_workspace(cwd, "", &roots).expect("list");
     assert!(listing.entries.iter().any(|e| e.name == "src" && e.dir));
-    assert!(listing.entries.iter().any(|e| e.name == "README.md" && !e.dir));
+    assert!(
+        listing
+            .entries
+            .iter()
+            .any(|e| e.name == "README.md" && !e.dir)
+    );
 
     delete_workspace(cwd, "README.md", &roots).expect("delete file");
     assert!(!t.root.join("README.md").exists());

@@ -59,17 +59,18 @@ export function bindSse(ctx) {
 
     on("live", (ev) => {
       if (!ev || typeof ev !== "object") return;
+      const prev = ctx.source;
       if (ev.source) ctx.source = ev.source;
-      ctx.writable = ev.writable !== false;
-      if (ev.source === "agent") {
-        if (ev.running) {
+      ctx.writable = ev.writable === true;
+      if (typeof ev.running === "boolean") {
+        if (ctx.source === "observe" || ctx.source === "foreign") {
+          ctx.running = ev.running;
+        } else if (ev.running) {
           ctx.running = true;
           ctx.awaitingAgent = false;
         } else if (!ctx.awaitingAgent) {
           ctx.running = false;
         }
-      } else if (ev.source === "cli") {
-        if (!ctx.awaitingAgent) ctx.running = false;
       }
       if (ctx.current) {
         ctx.current.source = ctx.source;
@@ -77,6 +78,9 @@ export function bindSse(ctx) {
       }
       if (ctx.syncSendBtn) ctx.syncSendBtn();
       if (ctx.scheduleRender) ctx.scheduleRender();
+      if (prev !== "attached" && ev.source === "attached" && id === ctx.currentId) {
+        connectEvents(id);
+      }
     });
 
     on("resync", () => {

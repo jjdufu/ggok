@@ -31,11 +31,10 @@ pub(crate) async fn api_sessions(
     Query(q): Query<ListQuery>,
 ) -> Response {
     let include_empty = q.empty.unwrap_or(0) != 0;
-    let fts = q
-        .q
-        .as_deref()
-        .filter(|s| !s.is_empty())
-        .and_then(|s| search_session_ids(&state.grok_home, s));
+    let fts =
+        q.q.as_deref()
+            .filter(|s| !s.is_empty())
+            .and_then(|s| search_session_ids(&state.grok_home, s));
     let mut rows = state.sessions.read().list(
         q.cwd.as_deref().filter(|s| !s.is_empty()),
         q.q.as_deref(),
@@ -43,11 +42,23 @@ pub(crate) async fn api_sessions(
         fts.as_deref(),
     );
     let live = state.agent.live_map().await;
-    let agent_pid = occupy::agent_pid(&state.agent_pid_file, state.agent.child_pid().await);
-    let cli = occupy::cli_sessions(&state.grok_home, agent_pid);
+    let our = occupy::our_runtime_pid(state.agent.child_pid().await);
+    let leftover = occupy::leftover_noleader_pid(&state.agent_pid_file).is_some();
+    let s3 = occupy::cli_sessions(&state.grok_home);
     let pins = session::load_pins(&state.pins_path);
+    let index = state.sessions.read();
     for row in &mut rows {
-        let occ = occupy::classify(&row.id, live.get(&row.id), &cli);
+        let jsonl = index
+            .get(&row.id)
+            .is_some_and(|m| occupy::jsonl_running(&m.dir));
+        let occ = occupy::classify(&occupy::ClassifyInput {
+            id: &row.id,
+            live: live.get(&row.id),
+            our_runtime_pid: our,
+            s3: &s3,
+            leftover_noleader_alive: leftover,
+            jsonl_running: jsonl,
+        });
         row.running = occ.running;
         row.source = occ.source.as_str().to_string();
         row.pinned = pins.iter().any(|id| id == &row.id);
@@ -91,14 +102,7 @@ pub(crate) async fn api_create_session(
                 .or(body.effort);
             json_ok(&json!({ "id": s.id, "cwd": s.cwd, "model": s.model, "effort": effort }))
         }
-        Err(e) => {
-            let msg = e.to_string();
-            if msg.contains("invalid effort") {
-                (StatusCode::BAD_REQUEST, msg).into_response()
-            } else {
-                (StatusCode::BAD_GATEWAY, msg).into_response()
-            }
-        }
+        Err(e) => super::map_agent_err(&e),
     }
 }
 
@@ -137,9 +141,7 @@ pub(crate) async fn api_session(
             .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
     }
     let live = state.agent.live_view(&id).await;
-    let agent_pid = occupy::agent_pid(&state.agent_pid_file, state.agent.child_pid().await);
-    let cli = occupy::cli_sessions(&state.grok_home, agent_pid);
-    let occ = occupy::classify(&id, live.as_ref(), &cli);
+    let occ = super::occupancy(&state, &id).await;
     let model = live
         .as_ref()
         .and_then(|l| {
@@ -222,26 +224,24 @@ pub(crate) async fn api_patch_session(
     if body.title.is_none() && body.pinned.is_none() {
         return (StatusCode::BAD_REQUEST, "title or pinned required").into_response();
     }
-    if let Some(title) = body.title.as_deref() {
-        if let Err(e) = session::rename_summary(&meta.dir, &id, &meta.cwd, title) {
-            return (StatusCode::BAD_REQUEST, e.to_string()).into_response();
-        }
+    if let Some(title) = body.title.as_deref()
+        && let Err(e) = session::rename_summary(&meta.dir, &id, &meta.cwd, title)
+    {
+        return (StatusCode::BAD_REQUEST, e.to_string()).into_response();
     }
-    if let Some(pinned) = body.pinned {
-        if let Err(e) = session::set_pinned(&state.pins_path, &id, pinned) {
-            return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
-        }
+    if let Some(pinned) = body.pinned
+        && let Err(e) = session::set_pinned(&state.pins_path, &id, pinned)
+    {
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
     if let Ok(next) = scan::scan(&state.grok_home) {
         state.replace_sessions(next);
-    } else if let Some(title) = body.title.as_deref() {
-        if let Some(m) = state.sessions.write().sessions.get_mut(&id) {
-            m.title = title.trim().to_string();
-        }
+    } else if let Some(title) = body.title.as_deref()
+        && let Some(m) = state.sessions.write().sessions.get_mut(&id)
+    {
+        m.title = title.trim().to_string();
     }
-    let title = state
-        .session(&id)
-        .map_or_else(|| id.clone(), |m| m.title);
+    let title = state.session(&id).map_or_else(|| id.clone(), |m| m.title);
     let pinned = session::is_pinned(&state.pins_path, &id);
     json_ok(&json!({ "id": id, "title": title, "pinned": pinned }))
 }
@@ -257,15 +257,16 @@ pub(crate) async fn api_delete_session(
         return (StatusCode::NOT_FOUND, "session not found").into_response();
     }
     let occ = super::occupancy(&state, &id).await;
-    if occ.source == Source::Cli {
-        return (StatusCode::CONFLICT, "session_busy").into_response();
+    if occupy::conflict_busy(occ, occupy::SessionOp::Delete) {
+        return super::session_busy();
     }
-    if occ.source == Source::Agent && occ.running {
-        if let Err(e) = state.agent.cancel(&id).await {
-            tracing::warn!("cancel before delete {id}: {e:#}");
-        }
+    if occ.source == Source::Attached
+        && occ.running
+        && let Err(e) = state.agent.cancel(&id).await
+    {
+        tracing::warn!("cancel before delete {id}: {e:#}");
     }
-    if occ.source == Source::Agent {
+    if occ.source == Source::Attached {
         state.agent.drop_session(&id).await;
     }
     match delete_session(&state.grok_bin, &state.grok_home, &id).await {
@@ -308,13 +309,20 @@ pub(crate) async fn api_tool(
     }
 }
 
-pub(crate) async fn api_load(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
+pub(crate) async fn api_load(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Response {
     if !valid_id(&id) {
         return (StatusCode::BAD_REQUEST, "invalid session id").into_response();
     }
     let Some(meta) = state.session(&id) else {
         return (StatusCode::NOT_FOUND, "session not found").into_response();
     };
+    let occ = super::occupancy(&state, &id).await;
+    if occupy::conflict_busy(occ, occupy::SessionOp::Load) {
+        return super::session_busy();
+    }
     match state.agent.session_load(&id, &meta.cwd).await {
         Ok(()) => {
             let live = state.agent.live_view(&id).await;
@@ -325,7 +333,7 @@ pub(crate) async fn api_load(State(state): State<Arc<AppState>>, Path(id): Path<
                 "effort": live.as_ref().map(|l| l.effort.clone()).unwrap_or_default(),
             }))
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+        Err(e) => super::map_agent_err(&e),
     }
 }
 
@@ -343,20 +351,17 @@ pub(crate) async fn api_model(
     if !valid_id(&id) {
         return (StatusCode::BAD_REQUEST, "invalid session id").into_response();
     }
+    let occ = super::occupancy(&state, &id).await;
+    if occupy::conflict_busy(occ, occupy::SessionOp::Control) {
+        return super::session_busy();
+    }
     match state
         .agent
         .set_model(&id, &body.model, body.effort.as_deref())
         .await
     {
         Ok((model, effort)) => json_ok(&json!({ "model": model, "effort": effort })),
-        Err(e) => {
-            let msg = e.to_string();
-            if msg.contains("invalid effort") {
-                (StatusCode::BAD_REQUEST, msg).into_response()
-            } else {
-                (StatusCode::BAD_GATEWAY, msg).into_response()
-            }
-        }
+        Err(e) => super::map_agent_err(&e),
     }
 }
 

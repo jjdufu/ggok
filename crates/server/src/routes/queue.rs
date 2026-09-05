@@ -7,7 +7,10 @@ use axum::response::{IntoResponse, Response};
 use serde::Deserialize;
 use std::sync::Arc;
 
-pub(crate) async fn api_queue(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
+pub(crate) async fn api_queue(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Response {
     if !valid_id(&id) {
         return (StatusCode::BAD_REQUEST, "invalid session id").into_response();
     }
@@ -27,6 +30,10 @@ pub(crate) async fn api_queue_patch(
     if !valid_id(&id) {
         return (StatusCode::BAD_REQUEST, "invalid session id").into_response();
     }
+    let occ = super::occupancy(&state, &id).await;
+    if ggok_core::occupy::conflict_busy(occ, ggok_core::occupy::SessionOp::Control) {
+        return super::session_busy();
+    }
     match state.agent.queue_patch(&id, &qid, body.text).await {
         Ok(q) => json_ok(&q),
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
@@ -39,6 +46,10 @@ pub(crate) async fn api_queue_delete(
 ) -> Response {
     if !valid_id(&id) {
         return (StatusCode::BAD_REQUEST, "invalid session id").into_response();
+    }
+    let occ = super::occupancy(&state, &id).await;
+    if ggok_core::occupy::conflict_busy(occ, ggok_core::occupy::SessionOp::Control) {
+        return super::session_busy();
     }
     match state.agent.queue_delete(&id, &qid).await {
         Ok(q) => json_ok(&q),
@@ -53,8 +64,12 @@ pub(crate) async fn api_queue_send(
     if !valid_id(&id) {
         return (StatusCode::BAD_REQUEST, "invalid session id").into_response();
     }
+    let occ = super::occupancy(&state, &id).await;
+    if ggok_core::occupy::conflict_busy(occ, ggok_core::occupy::SessionOp::Control) {
+        return super::session_busy();
+    }
     match state.agent.queue_send_now(&id, &qid).await {
         Ok(q) => json_ok(&q),
-        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+        Err(e) => super::map_agent_err(&e),
     }
 }

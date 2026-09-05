@@ -1,8 +1,11 @@
 use super::rpc::write_stdin;
-use super::{Agent, NewSession, PermOpt, PromptOutcome, live_entry, now_ms, reset_parser_keep_usage};
+use super::{
+    Agent, NewSession, PermOpt, PromptOutcome, live_entry, now_ms, reset_parser_keep_usage,
+};
 use anyhow::{Result, bail};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+use ggok_core::occupy::{SESSION_BUSY, Source};
 use ggok_core::parse::Ingest;
 use ggok_core::types::{Block, EffortInfo, ModelInfo, PromptFile, QueueItem, SlashCommand};
 use serde_json::{Value, json};
@@ -68,9 +71,23 @@ impl Agent {
     }
 
     /// # Errors
-    /// Returns an error if the grok process is down or `session/load` fails.
+    /// Returns an error if the session is occupied, the grok process is down, or `session/load` fails.
     pub async fn session_load(&self, id: &str, cwd: &str) -> Result<()> {
+        {
+            let g = self.inner.lock().await;
+            if g.sessions.get(id).is_some_and(|s| s.loaded) {
+                return Ok(());
+            }
+        }
+        let occ = self.occupancy_of(id, Some(cwd)).await;
+        if occ.source == Source::Observe || occ.source == Source::Foreign {
+            bail!(SESSION_BUSY);
+        }
         self.ensure().await?;
+        self.session_load_inner(id, cwd).await
+    }
+
+    pub(crate) async fn session_load_inner(&self, id: &str, cwd: &str) -> Result<()> {
         {
             let g = self.inner.lock().await;
             if g.sessions.get(id).is_some_and(|s| s.loaded) {
@@ -100,8 +117,16 @@ impl Agent {
         text: String,
         files: Vec<PromptFile>,
     ) -> Result<PromptOutcome> {
+        let occ = self.occupancy_of(id, Some(cwd)).await;
+        if !occ.writable {
+            bail!(SESSION_BUSY);
+        }
         self.ensure().await?;
-        let _ = self.session_load(id, cwd).await;
+        let occ = self.occupancy_of(id, Some(cwd)).await;
+        if !occ.writable {
+            bail!(SESSION_BUSY);
+        }
+        self.session_load_inner(id, cwd).await?;
         let item = QueueItem {
             id: Uuid::new_v4().to_string(),
             text,
@@ -131,6 +156,10 @@ impl Agent {
     /// # Errors
     /// Returns an error if the grok process is down or `session/cancel` cannot be sent.
     pub async fn cancel(&self, id: &str) -> Result<()> {
+        let occ = self.occupancy_of(id, None).await;
+        if occ.source != Source::Attached {
+            bail!(SESSION_BUSY);
+        }
         self.notify("session/cancel", json!({ "sessionId": id }))
             .await
     }
@@ -152,6 +181,7 @@ impl Agent {
     /// # Errors
     /// Returns an error if the session is not loaded or the queue item is missing.
     pub async fn queue_patch(&self, id: &str, qid: &str, text: String) -> Result<Vec<QueueItem>> {
+        self.require_attached(id).await?;
         let mut g = self.inner.lock().await;
         let Some(sess) = g.sessions.get_mut(id) else {
             bail!("session not loaded");
@@ -169,6 +199,7 @@ impl Agent {
     /// # Errors
     /// Returns an error if the session is not loaded or the queue item is missing.
     pub async fn queue_delete(&self, id: &str, qid: &str) -> Result<Vec<QueueItem>> {
+        self.require_attached(id).await?;
         let mut g = self.inner.lock().await;
         let Some(sess) = g.sessions.get_mut(id) else {
             bail!("session not loaded");
@@ -187,6 +218,7 @@ impl Agent {
     /// # Errors
     /// Returns an error if the session is not loaded or the prompt cannot be started.
     pub async fn queue_send_now(&self, id: &str, qid: &str) -> Result<Vec<QueueItem>> {
+        self.require_attached(id).await?;
         let item;
         let running;
         let queue;
@@ -227,7 +259,7 @@ impl Agent {
         model: &str,
         effort: Option<&str>,
     ) -> Result<(String, String)> {
-        self.ensure().await?;
+        self.require_attached(id).await?;
         {
             let g = self.inner.lock().await;
             validate_effort(&g.models, model, effort)?;
@@ -295,6 +327,7 @@ impl Agent {
     /// # Errors
     /// Returns an error if the session or permission request is missing, or stdin write fails.
     pub async fn answer_permission(&self, id: &str, req: &str, allow: bool) -> Result<()> {
+        self.require_attached(id).await?;
         let mut g = self.inner.lock().await;
         let Some(sess) = g.sessions.get_mut(id) else {
             bail!("session not loaded");
@@ -315,6 +348,14 @@ impl Agent {
             }
         });
         write_stdin(g.stdin.as_mut(), &msg).await
+    }
+
+    async fn require_attached(&self, id: &str) -> Result<()> {
+        let occ = self.occupancy_of(id, None).await;
+        if occ.source != Source::Attached {
+            bail!(SESSION_BUSY);
+        }
+        Ok(())
     }
 
     pub(crate) async fn start_prompt(&self, id: &str, item: QueueItem) -> Result<()> {
@@ -664,7 +705,7 @@ pub(crate) fn parse_models(v: &Value) -> (String, Vec<ModelInfo>) {
                                     Some(EffortInfo {
                                         id: x.get("id")?.as_str()?.to_string(),
                                         label: x
-                                             .get("label")
+                                            .get("label")
                                             .and_then(Value::as_str)
                                             .unwrap_or("")
                                             .to_string(),
@@ -734,15 +775,16 @@ fn build_prompt(text: &str, files: &[PromptFile], cwd: &str, image_ok: bool) -> 
     for f in files {
         let path = Path::new(&f.path);
         let mime = f.mime.as_deref().unwrap_or("");
-        if image_ok && mime.starts_with("image/") {
-            if let Ok(bytes) = fs::read(path) {
-                parts.push(json!({
-                    "type": "image",
-                    "mimeType": mime,
-                    "data": STANDARD.encode(bytes)
-                }));
-                continue;
-            }
+        if image_ok
+            && mime.starts_with("image/")
+            && let Ok(bytes) = fs::read(path)
+        {
+            parts.push(json!({
+                "type": "image",
+                "mimeType": mime,
+                "data": STANDARD.encode(bytes)
+            }));
+            continue;
         }
         let rel = path
             .strip_prefix(cwd_path)

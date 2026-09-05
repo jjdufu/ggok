@@ -127,6 +127,7 @@ export default function App() {
         <footer id="composer">
           <div className="composer-fade" aria-hidden="true"></div>
           <div className="composer-wrap">
+            <div id="occupy-banner" className="occupy-banner" hidden={true}></div>
             <div id="queue" hidden={true}></div>
             <div id="slash-menu" hidden={true}></div>
             <div id="at-menu" hidden={true}></div>

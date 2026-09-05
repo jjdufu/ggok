@@ -183,7 +183,9 @@ fn merge(list: &Value, doctor: &Value) -> Value {
             let Some(name) = server_name(item) else {
                 continue;
             };
-            let entry = by_name.entry(name.clone()).or_insert_with(|| json!({ "name": name }));
+            let entry = by_name
+                .entry(name.clone())
+                .or_insert_with(|| json!({ "name": name }));
             if let Some(obj) = entry.as_object_mut() {
                 obj.insert("doctor".into(), item.clone());
             }

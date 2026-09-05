@@ -271,17 +271,16 @@ fn disk_status(grok_home: &Path) -> Vec<DiskStatus> {
     if let Some(root) = df_one("/") {
         disks.push(root);
     }
-    if let Some(home) = df_one(&grok_home.to_string_lossy()) {
-        if disks
+    if let Some(home) = df_one(&grok_home.to_string_lossy())
+        && disks
             .first()
             .is_none_or(|d| d.total_bytes != home.total_bytes || d.used_bytes != home.used_bytes)
-        {
-            disks.push(DiskStatus {
-                path: grok_home.to_string_lossy().into_owned(),
-                used_bytes: home.used_bytes,
-                total_bytes: home.total_bytes,
-            });
-        }
+    {
+        disks.push(DiskStatus {
+            path: grok_home.to_string_lossy().into_owned(),
+            used_bytes: home.used_bytes,
+            total_bytes: home.total_bytes,
+        });
     }
     disks
 }
@@ -343,7 +342,10 @@ fn lan_ipv4_compat() -> Option<String> {
             }
         }
     }
-    let out = std::process::Command::new("ifconfig").arg("-a").output().ok()?;
+    let out = std::process::Command::new("ifconfig")
+        .arg("-a")
+        .output()
+        .ok()?;
     let s = String::from_utf8(out.stdout).ok()?;
     for part in s.split_whitespace() {
         if part.parse::<std::net::Ipv4Addr>().is_ok()

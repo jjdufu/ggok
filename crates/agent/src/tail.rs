@@ -1,5 +1,5 @@
 use crate::SseEvent;
-use ggok_core::occupy::{self, Source};
+use ggok_core::occupy::{self, ClassifyInput, Source};
 use ggok_core::parse::{self, Ingest, Parser};
 use ggok_core::types::Block;
 use serde_json::{Value, json};
@@ -14,7 +14,9 @@ pub struct TailJob {
     pub path: PathBuf,
     pub grok_home: PathBuf,
     pub session_id: String,
-    pub agent_pid: Option<u32>,
+    pub session_dir: PathBuf,
+    pub leftover_pid_file: PathBuf,
+    pub our_runtime_pid: Option<u32>,
     pub start_offset: u64,
     pub model: String,
 }
@@ -24,14 +26,13 @@ pub async fn run(job: TailJob, tx: Sender<SseEvent>) {
     let mut parser = Parser::new();
     let mut incomplete = String::new();
     warm_parser(&job.path, offset, &mut parser);
-    let mut last_source = Source::Cli;
-    let mut last_running = true;
+    let mut last_source = Source::Disk;
+    let mut last_running = false;
     loop {
         if tx.is_closed() {
             break;
         }
-        let cli = occupy::cli_sessions(&job.grok_home, job.agent_pid);
-        let occ = occupy::classify(&job.session_id, None, &cli);
+        let occ = current_occ(&job);
         if occ.source != last_source || occ.running != last_running {
             last_source = occ.source;
             last_running = occ.running;
@@ -51,15 +52,24 @@ pub async fn run(job: TailJob, tx: Sender<SseEvent>) {
                 }
             }
         }
-        if occ.source != Source::Cli && !occ.running {
-            tokio::time::sleep(Duration::from_millis(TAIL_MS)).await;
-            if occupy::cli_sessions(&job.grok_home, job.agent_pid).contains_key(&job.session_id) {
-                continue;
-            }
+        if !matches!(occ.source, Source::Observe | Source::Foreign) {
             break;
         }
         tokio::time::sleep(Duration::from_millis(TAIL_MS)).await;
     }
+}
+
+fn current_occ(job: &TailJob) -> occupy::Occupancy {
+    let leftover = occupy::leftover_noleader_pid(&job.leftover_pid_file).is_some();
+    let s3 = occupy::cli_sessions(&job.grok_home);
+    occupy::classify(&ClassifyInput {
+        id: &job.session_id,
+        live: None,
+        our_runtime_pid: job.our_runtime_pid,
+        s3: &s3,
+        leftover_noleader_alive: leftover,
+        jsonl_running: occupy::jsonl_running(&job.session_dir),
+    })
 }
 
 fn warm_parser(path: &Path, stop_at: u64, parser: &mut Parser) {

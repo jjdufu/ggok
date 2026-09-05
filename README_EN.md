@@ -36,9 +36,10 @@ ggok start
 Prints the listen address and login token. Open `http://127.0.0.1:9888` and sign in with the token.
 
 ```shell
-ggok status    # running?, address, token
-ggok stop
-ggok restart   # after editing config
+ggok status    # pid, address, token, leader, per-session occupancy
+ggok stop      # stop Web only; do not kill the grok leader
+ggok stop --all  # stop the leader only if nothing is running and this ggok started it
+ggok restart   # after editing config; `--all` uses the same rules as stop --all
 ```
 
 ## Logs

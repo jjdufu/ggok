@@ -10,8 +10,12 @@ pub mod sys;
 pub mod types;
 pub mod workspace;
 
-pub use config::{ConfigOverrides, RuntimeConfig, agent_pid_file};
-pub use occupy::{LiveView, Occupancy, Source, agent_pid, classify, cli_sessions};
+pub use config::{ConfigOverrides, RuntimeConfig, agent_pid_file, leader_json_file};
+pub use occupy::{
+    ClassifyInput, LeaderRecord, LiveView, Occupancy, SESSION_BUSY, SessionOp, Source, classify,
+    cli_sessions, cmdline_matches_grok, conflict_busy, is_noleader_stdio, jsonl_running,
+    leftover_noleader_pid, our_runtime_pid, read_leader_record, write_leader_record,
+};
 pub use parse::{
     ParsedSession, Parser, blocks_to_markdown, context_window, extract_tool, merge_live_over_disk,
     models_from_cache, parse_updates_file,
@@ -30,4 +34,3 @@ pub use types::{
     SessionDetail, SessionMeta, SessionRow, SlashCommand, SubagentMeta, SummaryFile, SummaryInfo,
     TokenUsage, ToolDetail,
 };
-

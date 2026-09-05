@@ -44,7 +44,10 @@ fn under_any_root_empty_means_any_absolute() {
     assert!(under_any_root(Path::new("/abs"), &[]));
     assert!(!under_any_root(Path::new("rel"), &[]));
     let root = PathBuf::from("/only");
-    assert!(under_any_root(Path::new("/only/a"), &[root.clone()]));
+    assert!(under_any_root(
+        Path::new("/only/a"),
+        std::slice::from_ref(&root)
+    ));
     assert!(!under_any_root(Path::new("/other"), &[root]));
 }
 

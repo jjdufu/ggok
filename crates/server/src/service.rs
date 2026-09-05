@@ -115,6 +115,7 @@ impl AppState {
             cfg.grok_home.clone(),
             cfg.permission_mode.clone(),
             cfg.agent_pid_file.clone(),
+            cfg.leader_json_file.clone(),
         );
         Arc::new(Self {
             token: cfg.token.clone(),
@@ -228,6 +229,13 @@ impl Service {
         });
 
         crate::account::warm(self.config.grok_home.clone());
+
+        let boot = self.state.agent.clone();
+        tokio::spawn(async move {
+            if let Err(e) = boot.connect_existing_leader().await {
+                tracing::info!("connect existing leader: {e:#}");
+            }
+        });
 
         let app = self.router();
         let make = app.into_make_service_with_connect_info::<SocketAddr>();

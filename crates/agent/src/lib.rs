@@ -6,7 +6,7 @@ pub mod session_ops;
 pub mod slash;
 pub mod tail;
 
-use ggok_core::occupy::LiveView;
+use ggok_core::occupy::{self, LiveView};
 use ggok_core::parse::Parser;
 use ggok_core::types::{Block, ModelInfo, QueueItem, SlashCommand, TokenUsage};
 use serde::Serialize;
@@ -25,6 +25,7 @@ pub struct Agent {
     pub(crate) grok_home: PathBuf,
     pub(crate) permission_mode: String,
     pub(crate) pid_file: PathBuf,
+    pub(crate) leader_json: PathBuf,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -101,8 +102,9 @@ impl Agent {
         grok_home: PathBuf,
         permission_mode: String,
         agent_pid_file: PathBuf,
+        leader_json: PathBuf,
     ) -> Self {
-        process::kill_stale(&agent_pid_file);
+        occupy::reap_idle_leftover(&agent_pid_file, &grok_home);
         Self {
             inner: Arc::new(Mutex::new(Inner {
                 child: None,
@@ -123,6 +125,7 @@ impl Agent {
             grok_home,
             permission_mode,
             pid_file: agent_pid_file,
+            leader_json,
         }
     }
 
@@ -138,10 +141,10 @@ impl Agent {
     }
 
     pub async fn runtime(&self) -> RuntimeView {
-        let agent_ok = self.ensure().await.is_ok();
         let docs = ggok_core::slash_docs::from_docs(&self.grok_home);
         let cached = ggok_core::parse::models_from_cache(&self.grok_home);
         let g = self.inner.lock().await;
+        let agent_ok = g.initialized && process::child_alive(g.child_pid);
         let models = if g.models.is_empty() {
             cached
         } else {
@@ -217,7 +220,7 @@ impl Agent {
             session_id,
             "live",
             &json!({
-                "source": "agent",
+                "source": "attached",
                 "writable": true,
                 "running": running,
             }),

@@ -367,7 +367,9 @@ fn ingest_update(
         parser.current_prompt_id.clone_from(&prompt_id);
     }
     match kind {
-        "user_message_chunk" => ingest_text(parser, TextKind::User, prompt_id, update, ts_ms, false),
+        "user_message_chunk" => {
+            ingest_text(parser, TextKind::User, prompt_id, update, ts_ms, false)
+        }
         "agent_thought_chunk" => {
             ingest_text(parser, TextKind::Thought, prompt_id, update, ts_ms, true)
         }
@@ -876,9 +878,7 @@ fn apply_tool_extract(
 }
 
 fn tool_log_text(session_dir: &Path, tool_id: &str, raw: &Value) -> String {
-    let named = session_dir
-        .join("terminal")
-        .join(format!("{tool_id}.log"));
+    let named = session_dir.join("terminal").join(format!("{tool_id}.log"));
     let from_named = read_capped_log(&named);
     if !from_named.trim().is_empty() {
         return from_named;
@@ -925,11 +925,7 @@ fn read_capped_log(path: &Path) -> String {
 fn normalize_tool_json(v: &mut Value) {
     match v {
         Value::Array(arr) => {
-            if arr.len() >= 16
-                && arr
-                    .iter()
-                    .all(|x| x.as_u64().is_some_and(|n| n <= 255))
-            {
+            if arr.len() >= 16 && arr.iter().all(|x| x.as_u64().is_some_and(|n| n <= 255)) {
                 let bytes: Vec<u8> = arr
                     .iter()
                     .filter_map(|x| x.as_u64().and_then(|n| u8::try_from(n).ok()))
@@ -942,11 +938,11 @@ fn normalize_tool_json(v: &mut Value) {
             }
         }
         Value::Object(map) => {
-            if map.get("type").and_then(Value::as_str) == Some("image") {
-                if let Some(Value::String(s)) = map.get_mut("data") {
-                    let n = s.len();
-                    *s = format!("[image {n} bytes]");
-                }
+            if map.get("type").and_then(Value::as_str) == Some("image")
+                && let Some(Value::String(s)) = map.get_mut("data")
+            {
+                let n = s.len();
+                *s = format!("[image {n} bytes]");
             }
             if let Some(Value::Object(ic)) = map.get_mut("ImageContent")
                 && let Some(Value::String(s)) = ic.get_mut("data")
@@ -967,17 +963,23 @@ pub fn merge_live_over_disk(disk: &[Block], live: &[Block]) -> Vec<Block> {
     if live.is_empty() {
         return disk.to_vec();
     }
-    let last_turn_end_idx = disk.iter().rposition(|b| matches!(b, Block::TurnEnd { .. }));
-    let live_pid = live.iter().map(Block::prompt_id).find(|pid| !pid.is_empty());
+    let last_turn_end_idx = disk
+        .iter()
+        .rposition(|b| matches!(b, Block::TurnEnd { .. }));
+    let live_pid = live
+        .iter()
+        .map(Block::prompt_id)
+        .find(|pid| !pid.is_empty());
 
-    if let (Some(end_idx), Some(lpid)) = (last_turn_end_idx, live_pid) {
-        if end_idx == disk.len() - 1 {
-            if let Some(Block::TurnEnd { prompt_id: dpid, .. }) = disk.get(end_idx) {
-                if !dpid.is_empty() && dpid == lpid {
-                    return disk.to_vec();
-                }
-            }
-        }
+    if let (Some(end_idx), Some(lpid)) = (last_turn_end_idx, live_pid)
+        && end_idx == disk.len() - 1
+        && let Some(Block::TurnEnd {
+            prompt_id: dpid, ..
+        }) = disk.get(end_idx)
+        && !dpid.is_empty()
+        && dpid == lpid
+    {
+        return disk.to_vec();
     }
 
     let cut = match last_turn_end_idx {

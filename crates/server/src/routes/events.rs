@@ -14,7 +14,10 @@ use tokio_stream::wrappers::ReceiverStream;
 
 type EventTx = tokio::sync::mpsc::Sender<Result<Event, Infallible>>;
 
-pub(crate) async fn api_events(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
+pub(crate) async fn api_events(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Response {
     if !valid_id(&id) {
         return (StatusCode::BAD_REQUEST, "invalid session id").into_response();
     }
@@ -29,8 +32,8 @@ pub(crate) async fn api_events(State(state): State<Arc<AppState>>, Path(id): Pat
         let _ = tx.send(Ok(Event::default().event("live").data(data))).await;
     }
     match occ.source {
-        Source::Agent | Source::Disk => stream_agent_events(state, id, tx).await,
-        Source::Cli => stream_cli_events(state, id, tx).await,
+        Source::Attached | Source::Disk => stream_agent_events(state, id, tx).await,
+        Source::Observe | Source::Foreign => stream_cli_events(state, id, tx).await,
     }
     Sse::new(ReceiverStream::new(out_rx))
         .keep_alive(KeepAlive::default())
@@ -99,7 +102,9 @@ async fn stream_cli_events(state: Arc<AppState>, id: String, tx: EventTx) {
     };
     let path = meta.dir.join("updates.jsonl");
     let start_offset = std::fs::metadata(&path).map_or(0, |m| m.len());
-    let agent_pid = ggok_core::occupy::agent_pid(&state.agent_pid_file, state.agent.child_pid().await);
+    let our = ggok_core::occupy::our_runtime_pid(state.agent.child_pid().await);
+    let leftover_pid_file = state.agent_pid_file.clone();
+    let session_dir = meta.dir.clone();
     let (sse_tx, mut sse_rx) = tokio::sync::mpsc::channel::<SseEvent>(64);
     tokio::spawn(async move {
         tail::run(
@@ -107,7 +112,9 @@ async fn stream_cli_events(state: Arc<AppState>, id: String, tx: EventTx) {
                 path,
                 grok_home: state.grok_home.clone(),
                 session_id: id,
-                agent_pid,
+                session_dir,
+                leftover_pid_file,
+                our_runtime_pid: our,
                 start_offset,
                 model: meta.model.clone(),
             },
@@ -151,7 +158,9 @@ async fn seed_session_usage(
         }
     }
     if let Some((usage, ctx)) = state.agent.live_usage(id).await {
-        if usage.recorded && let Ok(data) = serde_json::to_string(&usage) {
+        if usage.recorded
+            && let Ok(data) = serde_json::to_string(&usage)
+        {
             let _ = tx
                 .send(Ok(Event::default().event("usage").data(data)))
                 .await;
