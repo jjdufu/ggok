@@ -6,6 +6,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::response::{IntoResponse, Response};
+use ggok_agent::QuestionView;
 use ggok_agent::session_ops::delete_session;
 use ggok_core::occupy::{self, Source};
 use ggok_core::parse::{blocks_to_markdown, extract_tool};
@@ -14,7 +15,7 @@ use ggok_core::scan;
 use ggok_core::search::search_session_ids;
 use ggok_core::session;
 use ggok_core::types::{ContextUse, SessionDetail, SessionMeta, ToolDetail};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -176,34 +177,45 @@ pub(crate) async fn api_session(
     let work_started_ms = parsed
         .work_started_ms
         .or(state.agent.live_work_started_ms(&id).await);
-    json_ok(&SessionDetail {
-        id: meta.id,
-        cwd: meta.cwd,
-        title: meta.title,
-        model,
-        effort,
-        source: occ.source.as_str().to_string(),
-        writable: occ.writable,
-        running: occ.running,
-        blocks: {
-            if occ.running {
-                let live_blocks = state.agent.live_blocks(&id).await;
-                if live_blocks.is_empty() {
-                    parsed.blocks.clone()
+    let pending_questions = state.agent.pending_questions(&id).await;
+    json_ok(&SessionOut {
+        detail: SessionDetail {
+            id: meta.id,
+            cwd: meta.cwd,
+            title: meta.title,
+            model,
+            effort,
+            source: occ.source.as_str().to_string(),
+            writable: occ.writable,
+            running: occ.running,
+            blocks: {
+                if occ.running {
+                    let live_blocks = state.agent.live_blocks(&id).await;
+                    if live_blocks.is_empty() {
+                        parsed.blocks.clone()
+                    } else {
+                        ggok_core::parse::merge_live_over_disk(&parsed.blocks, &live_blocks)
+                    }
                 } else {
-                    ggok_core::parse::merge_live_over_disk(&parsed.blocks, &live_blocks)
+                    parsed.blocks.clone()
                 }
-            } else {
-                parsed.blocks.clone()
-            }
+            },
+            usage,
+            context: ContextUse {
+                used: ctx_used,
+                window,
+            },
+            work_started_ms,
         },
-        usage,
-        context: ContextUse {
-            used: ctx_used,
-            window,
-        },
-        work_started_ms,
+        pending_questions,
     })
+}
+
+#[derive(Serialize)]
+struct SessionOut {
+    #[serde(flatten)]
+    detail: SessionDetail,
+    pending_questions: Vec<QuestionView>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -262,17 +262,7 @@ impl Agent {
             }
         }
         let init = self
-            .call(
-                "initialize",
-                json!({
-                    "protocolVersion": 1,
-                    "clientInfo": { "name": "ggok", "version": env!("CARGO_PKG_VERSION") },
-                    "clientCapabilities": {
-                        "fs": { "readTextFile": false, "writeTextFile": false },
-                        "terminal": false
-                    }
-                }),
-            )
+            .call("initialize", crate::question::acp_initialize_params())
             .await?;
         self.apply_initialize(&init).await;
         let _ = self

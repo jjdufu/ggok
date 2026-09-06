@@ -11,6 +11,7 @@ import { bindVersion } from "./features/version.js";
 import { bindExtModal } from "./features/ext-modal.js";
 import { bindSse } from "./features/sse.js";
 import { bindTimeline } from "./features/timeline.js";
+import { bindQuestion } from "./features/question.js";
 import { bindComposer } from "./features/composer.js";
 import { api } from "./lib/api.js";
 import { relocalizeDyn, hideTip, formatError } from "./lib/helpers.js";
@@ -88,6 +89,8 @@ export function boot() {
     queue: [],
     attachments: [],
     pendingPerms: {},
+    pendingQuestions: {},
+    questionDrafts: {},
     traceOpen: new Set(),
 
     drawerPromptId: "",
@@ -156,6 +159,7 @@ export function boot() {
   bindExtModal(ctx);
   bindSse(ctx);
   bindTimeline(ctx);
+  bindQuestion(ctx);
   bindComposer(ctx);
 
   document.addEventListener("keydown", (e) => {

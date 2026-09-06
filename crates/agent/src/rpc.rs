@@ -89,6 +89,7 @@ impl Agent {
                 if let Err(e) = &result {
                     self.emit(&sid, "error", &json!({ "message": e }));
                 }
+                self.clear_questions(&sid).await;
                 self.emit_live(&sid, false);
                 self.emit(&sid, "done", &json!({}));
                 let agent = self.clone();
@@ -104,16 +105,32 @@ impl Agent {
         let method = msg.get("method").and_then(Value::as_str).unwrap_or("");
         let id = msg.get("id").cloned().unwrap_or(Value::Null);
         let params = msg.get("params").cloned().unwrap_or(Value::Null);
-        if method != "session/request_permission" {
-            let mut g = self.inner.lock().await;
-            let reply = json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "error": { "code": -32601, "message": "Method not found" }
-            });
-            let _ = write_stdin(g.stdin.as_mut(), &reply).await;
+        tracing::info!(%method, id = %id, "acp client request");
+        let (method, params) = crate::question::unwrap_ext_request(method, params);
+        if crate::question::is_ask_user_method(&method) {
+            self.handle_ask_user(id, params).await;
             return;
         }
+        if method == "session/request_permission" {
+            self.handle_permission(id, params).await;
+            return;
+        }
+        if crate::question::looks_like_ask_user(&params) {
+            tracing::info!(%method, "treating ACP request as ask_user_question");
+            self.handle_ask_user(id, params).await;
+            return;
+        }
+        tracing::warn!(%method, params = %params, "acp client method not found");
+        let mut g = self.inner.lock().await;
+        let reply = json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": { "code": -32601, "message": "Method not found" }
+        });
+        let _ = write_stdin(g.stdin.as_mut(), &reply).await;
+    }
+
+    async fn handle_permission(&self, id: Value, params: Value) {
         let sid = params
             .get("sessionId")
             .and_then(Value::as_str)
@@ -186,6 +203,13 @@ impl Agent {
         match method {
             "session/update" | "_x.ai/session/update" => self.on_session_update(params).await,
             "_x.ai/queue/changed" => self.on_queue_changed(params).await,
+            method
+                if crate::question::is_ask_user_method(method)
+                    || crate::question::looks_like_ask_user(params) =>
+            {
+                tracing::info!(%method, "acp ask_user_question notification");
+                self.handle_ask_user(Value::Null, params.clone()).await;
+            }
             "_x.ai/models/update" => {
                 let (current, models) = super::session::parse_models(params);
                 let sid = params
@@ -229,7 +253,9 @@ impl Agent {
                     );
                 }
             }
-            _ => {}
+            other => {
+                tracing::debug!(method = other, "acp notification");
+            }
         }
     }
 

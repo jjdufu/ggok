@@ -262,6 +262,149 @@
 
 .perm-deny { background: var(--hover); color: var(--fg); }
 
+.q-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 14px 14px 12px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.q-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.q-kicker {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.q-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.q-tab {
+  border: 0;
+  border-radius: 999px;
+  height: 24px;
+  padding: 0 10px;
+  font-size: 12px;
+  background: var(--hover);
+  color: var(--fg);
+}
+
+.q-tab:hover,
+.q-opt:hover {
+  background: var(--hover-strong, var(--hover));
+}
+
+.q-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.q-question {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--fg);
+  line-height: 1.45;
+}
+
+.q-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.q-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.q-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  font-size: 14px;
+}
+
+.q-opt.selected {
+  border-color: var(--orb);
+  background: var(--hover);
+}
+
+.q-opt-label { font-weight: 500; }
+
+.q-opt-desc {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.q-other {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--composer);
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.q-preview {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--code-head);
+  font-size: 13px;
+  overflow: auto;
+}
+
+.q-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.q-actions button {
+  border: 0;
+  border-radius: 999px;
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.q-submit { background: var(--orb); color: var(--orb-fg); }
+.q-submit:disabled { opacity: 0.45; }
+.q-skip, .q-chat { background: var(--hover); color: var(--fg); }
+.q-card.busy { opacity: 0.7; pointer-events: none; }
+
 .turn-trace {
   display: flex;
   flex-direction: column;

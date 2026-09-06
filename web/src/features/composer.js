@@ -794,6 +794,7 @@ export function bindComposer(ctx) {
     if (ctx.syncWorkTimer) ctx.syncWorkTimer(false);
     ctx.queue = [];
     ctx.pendingPerms = {};
+    if (ctx.resetQuestions) ctx.resetQuestions();
     location.hash = "";
     if (ctx.setPageTitle) ctx.setPageTitle("");
     else document.title = "GGOK";
@@ -864,6 +865,8 @@ export function bindComposer(ctx) {
         if (detail.work_started_ms) ctx.current.work_started_ms = detail.work_started_ms;
       }
       applyOccupancy(detail);
+      if (ctx.applyQuestionsFromSession) ctx.applyQuestionsFromSession(detail.pending_questions);
+      else if (ctx.applyQuestions) ctx.applyQuestions(detail.pending_questions || []);
       syncSendBtn();
       if (ctx.scheduleRender) ctx.scheduleRender();
     } catch (e) {}
@@ -876,6 +879,8 @@ export function bindComposer(ctx) {
     ctx.currentId = id;
     location.hash = id;
     ctx.drawerDetailCache = {};
+    ctx.pendingPerms = {};
+    if (ctx.resetQuestions) ctx.resetQuestions();
     if (ctx.closeDrawer) ctx.closeDrawer();
     if (ctx.renderTree) ctx.renderTree();
     if (timeline) timeline.innerHTML = "";
@@ -893,6 +898,8 @@ export function bindComposer(ctx) {
       if (ctx.setPageTitle) ctx.setPageTitle(detail.title || id);
       else document.title = (detail.title || id) + " · GGOK";
       applyOccupancy(detail);
+      if (ctx.applyQuestionsFromSession) ctx.applyQuestionsFromSession(detail.pending_questions);
+      else if (ctx.applyQuestions) ctx.applyQuestions(detail.pending_questions || []);
       syncSendBtn();
       drafts.load();
       if (ctx.renderBlocks) ctx.renderBlocks(detail);

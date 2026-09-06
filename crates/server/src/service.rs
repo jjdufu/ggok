@@ -116,7 +116,12 @@ impl AppState {
             cfg.permission_mode.clone(),
             cfg.agent_pid_file.clone(),
             cfg.leader_json_file.clone(),
-        );
+        )
+        .with_ask_bridge(ggok_agent::AskBridge {
+            exe: std::env::current_exe().unwrap_or_else(|_| cfg.grok_bin.clone()),
+            url: ggok_agent::AskBridge::loopback_url(&cfg.bind),
+            token: cfg.token.clone(),
+        });
         Arc::new(Self {
             token: cfg.token.clone(),
             cookie_key: cfg.cookie_key,

@@ -1,14 +1,20 @@
 pub mod ext;
+pub mod mcp_ask;
 pub(crate) mod process;
+pub(crate) mod question;
 pub(crate) mod rpc;
 pub(crate) mod session;
 pub mod session_ops;
 pub mod slash;
 pub mod tail;
 
+pub use mcp_ask::run_mcp_ask;
+pub use question::{AskBridge, AskOption, AskQuestion, QuestionReply, QuestionView};
+
 use ggok_core::occupy::{self, LiveView};
 use ggok_core::parse::Parser;
 use ggok_core::types::{Block, ModelInfo, QueueItem, SlashCommand, TokenUsage};
+use question::PendingQuestion;
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::collections::{HashMap, VecDeque};
@@ -26,6 +32,7 @@ pub struct Agent {
     pub(crate) permission_mode: String,
     pub(crate) pid_file: PathBuf,
     pub(crate) leader_json: PathBuf,
+    pub(crate) ask_bridge: Option<AskBridge>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -67,6 +74,8 @@ pub(crate) struct Inner {
     pub(crate) sessions: HashMap<String, Live>,
     pub(crate) child_pid: Option<u32>,
     pub(crate) web_active_id: Option<String>,
+    pub(crate) question_tx: HashMap<String, oneshot::Sender<QuestionReply>>,
+    pub(crate) question_rx: HashMap<String, oneshot::Receiver<QuestionReply>>,
 }
 
 pub(crate) struct Live {
@@ -77,6 +86,7 @@ pub(crate) struct Live {
     pub(crate) queue: VecDeque<QueueItem>,
     pub(crate) resume: Option<QueueItem>,
     pub(crate) perms: HashMap<String, PendingPerm>,
+    pub(crate) questions: HashMap<String, PendingQuestion>,
     pub(crate) usage: TokenUsage,
     pub(crate) model: String,
     pub(crate) parser: Parser,
@@ -121,6 +131,8 @@ impl Agent {
                 sessions: HashMap::new(),
                 child_pid: None,
                 web_active_id: occupy::read_web_active(&occupy::web_active_path(&leader_json)),
+                question_tx: HashMap::new(),
+                question_rx: HashMap::new(),
             })),
             bus: Arc::new(parking_lot::Mutex::new(HashMap::new())),
             grok_bin,
@@ -128,7 +140,14 @@ impl Agent {
             permission_mode,
             pid_file: agent_pid_file,
             leader_json,
+            ask_bridge: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_ask_bridge(mut self, bridge: AskBridge) -> Self {
+        self.ask_bridge = Some(bridge);
+        self
     }
 
     #[must_use]
@@ -255,6 +274,7 @@ pub(crate) fn live_entry<'a>(inner: &'a mut Inner, id: &str, cwd: &str) -> &'a m
             queue: VecDeque::new(),
             resume: None,
             perms: HashMap::new(),
+            questions: HashMap::new(),
             usage: TokenUsage::default(),
             model: String::new(),
             parser: Parser::new(),

@@ -34,5 +34,9 @@ fn run() -> Result<i32> {
             ctl::daemon(args)?;
             Ok(0)
         }
+        Commands::McpAsk => {
+            ggok_agent::run_mcp_ask()?;
+            Ok(0)
+        }
     }
 }

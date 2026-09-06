@@ -36,21 +36,24 @@ export function bindTimeline(ctx) {
         continue;
       }
       if (b.type === "user") {
+        const sameUser = cur.user.find((u) => String(u.text || "") === String(b.text || ""));
+        if (sameUser) {
+          const prevPend = isPendingPrompt(sameUser.prompt_id);
+          const nextPend = isPendingPrompt(b.prompt_id);
+          if (prevPend && !nextPend) {
+            const idx = cur.user.indexOf(sameUser);
+            const files = b.files && b.files.length ? b.files : sameUser.files;
+            cur.user[idx] = Object.assign({}, sameUser, b, files ? { files } : {});
+          }
+          cur.prompt_id = b.prompt_id && !isPendingPrompt(b.prompt_id) ? b.prompt_id : cur.prompt_id || b.prompt_id;
+          if (b.cancelled) cur.cancelled = true;
+          continue;
+        }
         if (cur.agent.length && cur.user.length) {
           cur.ended = true;
           flush();
         }
-        const prevUser = cur.user[cur.user.length - 1];
-        if (prevUser && String(prevUser.text || "") === String(b.text || "")) {
-          const prevPend = isPendingPrompt(prevUser.prompt_id);
-          const nextPend = isPendingPrompt(b.prompt_id);
-          if (prevPend && !nextPend) cur.user[cur.user.length - 1] = b;
-          else if (!prevPend && nextPend) {
-          } else if (prevPend && nextPend) {
-          } else cur.user.push(b);
-        } else {
-          cur.user.push(b);
-        }
+        cur.user.push(b);
         cur.prompt_id = b.prompt_id && !isPendingPrompt(b.prompt_id) ? b.prompt_id : cur.prompt_id || b.prompt_id;
         if (b.cancelled) cur.cancelled = true;
       } else {
@@ -840,6 +843,7 @@ export function bindTimeline(ctx) {
     }
     timeline.dataset.session = sid;
     if (ctx.drawerMode === "process" && ctx.drawerPromptId && ctx.renderDrawer) ctx.renderDrawer();
+    if (ctx.syncQuestionCards) ctx.syncQuestionCards();
     restoreTraceScroll(tracePos);
     if (stick) timeline.scrollTop = timeline.scrollHeight;
   }
@@ -886,8 +890,7 @@ export function bindTimeline(ctx) {
             out[prevIdx] = Object.assign({}, prev, b, files ? { files } : {});
             continue;
           }
-          if (!prevPend && nextPend) continue;
-          if (prevPend && nextPend) continue;
+          continue;
         }
       }
       out.push(b);
@@ -914,7 +917,7 @@ export function bindTimeline(ctx) {
         const sameText = String(b.text || "") === String(block.text || "");
         const sameId = block.prompt_id && b.prompt_id === block.prompt_id;
         const pendingHit = (isPendingPrompt(b.prompt_id) || isPendingPrompt(block.prompt_id)) && sameText;
-        if (sameId || pendingHit) {
+        if (sameId || pendingHit || sameText) {
           const prev = ctx.current.blocks[i];
           ctx.current.blocks[i] = Object.assign({}, prev, block);
           if (!(block.files && block.files.length) && prev.files && prev.files.length) {

@@ -38,6 +38,8 @@ pub enum Commands {
     Update,
     #[command(name = "__daemon", hide = true)]
     Daemon(StartArgs),
+    #[command(name = "__mcp-ask", hide = true)]
+    McpAsk,
 }
 
 #[derive(Debug, Clone, Args)]

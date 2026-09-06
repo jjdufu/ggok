@@ -48,6 +48,12 @@ async fn stream_agent_events(state: Arc<AppState>, id: String, tx: EventTx) {
             .send(Ok(Event::default().event("queue").data(data)))
             .await;
     }
+    let questions = state.agent.pending_questions(&id).await;
+    if let Ok(data) = serde_json::to_string(&questions) {
+        let _ = tx
+            .send(Ok(Event::default().event("questions").data(data)))
+            .await;
+    }
     seed_session_usage(&state, &id, &tx).await;
     for block in state.agent.live_blocks(&id).await {
         if let Ok(data) = serde_json::to_string(&block) {

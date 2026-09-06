@@ -734,9 +734,8 @@ mod tests {
 
     #[test]
     fn auto_when_not_user_invocable() {
-        let meta = parse_frontmatter(
-            "---\nname: pdf\nuser-invocable: false\ndescription: PDFs\n---\n",
-        );
+        let meta =
+            parse_frontmatter("---\nname: pdf\nuser-invocable: false\ndescription: PDFs\n---\n");
         assert_eq!(meta.user_invocable, Some(false));
         assert_eq!(skill_kind("pdf", meta.user_invocable), "auto");
     }
@@ -750,9 +749,7 @@ mod tests {
 
     #[test]
     fn argument_hint_parsed() {
-        let meta = parse_frontmatter(
-            "---\nname: review\nargument-hint: \"[--local]\"\n---\n",
-        );
+        let meta = parse_frontmatter("---\nname: review\nargument-hint: \"[--local]\"\n---\n");
         assert_eq!(meta.argument_hint.as_deref(), Some("[--local]"));
     }
 }

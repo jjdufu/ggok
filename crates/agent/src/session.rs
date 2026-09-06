@@ -23,15 +23,11 @@ impl Agent {
         effort: Option<&str>,
     ) -> Result<NewSession> {
         self.ensure().await?;
-        let mut params = json!({
+        let params = json!({
             "cwd": cwd.to_string_lossy(),
-            "mcpServers": []
+            "mcpServers": self.ask_mcp_servers(),
+            "_meta": crate::question::acp_session_meta(&self.permission_mode)
         });
-        match self.permission_mode.as_str() {
-            "always-approve" => params["_meta"] = json!({ "yoloMode": true }),
-            "auto" => params["_meta"] = json!({ "autoMode": true }),
-            _ => {}
-        }
         let result = self.call("session/new", params).await?;
         let id = result
             .get("sessionId")
@@ -101,12 +97,19 @@ impl Agent {
                 json!({
                     "sessionId": id,
                     "cwd": cwd,
-                    "mcpServers": []
+                    "mcpServers": self.ask_mcp_servers(),
+                    "_meta": crate::question::acp_session_meta(&self.permission_mode)
                 }),
             )
             .await?;
         self.apply_session_result(id, cwd, &result).await;
         Ok(())
+    }
+
+    fn ask_mcp_servers(&self) -> Value {
+        self.ask_bridge
+            .as_ref()
+            .map_or(json!([]), crate::question::mcp_ask_servers)
     }
 
     /// # Errors
@@ -379,7 +382,7 @@ impl Agent {
         write_stdin(g.stdin.as_mut(), &msg).await
     }
 
-    async fn require_attached(&self, id: &str) -> Result<()> {
+    pub(crate) async fn require_attached(&self, id: &str) -> Result<()> {
         let occ = self.occupancy_of(id, None).await;
         if occ.source != Source::Attached {
             bail!(SESSION_BUSY);
@@ -521,7 +524,8 @@ impl Agent {
         let kind = update
             .get("sessionUpdate")
             .and_then(Value::as_str)
-            .unwrap_or("");
+            .unwrap_or("")
+            .to_string();
         if kind == "available_commands_update" {
             let cmds = parse_commands(update.get("availableCommands").unwrap_or(&Value::Null));
             self.inner.lock().await.commands.clone_from(&cmds);
@@ -583,20 +587,7 @@ impl Agent {
             let usage = sess.usage.clone();
             (block, usage, emit_usage, before_ctx, ctx_used, model_id)
         };
-        let context = if ctx_used == before_ctx {
-            None
-        } else {
-            let window = {
-                let g = self.inner.lock().await;
-                g.models
-                    .iter()
-                    .find(|m| m.id == model_id)
-                    .and_then(|m| m.context_window)
-                    .filter(|n| *n > 0)
-                    .unwrap_or_else(|| ggok_core::parse::context_window(&self.grok_home, &model_id))
-            };
-            Some(json!({ "used": ctx_used, "window": window }))
-        };
+        let context = self.context_payload(ctx_used, before_ctx, &model_id).await;
         if let Some(block) = block {
             self.emit(&sid, "block", &block);
         }
@@ -606,6 +597,58 @@ impl Agent {
         if let Some(context) = context {
             self.emit(&sid, "context", &context);
         }
+        self.maybe_present_ask_tool(&sid, &kind, update).await;
+    }
+
+    async fn context_payload(
+        &self,
+        ctx_used: u64,
+        before_ctx: u64,
+        model_id: &str,
+    ) -> Option<Value> {
+        if ctx_used == before_ctx {
+            return None;
+        }
+        let window = {
+            let g = self.inner.lock().await;
+            g.models
+                .iter()
+                .find(|m| m.id == model_id)
+                .and_then(|m| m.context_window)
+                .filter(|n| *n > 0)
+                .unwrap_or_else(|| ggok_core::parse::context_window(&self.grok_home, model_id))
+        };
+        Some(json!({ "used": ctx_used, "window": window }))
+    }
+
+    async fn maybe_present_ask_tool(&self, sid: &str, kind: &str, update: Value) {
+        if kind != "tool_call" && kind != "tool_call_update" {
+            return;
+        }
+        let title = update.get("title").and_then(Value::as_str).unwrap_or("");
+        let name = update
+            .pointer("/_meta/x.ai/tool/name")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        if !crate::question::should_present_tool_call_as_ask(title, name, &update) {
+            return;
+        }
+        tracing::info!(
+            session_id = %sid,
+            %kind,
+            %title,
+            %name,
+            "ask_user_question tool_call"
+        );
+        let fallback = {
+            let g = self.inner.lock().await;
+            g.sessions
+                .get(sid)
+                .map(|sess| sess.last_tool_id.clone())
+                .unwrap_or_default()
+        };
+        let params = crate::question::with_fallback_tool_id(update, &fallback);
+        self.handle_ask_user(Value::Null, params).await;
     }
 
     pub(crate) async fn refresh_usage_from_disk(&self, sid: &str) {

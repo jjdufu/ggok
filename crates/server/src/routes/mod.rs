@@ -4,6 +4,7 @@ pub(crate) mod fs;
 pub(crate) mod meta;
 pub(crate) mod perm;
 pub(crate) mod prompt;
+pub(crate) mod question;
 pub(crate) mod queue;
 pub(crate) mod session;
 pub(crate) mod workspace;
@@ -98,5 +99,11 @@ pub(crate) fn router(upload_max: usize) -> Router<Arc<AppState>> {
             "/api/sessions/{id}/permissions/{req}",
             post(perm::api_permission),
         )
+        .route(
+            "/api/sessions/{id}/questions/{req}",
+            post(question::api_question),
+        )
+        .route("/api/ask", post(question::api_ask_create))
+        .route("/api/ask/{req}", get(question::api_ask_wait))
         .layer(DefaultBodyLimit::max(upload_max.saturating_add(64 * 1024)))
 }

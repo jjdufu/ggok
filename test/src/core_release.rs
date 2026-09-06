@@ -124,7 +124,11 @@ fn asset_url_requires_version_and_allow_list() {
     assert!(asset_url("0.1.4", "windows", "amd64").is_err());
     assert!(asset_url("0.1.4", "linux", "x86_64").is_err());
     assert!(asset_url("0.1.4", "linux", "arm64").is_err());
-    assert!(asset_url("0.1.4", "linux", "aarch64").expect("aarch64").contains("_aarch64."));
+    assert!(
+        asset_url("0.1.4", "linux", "aarch64")
+            .expect("aarch64")
+            .contains("_aarch64.")
+    );
 }
 
 #[test]

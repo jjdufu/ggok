@@ -117,6 +117,15 @@ impl Parser {
             }
             return;
         }
+        // Session load / MCP reinit can replay the same user_message_chunk
+        // into a live parser that already has this turn.
+        if kind == TextKind::User && !text.is_empty() && self.open_turn_has_user(text) {
+            if !prompt_id.is_empty() {
+                self.backfill_user_prompt(&prompt_id);
+                self.current_prompt_id.clone_from(&prompt_id);
+            }
+            return;
+        }
         self.flush_text();
         if !prompt_id.is_empty() {
             self.current_prompt_id.clone_from(&prompt_id);
@@ -126,6 +135,24 @@ impl Parser {
             prompt_id,
             text: text.to_string(),
         });
+    }
+
+    fn open_turn_has_user(&self, text: &str) -> bool {
+        if self
+            .buf
+            .as_ref()
+            .is_some_and(|buf| buf.kind == TextKind::User && buf.text == text)
+        {
+            return true;
+        }
+        let start = self
+            .blocks
+            .iter()
+            .rposition(|b| matches!(b, Block::TurnEnd { .. }))
+            .map_or(0, |i| i + 1);
+        self.blocks[start..]
+            .iter()
+            .any(|b| matches!(b, Block::User { text: t, .. } if t == text))
     }
 
     fn backfill_user_prompt(&mut self, prompt_id: &str) {
@@ -252,6 +279,7 @@ impl Parser {
 
     fn finish(mut self) -> ParsedSession {
         self.flush_text();
+        compact_duplicate_open_users(&mut self.blocks);
         let mut usage = self.usage;
         usage.models = self.models.into_values().collect();
         ParsedSession {
@@ -272,6 +300,7 @@ impl Parser {
         if let Some(open) = self.open_text() {
             out.push(open);
         }
+        compact_duplicate_open_users(&mut out);
         out
     }
 
@@ -989,7 +1018,30 @@ pub fn merge_live_over_disk(disk: &[Block], live: &[Block]) -> Vec<Block> {
 
     let mut out = disk[..cut].to_vec();
     out.extend_from_slice(live);
+    compact_duplicate_open_users(&mut out);
     out
+}
+
+fn compact_duplicate_open_users(blocks: &mut Vec<Block>) {
+    let mut out = Vec::with_capacity(blocks.len());
+    let mut seen_user: Option<String> = None;
+    for b in blocks.drain(..) {
+        match &b {
+            Block::TurnEnd { .. } => {
+                seen_user = None;
+                out.push(b);
+            }
+            Block::User { text, .. } => {
+                if seen_user.as_deref() == Some(text.as_str()) {
+                    continue;
+                }
+                seen_user = Some(text.clone());
+                out.push(b);
+            }
+            _ => out.push(b),
+        }
+    }
+    *blocks = out;
 }
 
 #[must_use]

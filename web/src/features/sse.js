@@ -167,6 +167,10 @@ export function bindSse(ctx) {
       if (ctx.scheduleRender) ctx.scheduleRender();
     });
 
+    on("questions", (list) => {
+      if (ctx.applyQuestions) ctx.applyQuestions(Array.isArray(list) ? list : []);
+    });
+
     return opened;
   }
 

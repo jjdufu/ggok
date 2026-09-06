@@ -84,6 +84,22 @@ fn ingest_merges_text_chunks_then_turn_end() {
 }
 
 #[test]
+fn replayed_user_chunk_does_not_duplicate() {
+    let mut p = Parser::new();
+    p.ingest_at(&chunk("user_message_chunk", "Hi"), "p1", Some(10));
+    p.ingest_at(&chunk("agent_thought_chunk", "hmm"), "p1", Some(20));
+    p.ingest_at(&chunk("agent_message_chunk", "ok"), "p1", Some(30));
+    p.ingest_at(&chunk("user_message_chunk", "Hi"), "p1", Some(40));
+    p.ingest_at(&chunk("agent_thought_chunk", "hmm"), "p1", Some(50));
+    let blocks = p.snapshot_blocks();
+    let users: Vec<_> = blocks
+        .iter()
+        .filter(|b| matches!(b, Block::User { .. }))
+        .collect();
+    assert_eq!(users.len(), 1, "{blocks:?}");
+}
+
+#[test]
 fn ingest_tool_and_usage() {
     let mut p = Parser::new();
     assert_eq!(
@@ -176,6 +192,29 @@ fn merge_live_over_disk_appends_after_last_turn() {
     assert_eq!(merged.len(), 3);
     assert!(matches!(&merged[2], Block::User { text, .. } if text == "full"));
     assert_eq!(merge_live_over_disk(&disk, &[]).len(), 3);
+
+    let dup_live = vec![
+        Block::User {
+            prompt_id: "new".into(),
+            text: "full".into(),
+            files: vec![],
+        },
+        Block::Assistant {
+            prompt_id: "new".into(),
+            text: "ans".into(),
+        },
+        Block::User {
+            prompt_id: "new".into(),
+            text: "full".into(),
+            files: vec![],
+        },
+    ];
+    let compacted = merge_live_over_disk(&disk, &dup_live);
+    let users = compacted
+        .iter()
+        .filter(|b| matches!(b, Block::User { prompt_id, .. } if prompt_id == "new"))
+        .count();
+    assert_eq!(users, 1, "{compacted:?}");
 }
 
 #[test]
