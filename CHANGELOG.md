@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7](https://github.com/jjdufu/ggok/compare/v0.1.6...v0.1.7) (2026-09-06)
+
+
+### Features
+
+* add GitHub link, grok-style update progress, and quieter login ([4b55551](https://github.com/jjdufu/ggok/commit/4b55551dafcce84f3cf56ca0768f57014df7ea2f))
+
 ## [0.1.6](https://github.com/jjdufu/ggok/compare/v0.1.5...v0.1.6) (2026-09-06)
 
 
