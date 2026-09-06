@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/jjdufu/ggok/compare/v0.1.8...v0.1.9) (2026-09-06)
+
+
+### Features
+
+* skill chips, plugin MCP lineage, and install progress ([9b0410e](https://github.com/jjdufu/ggok/commit/9b0410e103ed888309171c5131b937855de577da))
+
 ## [0.1.8](https://github.com/jjdufu/ggok/compare/v0.1.7...v0.1.8) (2026-09-06)
 
 
