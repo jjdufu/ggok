@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/jjdufu/ggok/compare/v0.1.7...v0.1.8) (2026-09-06)
+
+
+### Features
+
+* name ARM release archives aarch64 instead of arm64 ([2cdf38c](https://github.com/jjdufu/ggok/commit/2cdf38c9e679eeb43961e4c53fb74d6ec34849ee))
+
 ## [0.1.7](https://github.com/jjdufu/ggok/compare/v0.1.6...v0.1.7) (2026-09-06)
 
 
