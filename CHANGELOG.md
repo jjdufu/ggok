@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/jjdufu/ggok/compare/v0.1.3...v0.1.4) (2026-09-06)
+
+
+### Features
+
+* distinguish TUI sessions and persist draft across tabs ([6eff84c](https://github.com/jjdufu/ggok/commit/6eff84c342b8e7b611001031540004f98d86d55b))
+
 ## [0.1.3](https://github.com/jjdufu/ggok/compare/v0.1.2...v0.1.3) (2026-09-05)
 
 
