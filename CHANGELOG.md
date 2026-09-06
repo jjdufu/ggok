@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/jjdufu/ggok/compare/v0.1.5...v0.1.6) (2026-09-06)
+
+
+### Features
+
+* show current and latest version in quota popover ([a582571](https://github.com/jjdufu/ggok/commit/a5825713ff22cd7bd5a8da3b49dcc63b758c5b04))
+
 ## [0.1.5](https://github.com/jjdufu/ggok/compare/v0.1.4...v0.1.5) (2026-09-06)
 
 
