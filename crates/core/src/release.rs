@@ -2,7 +2,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 use std::fs::{self, File};
-use std::io;
+use std::io::{self, IsTerminal};
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -320,23 +320,45 @@ pub fn curl_effective_url(url: &str) -> Result<String> {
 
 /// # Errors
 /// Returns an error if `curl` fails or `dest` cannot be written.
+///
+/// When stderr is a terminal, uses curl's `--progress-bar` so the bar tracks
+/// real downloaded bytes. Otherwise the download is silent.
 pub fn curl_download(url: &str, dest: &Path) -> Result<()> {
-    let output = curl_cmd()
-        .args([
-            "-fsSL",
-            "--retry",
-            "3",
-            "--connect-timeout",
-            "4",
-            "--max-time",
-            "120",
-            "-o",
-        ])
-        .arg(dest)
-        .arg(url)
-        .output()
-        .with_context(|| format!("run {} download {}", curl_bin(), dest.display()))?;
-    check_curl(&output, url)
+    let progress = io::stderr().is_terminal();
+    let mut cmd = curl_cmd();
+    cmd.args([
+        "-fL",
+        "--retry",
+        "3",
+        "--connect-timeout",
+        "4",
+        "--max-time",
+        "120",
+    ]);
+    if progress {
+        cmd.arg("--progress-bar");
+    } else {
+        cmd.args(["-sS"]);
+    }
+    cmd.arg("-o").arg(dest).arg(url);
+    if progress {
+        cmd.stdout(Stdio::null());
+        cmd.stderr(Stdio::inherit());
+        let status = cmd
+            .status()
+            .with_context(|| format!("run {} download {}", curl_bin(), dest.display()))?;
+        if status.success() {
+            eprintln!();
+            Ok(())
+        } else {
+            bail!("curl failed for {url} ({status})")
+        }
+    } else {
+        let output = cmd
+            .output()
+            .with_context(|| format!("run {} download {}", curl_bin(), dest.display()))?;
+        check_curl(&output, url)
+    }
 }
 
 /// # Errors

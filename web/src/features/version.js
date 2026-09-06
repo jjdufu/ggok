@@ -3,9 +3,7 @@ import { api } from "../lib/api.js";
 const LATEST_RELEASE = "https://github.com/jjdufu/ggok/releases/latest";
 
 function fmtVer(ver) {
-  const s = String(ver || "").trim();
-  if (!s) return "";
-  return /^[vV]/.test(s) ? s : "v" + s;
+  return String(ver || "").trim().replace(/^[vV]/, "");
 }
 
 export function bindVersion(ctx) {

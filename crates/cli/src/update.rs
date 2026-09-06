@@ -27,20 +27,18 @@ pub(crate) fn run() -> Result<i32> {
     let current = CURRENT_VERSION;
     let latest = fetch_latest_version()?;
     if !is_newer(&latest, current) {
-        println!("already {current}");
+        println!("Already up to date ({current}).");
         return Ok(0);
     }
     let (os, arch) = os_arch()?;
     let filename = asset_filename(&latest, &os, &arch);
     let tmp = make_tmp()?;
-    println!("updating {current} → {latest}");
-    println!("downloading {filename}");
+    println!("Updating {current} → {latest}.");
     let archive = tmp.0.join(&filename);
     curl_and_verify(&latest, &os, &arch, &filename, &archive)?;
-    println!("verified sha256");
     let extracted = extract_ggok(&archive, &tmp.0)?;
     replace_file_atomic(&extracted, &dest)?;
-    println!("installed {}", dest.display());
+    println!("Updated to {latest}.");
     restart_web_if_running(&dest)?;
     Ok(0)
 }

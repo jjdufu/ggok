@@ -100,6 +100,9 @@ export default function App() {
         </button>
         <div id="titlebar">
           <div className="title-tools">
+            <a id="github-link" className="icon-btn" href="https://github.com/jjdufu/ggok" target="_blank" rel="noopener noreferrer" data-tip="GitHub 仓库" data-i18n-title="githubRepo" aria-label="GitHub">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-github"/></svg>
+            </a>
             <button type="button" id="lang-btn" className="icon-btn lang-btn" data-tip="中文" aria-label="中文">
               <span className="lang-icon" data-lang-icon="zh">中</span>
               <span className="lang-icon" data-lang-icon="en">EN</span>

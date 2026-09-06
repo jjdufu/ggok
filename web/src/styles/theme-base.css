@@ -159,8 +159,6 @@ a { text-decoration: none; }
 
 .logo-mark { width: 28px; height: 28px; display: block; color: var(--fg); }
 
-.hero-mark { width: 42px; height: 42px; color: var(--fg); }
-
 .login-body {
   min-height: 100%;
   min-height: 100dvh;
@@ -172,6 +170,34 @@ a { text-decoration: none; }
   position: relative;
   box-sizing: border-box;
   padding: 72px 16px 24px;
+  overflow: hidden;
+}
+
+.login-body::before,
+.login-body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-body::before {
+  background: radial-gradient(
+    ellipse 70% 45% at 50% 42%,
+    color-mix(in srgb, var(--fg) 7%, transparent),
+    transparent 70%
+  );
+}
+
+.login-body::after {
+  opacity: 0.45;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 65% 48% at 50% 44%, #000 10%, transparent 72%);
+  -webkit-mask-image: radial-gradient(ellipse 65% 48% at 50% 44%, #000 10%, transparent 72%);
 }
 
 .login-top {
@@ -200,21 +226,17 @@ a { text-decoration: none; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 28px;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
 }
 
-.login-hero {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.login-hero h1 {
+.login-hint {
   margin: 0;
-  font-family: "Albert Sans", ui-sans-serif, system-ui, sans-serif;
-  font-size: 42px;
-  font-weight: 550;
-  letter-spacing: -0.04em;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+  text-align: center;
 }
 
 .login-bar {
@@ -441,6 +463,18 @@ html[data-sidebar="collapsed"] #ctx-pct { font-size: 11px; }
 html[data-lang="zh"] .lang-icon[data-lang-icon="zh"],
 html[data-lang="en"] .lang-icon[data-lang-icon="en"] {
   display: block;
+}
+
+.login-top .icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+.login-top .icon-btn svg {
+  width: 18px;
+  height: 18px;
 }
 
 .login-top .lang-btn {
@@ -769,7 +803,6 @@ html[data-lang="en"] .lang-icon[data-lang-icon="en"] {
   #actions { flex-wrap: nowrap; }
   #actions .icon-btn { width: 32px; height: 32px; }
   .say { max-width: 90%; }
-  .login-hero h1 { font-size: 32px; }
 }
 
 .limit-bar {
@@ -1122,6 +1155,8 @@ html[data-sidebar="collapsed"] #new-session { display: inline-flex; }
   }
   html[data-theme="dark"] .composer-inner,
   html[data-theme="dark"] .login-bar { background: rgb(32, 31, 29); }
+  .login-body::before,
+  .login-body::after { display: none; }
 }
 
 html[data-theme="light"] .attach-btn {
