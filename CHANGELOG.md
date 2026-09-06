@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/jjdufu/ggok/compare/v0.1.10...v0.1.11) (2026-09-06)
+
+
+### Bug Fixes
+
+* sync TUI effort, keep drafts, persist last model ([622d91f](https://github.com/jjdufu/ggok/commit/622d91f99d1607d43cd44a937c256538f8854228))
+
 ## [0.1.10](https://github.com/jjdufu/ggok/compare/v0.1.9...v0.1.10) (2026-09-06)
 
 
