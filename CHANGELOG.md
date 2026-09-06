@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/jjdufu/ggok/compare/v0.1.4...v0.1.5) (2026-09-06)
+
+
+### Features
+
+* self-update command and version check ([3df3a3c](https://github.com/jjdufu/ggok/commit/3df3a3c19562c9b083256a70e4a5e48d5cd1f7a6))
+
 ## [0.1.4](https://github.com/jjdufu/ggok/compare/v0.1.3...v0.1.4) (2026-09-06)
 
 
