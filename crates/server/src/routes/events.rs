@@ -6,7 +6,6 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use ggok_agent::SseEvent;
 use ggok_agent::tail;
-use ggok_core::occupy::Source;
 use serde_json::json;
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -31,9 +30,10 @@ pub(crate) async fn api_events(
     if let Ok(data) = serde_json::to_string(&live) {
         let _ = tx.send(Ok(Event::default().event("live").data(data))).await;
     }
-    match occ.source {
-        Source::Attached | Source::Disk => stream_agent_events(state, id, tx).await,
-        Source::Observe | Source::Foreign => stream_cli_events(state, id, tx).await,
+    if occ.source.is_spectator() {
+        stream_cli_events(state, id, tx).await;
+    } else {
+        stream_agent_events(state, id, tx).await;
     }
     Sse::new(ReceiverStream::new(out_rx))
         .keep_alive(KeepAlive::default())

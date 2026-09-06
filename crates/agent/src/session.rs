@@ -81,7 +81,7 @@ impl Agent {
             }
         }
         let occ = self.occupancy_of(id, Some(cwd)).await;
-        if occ.source == Source::Observe || occ.source == Source::Foreign {
+        if occ.source.is_spectator() {
             bail!(SESSION_BUSY);
         }
         self.ensure().await?;

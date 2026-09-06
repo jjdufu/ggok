@@ -1,4 +1,4 @@
-import { t } from "../lib/helpers.js";
+import { t, isSpectatingSource } from "../lib/helpers.js";
 import { toast } from "../lib/clipboard.js";
 
 export function bindSse(ctx) {
@@ -63,7 +63,7 @@ export function bindSse(ctx) {
       if (ev.source) ctx.source = ev.source;
       ctx.writable = ev.writable === true;
       if (typeof ev.running === "boolean") {
-        if (ctx.source === "observe" || ctx.source === "foreign") {
+        if (isSpectatingSource(ctx.source)) {
           ctx.running = ev.running;
         } else if (ev.running) {
           ctx.running = true;

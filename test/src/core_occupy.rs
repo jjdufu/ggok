@@ -1,10 +1,11 @@
 use ggok_core::occupy::{
-    ClassifyInput, LeaderRecord, LiveView, SESSION_BUSY, SessionOp, Source, classify, cli_sessions,
-    cmdline_matches_grok, conflict_busy, first_reachable_leader_pid, is_auto_spawned_leader_cmd,
-    is_ggok_spawned_leader_cmd, is_leader_server_cmd, is_noleader_stdio, is_stdio_client_cmd,
-    is_tui_cmd, jsonl_running, leader_is_independent, parse_leader_list, read_leader_record,
-    read_pid_file, read_web_active, s3_is_hard_foreign, should_cancel_web_peer, stdio_holds_leader,
-    tui_held, web_active_path, write_leader_record, write_web_active,
+    ClassifyInput, LeaderRecord, LiveView, Occupancy, SESSION_BUSY, SessionOp, Source, classify,
+    cli_sessions, cmdline_matches_grok, conflict_busy, first_reachable_leader_pid,
+    is_auto_spawned_leader_cmd, is_ggok_spawned_leader_cmd, is_leader_server_cmd,
+    is_noleader_stdio, is_stdio_client_cmd, is_tui_cmd, jsonl_running, leader_is_independent,
+    parse_leader_list, peer_source, read_leader_record, read_pid_file, read_web_active,
+    s3_is_hard_foreign, should_cancel_web_peer, stdio_holds_leader, tui_held, web_active_path,
+    write_leader_record, write_web_active,
 };
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -132,6 +133,14 @@ fn tui_cmd_and_hard_foreign() {
     assert!(!s3_is_hard_foreign(3, Some(3), false, tui));
     assert!(s3_is_hard_foreign(9, Some(3), true, noleader));
     assert!(!s3_is_hard_foreign(9, Some(3), true, stdio));
+    assert_eq!(peer_source(tui), Source::Tui);
+    assert_eq!(peer_source(noleader), Source::Foreign);
+    assert_eq!(peer_source(stdio), Source::Foreign);
+    assert!(Source::Tui.is_spectator());
+    assert!(Source::Foreign.is_spectator());
+    assert!(Source::Observe.is_spectator());
+    assert!(!Source::Attached.is_spectator());
+    assert!(!Source::Disk.is_spectator());
 }
 
 #[test]
@@ -139,6 +148,21 @@ fn should_cancel_web_peer_skips_tui() {
     assert!(should_cancel_web_peer("aaa", "bbb", false));
     assert!(!should_cancel_web_peer("aaa", "aaa", false));
     assert!(!should_cancel_web_peer("aaa", "bbb", true));
+}
+
+#[test]
+fn tui_occupancy_blocks_writes() {
+    let got = Occupancy {
+        source: Source::Tui,
+        writable: false,
+        running: true,
+    };
+    assert!(got.source.is_spectator());
+    assert!(conflict_busy(got, SessionOp::Prompt));
+    assert!(conflict_busy(got, SessionOp::Load));
+    assert!(conflict_busy(got, SessionOp::Cancel));
+    assert!(conflict_busy(got, SessionOp::Control));
+    assert!(conflict_busy(got, SessionOp::Delete));
 }
 
 #[test]
@@ -154,7 +178,12 @@ fn classify_s3_non_tui_with_can_attach_is_writable() {
         can_attach: true,
     });
     let cmd = ggok_core::sys::pid_cmdline(9);
-    if is_tui_cmd(&cmd) || is_noleader_stdio(&cmd) {
+    if is_tui_cmd(&cmd) {
+        assert_eq!(got.source, Source::Tui);
+        assert!(!got.writable);
+        assert!(conflict_busy(got, SessionOp::Prompt));
+        assert!(conflict_busy(got, SessionOp::Delete));
+    } else if is_noleader_stdio(&cmd) {
         assert_eq!(got.source, Source::Foreign);
         assert!(!got.writable);
     } else {
@@ -193,6 +222,7 @@ fn source_as_str() {
     assert_eq!(Source::Attached.as_str(), "attached");
     assert_eq!(Source::Observe.as_str(), "observe");
     assert_eq!(Source::Foreign.as_str(), "foreign");
+    assert_eq!(Source::Tui.as_str(), "tui");
     assert_eq!(Source::Disk.as_str(), "disk");
 }
 
@@ -268,9 +298,12 @@ fn first_reachable_leader_pid_skips_unreachable() {
     );
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].pid_live, Some(1));
-    assert_eq!(first_reachable_leader_pid(
-        r#"[{"classification":"Unreachable","pidLive":1},{"classification":"Reachable","pidLive":2}]"#
-    ), Some(2));
+    assert_eq!(
+        first_reachable_leader_pid(
+            r#"[{"classification":"Unreachable","pidLive":1},{"classification":"Reachable","pidLive":2}]"#
+        ),
+        Some(2)
+    );
 }
 
 #[test]

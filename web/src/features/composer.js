@@ -1,5 +1,6 @@
 import { promptApi } from "../promptApi.js";
-import { t, setTip, fileNameOf, uploadUrl, fileViewSrc, isImageAttach, revokePreview } from "../lib/helpers.js";
+import { t, setTip, fileNameOf, uploadUrl, fileViewSrc, isImageAttach, revokePreview, isSpectatingSource, occupyMessageKey } from "../lib/helpers.js";
+import { bindDraftSync } from "./draft-sync.js";
 import { placePopover } from "../lib/popover.js";
 import { svgUse } from "../lib/svg.js";
 import { api, post } from "../lib/api.js";
@@ -27,6 +28,7 @@ export function bindComposer(ctx) {
 
   const promptPhKeys = ["promptPh1", "promptPh2", "promptPh3"];
   let promptPhI = 0;
+  const drafts = bindDraftSync(ctx);
 
   function promptIsEmpty() {
     return !String(promptApi.getText() || "").trim();
@@ -62,6 +64,7 @@ export function bindComposer(ctx) {
     promptApi.setText(next);
     promptApi.focus();
     promptApi.setCaret(next.length);
+    drafts.publish();
   }
 
   function visiblePromptId() {
@@ -77,18 +80,16 @@ export function bindComposer(ctx) {
   }
 
   function isSpectating() {
-    return ctx.source === "observe" || ctx.source === "foreign";
+    return isSpectatingSource(ctx.source);
   }
 
   function syncOccupyBanner() {
     const banner = document.getElementById("occupy-banner");
     if (!banner) return;
-    if (ctx.source === "foreign") {
+    const key = occupyMessageKey(ctx.source);
+    if (key) {
       banner.hidden = false;
-      banner.textContent = t("occupyForeign");
-    } else if (ctx.source === "observe") {
-      banner.hidden = false;
-      banner.textContent = t("occupyObserve");
+      banner.textContent = t(key);
     } else {
       banner.hidden = true;
       banner.textContent = "";
@@ -709,8 +710,8 @@ export function bindComposer(ctx) {
   }
 
   function startNewChat() {
-    promptApi.setText("");
     leaveSession();
+    drafts.load();
     promptApi.focus();
   }
 
@@ -736,6 +737,7 @@ export function bindComposer(ctx) {
   }
 
   function leaveSession() {
+    drafts.flush();
     if (ctx.closeEvents) ctx.closeEvents();
     ctx.current = null;
     ctx.currentId = null;
@@ -762,6 +764,7 @@ export function bindComposer(ctx) {
     ctx.selectedCwd = "";
     if (ctx.syncDirLabel) ctx.syncDirLabel();
     if (ctx.syncWsButton) ctx.syncWsButton();
+    promptApi.setText("");
   }
 
   function applyOccupancy(detail) {
@@ -773,7 +776,7 @@ export function bindComposer(ctx) {
       ctx.current.writable = ctx.writable;
     }
     if (typeof detail.running === "boolean") {
-      if (ctx.source === "observe" || ctx.source === "foreign") {
+      if (isSpectatingSource(ctx.source)) {
         ctx.running = detail.running;
       } else if (detail.running) {
         ctx.running = true;
@@ -820,6 +823,7 @@ export function bindComposer(ctx) {
   }
 
   async function openSession(id) {
+    drafts.flush();
     if (ctx.closeDirModal) ctx.closeDirModal();
     if (ctx.syncWorkTimer) ctx.syncWorkTimer(false);
     ctx.currentId = id;
@@ -843,6 +847,7 @@ export function bindComposer(ctx) {
       else document.title = (detail.title || id) + " · GGOK";
       applyOccupancy(detail);
       syncSendBtn();
+      drafts.load();
       if (ctx.renderBlocks) ctx.renderBlocks(detail);
       if (ctx.connectEvents) await ctx.connectEvents(id);
       await pullSession(id);
@@ -909,7 +914,7 @@ export function bindComposer(ctx) {
 
   async function submitPrompt() {
     if (isSpectating() || ctx.writable !== true) {
-      toast(ctx.source === "foreign" ? t("occupyForeign") : t("occupyObserve"));
+      toast(t(occupyMessageKey(ctx.source) || "sessionBusy"));
       return;
     }
     const text = promptApi.getText();
@@ -944,6 +949,7 @@ export function bindComposer(ctx) {
     }));
 
     promptApi.setText("");
+    drafts.clear();
     clearAttachments();
     renderChips();
     if (slashMenu) slashMenu.hidden = true;

@@ -172,8 +172,7 @@ impl Agent {
         if held {
             warn!(
                 pid,
-                acp_pid,
-                "grok leader is a child of the ACP client; that client will not be killed"
+                acp_pid, "grok leader is a child of the ACP client; that client will not be killed"
             );
         }
         let _ = write_leader_record(

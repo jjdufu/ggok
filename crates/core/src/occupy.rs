@@ -17,6 +17,7 @@ pub enum Source {
     Attached,
     Observe,
     Foreign,
+    Tui,
     Disk,
 }
 
@@ -27,8 +28,15 @@ impl Source {
             Self::Attached => "attached",
             Self::Observe => "observe",
             Self::Foreign => "foreign",
+            Self::Tui => "tui",
             Self::Disk => "disk",
         }
+    }
+
+    /// Web may follow jsonl, but must not take the grok control plane.
+    #[must_use]
+    pub fn is_spectator(self) -> bool {
+        matches!(self, Self::Observe | Self::Foreign | Self::Tui)
     }
 }
 
@@ -284,7 +292,7 @@ pub fn classify(input: &ClassifyInput<'_>) -> Occupancy {
         let cmd = crate::sys::pid_cmdline(pid);
         if s3_is_hard_foreign(pid, input.our_runtime_pid, input.can_attach, &cmd) {
             return Occupancy {
-                source: Source::Foreign,
+                source: peer_source(&cmd),
                 writable: false,
                 running: true,
             };
@@ -328,12 +336,21 @@ pub fn s3_is_hard_foreign(
 }
 
 #[must_use]
+pub fn peer_source(cmd: &[u8]) -> Source {
+    if is_tui_cmd(cmd) {
+        Source::Tui
+    } else {
+        Source::Foreign
+    }
+}
+
+#[must_use]
 pub fn conflict_busy(occ: Occupancy, op: SessionOp) -> bool {
     match op {
         SessionOp::Prompt => !occ.writable,
         SessionOp::Load | SessionOp::Cancel | SessionOp::Control => occ.source != Source::Attached,
         SessionOp::Delete => match occ.source {
-            Source::Foreign => true,
+            Source::Foreign | Source::Tui => true,
             Source::Observe => occ.running,
             Source::Attached | Source::Disk => false,
         },

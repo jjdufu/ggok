@@ -236,6 +236,12 @@ export function bindSidebar(ctx) {
       name.className = "name";
       name.textContent = label;
       b.appendChild(name);
+      if (s.source === "tui") {
+        const tag = document.createElement("span");
+        tag.className = "sess-tui";
+        tag.textContent = "TUI";
+        b.appendChild(tag);
+      }
       const more = document.createElement("button");
       more.type = "button";
       more.className = "sess-more";

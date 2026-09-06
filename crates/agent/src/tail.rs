@@ -52,7 +52,7 @@ pub async fn run(job: TailJob, tx: Sender<SseEvent>) {
                 }
             }
         }
-        if !matches!(occ.source, Source::Observe | Source::Foreign) {
+        if !occ.source.is_spectator() {
             break;
         }
         tokio::time::sleep(Duration::from_millis(TAIL_MS)).await;

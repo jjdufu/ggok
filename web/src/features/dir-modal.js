@@ -197,9 +197,9 @@ export function bindDirModal(ctx) {
   }
 
   async function pickCwd(path) {
+    if (ctx.onCwdPicked) ctx.onCwdPicked(path);
     ctx.selectedCwd = path;
     syncDirLabel();
-    if (ctx.onCwdPicked) ctx.onCwdPicked(path);
   }
 
   if (dirBtn) {

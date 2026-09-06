@@ -1,5 +1,16 @@
 export const t = (key, vars) => (window.I18n && window.I18n.t ? window.I18n.t(key, vars) : key);
 
+export function isSpectatingSource(src) {
+  return src === "observe" || src === "foreign" || src === "tui";
+}
+
+export function occupyMessageKey(src) {
+  if (src === "tui") return "occupyTui";
+  if (src === "foreign") return "occupyForeign";
+  if (src === "observe") return "occupyObserve";
+  return "";
+}
+
 export function setDynI18n(el, key, vars) {
   if (!el) return;
   el.setAttribute("data-i18n-dyn", key);

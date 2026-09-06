@@ -281,7 +281,12 @@ export function bindFinder(ctx) {
         addRow(s.id, {
           name: s.title || s.id,
           when: relTime(s.updated_at),
-          badge: s.id === ctx.currentId ? t("finderCurrent") : "",
+          badge:
+            s.id === ctx.currentId
+              ? t("finderCurrent")
+              : s.source === "tui"
+                ? "TUI"
+                : "",
           actions: true
         });
       });
