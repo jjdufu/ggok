@@ -441,54 +441,34 @@
 
 .quota-ver {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
   margin-top: 10px;
   padding-top: 8px;
   border-top: 1px solid var(--border);
   min-width: 0;
 }
 
-.quota-ver-label {
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.quota-ver-num {
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-  color: var(--fg);
-}
-
-.quota-ver-upd {
-  width: 28px;
-  height: 28px;
+.quota-ver-latest {
+  flex-shrink: 0;
+  margin: 0;
   padding: 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   border: 0;
   background: none;
-  border-radius: 8px;
-}
-
-.quota-ver-upd:hover {
-  background: var(--hover);
-}
-
-.quota-ver-upd svg {
-  width: 16px;
-  height: 16px;
-  color: var(--muted);
-}
-
-.quota-ver-upd:hover svg {
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
   color: var(--fg);
+  text-align: right;
+  cursor: default;
 }
 
-.quota-ver-upd[hidden] {
-  display: none;
+.quota-ver-latest.has {
+  cursor: pointer;
+}
+
+.quota-ver-latest.has:hover {
+  color: var(--muted);
 }
 
 .quota-logout-form {

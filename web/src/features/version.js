@@ -1,28 +1,27 @@
-import { setTip } from "../lib/helpers.js";
 import { api } from "../lib/api.js";
 
 const LATEST_RELEASE = "https://github.com/jjdufu/ggok/releases/latest";
 
+function fmtVer(ver) {
+  const s = String(ver || "").trim();
+  if (!s) return "";
+  return /^[vV]/.test(s) ? s : "v" + s;
+}
+
 export function bindVersion(ctx) {
-  const num = document.getElementById("quota-ver-num");
-  const btn = document.getElementById("quota-ver-upd");
+  const curEl = document.getElementById("quota-ver-cur");
+  const latestBtn = document.getElementById("quota-ver-latest");
   const quotaBtn = document.getElementById("quota-btn");
-  let lastVersion = "";
+  let lastLatest = "";
 
   function paint(st) {
-    const ver = (st && st.version) || "";
-    if (ver) lastVersion = ver;
-    if (num) num.textContent = ver;
-    const show = !!(st && st.update_available === true && ver);
-    if (btn) {
-      btn.hidden = !show;
-      if (show) {
-        setTip(btn, ver);
-        btn.setAttribute("aria-label", ver);
-      } else {
-        setTip(btn, "");
-        btn.setAttribute("aria-label", "");
-      }
+    const ver = st && st.version;
+    if (ver && curEl) curEl.textContent = fmtVer(ver);
+    const latest = st && st.latest;
+    if (latest && latestBtn) {
+      lastLatest = String(latest);
+      latestBtn.textContent = fmtVer(lastLatest);
+      latestBtn.classList.add("has");
     }
     const pop = document.getElementById("quota-pop");
     if (pop && !pop.hidden && ctx.placeQuotaPop) ctx.placeQuotaPop();
@@ -32,14 +31,15 @@ export function bindVersion(ctx) {
     try {
       paint(await api("/api/version"));
     } catch {
-      paint({ version: lastVersion || "", update_available: false });
+      /* keep whatever is already on screen */
     }
   }
 
-  if (btn) {
-    btn.addEventListener("click", (e) => {
+  if (latestBtn) {
+    latestBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
+      if (!lastLatest) return;
       window.open(LATEST_RELEASE, "_blank", "noopener,noreferrer");
     });
   }

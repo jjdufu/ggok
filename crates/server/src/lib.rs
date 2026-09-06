@@ -12,4 +12,5 @@ pub use auth::{
     LoginLimiter, bearer_token, build_session_cookie, clear_session_cookie, constant_time_eq,
     cookie_from_header, cookie_name_for_bind, port_of_bind, sign_cookie, verify_cookie,
 };
+pub use release::{VersionView, version_view};
 pub use service::Service;

@@ -18,7 +18,19 @@ struct CacheEntry {
 #[derive(Debug, Clone, Serialize)]
 pub struct VersionView {
     pub version: String,
+    pub latest: Option<String>,
     pub update_available: bool,
+}
+
+/// Build the `/api/version` payload. `latest` is `None` when GitHub has not
+/// been checked yet or the last check failed.
+#[must_use]
+pub fn version_view(current: &str, latest: Option<&str>) -> VersionView {
+    VersionView {
+        version: current.to_string(),
+        latest: latest.map(str::to_string),
+        update_available: latest.is_some_and(|ver| is_newer(ver, current)),
+    }
 }
 
 enum Hit {
@@ -50,10 +62,7 @@ fn view_from(hit: &Hit) -> VersionView {
         Hit::FreshOk(v) | Hit::StaleOk(v) => Some(v.as_str()),
         Hit::FreshErr | Hit::Miss => None,
     };
-    VersionView {
-        version: CURRENT_VERSION.to_string(),
-        update_available: latest.is_some_and(|l| is_newer(l, CURRENT_VERSION)),
-    }
+    version_view(CURRENT_VERSION, latest)
 }
 
 fn cached() -> Hit {

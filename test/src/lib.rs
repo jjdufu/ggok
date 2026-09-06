@@ -13,3 +13,4 @@ mod core_types;
 mod core_workspace;
 mod server_account;
 mod server_auth;
+mod server_version;

@@ -71,12 +71,14 @@ export default function App() {
           <div id="quota-pop" className="quota-pop" hidden={true} role="dialog" aria-label="周限额" data-i18n-aria="weeklyLimit">
             <div id="quota-pop-body" className="account-body"></div>
             <div id="quota-ver" className="quota-ver">
-              <span className="quota-ver-label">ggok</span>
-              <span id="quota-ver-num" className="quota-ver-num"></span>
-              <button type="button" id="quota-ver-upd" className="quota-ver-upd" hidden={true}
-                      aria-label="">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-update"/></svg>
-              </button>
+              <div className="quota-row">
+                <span className="quota-row-k" data-i18n="currentVersion">当前版本</span>
+                <span id="quota-ver-cur" className="quota-row-v"></span>
+              </div>
+              <div className="quota-row">
+                <span className="quota-row-k" data-i18n="latestVersion">最新版本</span>
+                <button type="button" id="quota-ver-latest" className="quota-ver-latest"></button>
+              </div>
             </div>
             <form action="/logout" method="post" className="quota-logout-form">
               <button type="submit" id="logout-btn" className="side-logout">
