@@ -70,6 +70,14 @@ export default function App() {
           </button>
           <div id="quota-pop" className="quota-pop" hidden={true} role="dialog" aria-label="周限额" data-i18n-aria="weeklyLimit">
             <div id="quota-pop-body" className="account-body"></div>
+            <div id="quota-ver" className="quota-ver">
+              <span className="quota-ver-label">ggok</span>
+              <span id="quota-ver-num" className="quota-ver-num"></span>
+              <button type="button" id="quota-ver-upd" className="quota-ver-upd" hidden={true}
+                      aria-label="">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-update"/></svg>
+              </button>
+            </div>
             <form action="/logout" method="post" className="quota-logout-form">
               <button type="submit" id="logout-btn" className="side-logout">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-logout"/></svg>

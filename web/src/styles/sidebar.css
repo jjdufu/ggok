@@ -439,10 +439,62 @@
   text-align: right;
 }
 
-.quota-logout-form {
-  margin: 10px 0 0;
+.quota-ver {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
   padding-top: 8px;
   border-top: 1px solid var(--border);
+  min-width: 0;
+}
+
+.quota-ver-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.quota-ver-num {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.quota-ver-upd {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: none;
+  border-radius: 8px;
+}
+
+.quota-ver-upd:hover {
+  background: var(--hover);
+}
+
+.quota-ver-upd svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+.quota-ver-upd:hover svg {
+  color: var(--fg);
+}
+
+.quota-ver-upd[hidden] {
+  display: none;
+}
+
+.quota-logout-form {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: none;
 }
 
 .side-logout {

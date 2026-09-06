@@ -1,5 +1,6 @@
 mod config;
 mod ctl;
+mod update;
 
 use anyhow::Result;
 use clap::Parser;
@@ -27,6 +28,7 @@ fn run() -> Result<i32> {
         Commands::Restart { args, all } => ctl::restart(&args, all),
         Commands::Stop { all } => ctl::stop(all),
         Commands::Uninstall => Ok(ctl::uninstall()),
+        Commands::Update => update::run(),
         Commands::Status => ctl::status(),
         Commands::Daemon(args) => {
             ctl::daemon(args)?;

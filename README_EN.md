@@ -37,6 +37,7 @@ Prints the listen address and login token. Open `http://127.0.0.1:9888` and sign
 
 ```shell
 ggok status    # pid, address, token, leader, per-session occupancy
+ggok update    # download the latest Release and replace the binary; restart web if it is running
 ggok stop      # stop Web only; do not kill the grok leader
 ggok stop --all  # stop the leader only if nothing is running and this ggok started it
 ggok restart   # after editing config; `--all` uses the same rules as stop --all

@@ -2,6 +2,7 @@ pub(crate) mod account;
 pub(crate) mod auth;
 pub(crate) mod host;
 pub(crate) mod http;
+pub(crate) mod release;
 pub(crate) mod routes;
 pub mod service;
 pub(crate) mod static_files;

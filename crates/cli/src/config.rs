@@ -34,6 +34,8 @@ pub enum Commands {
     },
     #[command(about = "Stop ggok and delete its binary, config, logs, and cache")]
     Uninstall,
+    #[command(about = "Download the latest release and replace this binary")]
+    Update,
     #[command(name = "__daemon", hide = true)]
     Daemon(StartArgs),
 }

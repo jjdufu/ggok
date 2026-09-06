@@ -75,7 +75,7 @@ pub fn stop(all: bool) -> Result<i32> {
     }
 }
 
-fn stop_web(print: bool) -> Result<()> {
+pub(crate) fn stop_web(print: bool) -> Result<()> {
     let pid_path = pid_file()?;
     let Some(pid) = running_pid(&pid_path) else {
         let _ = fs::remove_file(&pid_path);
@@ -180,7 +180,7 @@ fn which_ggok() -> Option<PathBuf> {
     }
 }
 
-fn is_build_artifact(path: &Path) -> bool {
+pub(crate) fn is_build_artifact(path: &Path) -> bool {
     path.components().any(|c| c.as_os_str() == "target")
 }
 

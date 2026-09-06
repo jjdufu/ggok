@@ -37,6 +37,7 @@ ggok start
 
 ```shell
 ggok status    # pid、地址、token、leader、各会话占用
+ggok update    # 下载最新 Release，替换二进制；web 在跑则重启 web
 ggok stop      # 只停 Web，不杀 grok leader
 ggok stop --all  # 无进行中会话且 leader 由 ggok 拉起时才停 leader
 ggok restart   # 改配置后用这个；`--all` 约束同 stop --all

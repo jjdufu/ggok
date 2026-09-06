@@ -43,6 +43,7 @@ pub(crate) fn router(upload_max: usize) -> Router<Arc<AppState>> {
         .route("/api/dirs", get(fs::api_dirs))
         .route("/api/status", get(meta::api_status))
         .route("/api/account", get(meta::api_account))
+        .route("/api/version", get(meta::api_version))
         .route("/api/fs", get(fs::api_fs))
         .route(
             "/api/workspace",

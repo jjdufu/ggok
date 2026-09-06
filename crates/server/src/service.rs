@@ -229,6 +229,7 @@ impl Service {
         });
 
         crate::account::warm(self.config.grok_home.clone());
+        crate::release::warm();
 
         let boot = self.state.agent.clone();
         tokio::spawn(async move {

@@ -7,6 +7,7 @@ import { bindDirModal } from "./features/dir-modal.js";
 import { bindDrawer } from "./features/drawer.js";
 import { bindWorkspace } from "./features/workspace.js";
 import { bindQuota } from "./features/quota.js";
+import { bindVersion } from "./features/version.js";
 import { bindExtModal } from "./features/ext-modal.js";
 import { bindSse } from "./features/sse.js";
 import { bindTimeline } from "./features/timeline.js";
@@ -146,6 +147,7 @@ export function boot() {
   bindConfirm(ctx);
   bindSidebar(ctx);
   bindQuota(ctx);
+  bindVersion(ctx);
   bindModelMenu(ctx);
   bindFinder(ctx);
   bindDirModal(ctx);

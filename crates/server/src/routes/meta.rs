@@ -30,3 +30,7 @@ pub(crate) async fn api_status(State(state): State<Arc<AppState>>) -> Response {
 pub(crate) async fn api_account(State(state): State<Arc<AppState>>) -> Response {
     json_ok(&account::snapshot(&state.grok_home).await)
 }
+
+pub(crate) async fn api_version() -> Response {
+    json_ok(&crate::release::snapshot())
+}

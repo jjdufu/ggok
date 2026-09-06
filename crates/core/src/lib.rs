@@ -2,6 +2,7 @@ pub mod config;
 pub mod occupy;
 pub mod parse;
 pub mod paths;
+pub mod release;
 pub mod scan;
 pub mod search;
 pub mod session;

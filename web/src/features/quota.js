@@ -203,6 +203,7 @@ export function bindQuota(ctx) {
   ctx.refreshAccount = refreshAccount;
   ctx.startQuotaPoll = startQuotaPoll;
   ctx.writeCachedAccount = writeCachedAccount;
+  ctx.placeQuotaPop = placeQuotaPop;
 
   if (!ctx.lastAccount) {
     const cached = readCachedAccount();
