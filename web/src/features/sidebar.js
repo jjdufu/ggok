@@ -1,4 +1,4 @@
-import { t, hideTip, setTip, shortCwd, fmtNum, fmtTok } from "../lib/helpers.js";
+import { t, hideTip, shortCwd, fmtNum, fmtTok } from "../lib/helpers.js";
 import { menuButton } from "../lib/dom.js";
 import { beginInlineRename } from "../lib/rename.js";
 import { svgUse } from "../lib/svg.js";
@@ -35,8 +35,8 @@ export function bindSidebar(ctx) {
     if (!collapseSideBtn) return;
     const collapsed = document.documentElement.dataset.sidebar === "collapsed";
     const key = collapsed ? "expandSidebar" : "collapseSidebar";
-    collapseSideBtn.setAttribute("data-i18n-title", key);
-    setTip(collapseSideBtn, t(key));
+    collapseSideBtn.setAttribute("data-i18n-aria", key);
+    collapseSideBtn.setAttribute("aria-label", t(key));
   }
   if (collapseSideBtn) {
     collapseSideBtn.addEventListener("click", () => {

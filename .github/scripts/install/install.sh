@@ -214,7 +214,12 @@ do_install() {
 
   echo "installing ggok ${VERSION} (${OS}/${ARCH})"
   echo "downloading ${base}/${asset}"
-  curl -fsSL --retry 3 -o "${GGOK_TMP}/${asset}" "${base}/${asset}"
+  if [[ -t 2 ]]; then
+    curl -fL --retry 3 --progress-bar -o "${GGOK_TMP}/${asset}" "${base}/${asset}"
+    echo >&2
+  else
+    curl -fsSL --retry 3 -o "${GGOK_TMP}/${asset}" "${base}/${asset}"
+  fi
   curl -fsSL --retry 3 -o "${GGOK_TMP}/SHA256SUMS" "${base}/SHA256SUMS"
   (
     cd "$GGOK_TMP"

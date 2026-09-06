@@ -36,10 +36,12 @@ export function bindComposer(ctx) {
 
   function paintPromptPh(animate) {
     if (!promptPh) return;
+    const skill = ctx.activeSkill;
     const hide = !promptIsEmpty() || promptApi.isFocused();
     promptPh.hidden = hide;
     if (hide) return;
-    promptPh.textContent = t(promptPhKeys[promptPhI % promptPhKeys.length]);
+    if (skill) promptPh.textContent = skill.hint || t("skillChipPh");
+    else promptPh.textContent = t(promptPhKeys[promptPhI % promptPhKeys.length]);
     if (animate) {
       promptPh.classList.remove("swap");
       void promptPh.offsetWidth;
@@ -132,13 +134,56 @@ export function bindComposer(ctx) {
     ctx.attachments = [];
   }
 
+  function skillChipLabel(sk) {
+    if (!sk) return "";
+    const key = "skillQ_" + String(sk.name || "").trim().replace(/-/g, "_");
+    const s = t(key);
+    if (s && s !== key) return s;
+    return sk.label || sk.name || "";
+  }
+
+  function renderSkillChip() {
+    const sk = ctx.activeSkill;
+    if (!sk || !sk.name) return null;
+    const chip = document.createElement("span");
+    chip.className = "file-chip skill-chip";
+    const label = document.createElement("span");
+    label.className = "file-chip-name";
+    label.textContent = skillChipLabel(sk);
+    chip.appendChild(label);
+    const x = document.createElement("button");
+    x.type = "button";
+    x.setAttribute("aria-label", t("close"));
+    x.appendChild(svgUse("i-x"));
+    x.addEventListener("click", (e) => {
+      e.stopPropagation();
+      ctx.activeSkill = null;
+      renderChips();
+      paintPromptPh(false);
+    });
+    chip.appendChild(x);
+    return chip;
+  }
+
   function renderChips() {
     if (!chipsEl) return;
     chipsEl.replaceChildren();
-    chipsEl.hidden = !(ctx.attachments && ctx.attachments.length);
-    for (const f of ctx.attachments || []) {
+    const skillChip = renderSkillChip();
+    const files = ctx.attachments || [];
+    chipsEl.hidden = !skillChip && !files.length;
+    if (skillChip) chipsEl.appendChild(skillChip);
+    for (const f of files) {
       if (ctx.makeFileChip) chipsEl.appendChild(ctx.makeFileChip(f, true));
     }
+  }
+
+  function applyActiveSkill(text) {
+    const sk = ctx.activeSkill;
+    if (!sk || !sk.name) return text;
+    if (sk.kind !== "slash") return text;
+    const raw = String(text || "").trim();
+    if (raw.startsWith("/")) return text;
+    return raw ? "/" + sk.name + " " + raw : "/" + sk.name;
   }
 
   function filesFromDataTransfer(dt) {
@@ -765,6 +810,8 @@ export function bindComposer(ctx) {
     if (ctx.syncDirLabel) ctx.syncDirLabel();
     if (ctx.syncWsButton) ctx.syncWsButton();
     promptApi.setText("");
+    ctx.activeSkill = null;
+    renderChips();
   }
 
   function applyOccupancy(detail) {
@@ -917,7 +964,7 @@ export function bindComposer(ctx) {
       toast(t(occupyMessageKey(ctx.source) || "sessionBusy"));
       return;
     }
-    const text = promptApi.getText();
+    const text = applyActiveSkill(promptApi.getText());
     if (!text.trim() && !(ctx.attachments && ctx.attachments.length)) {
       if (ctx.running && ctx.queue && ctx.queue.length) {
         await sendQueueNow(ctx.queue[0]);
@@ -1209,6 +1256,7 @@ export function bindComposer(ctx) {
   }
 
   ctx.fillComposer = fillComposer;
+  ctx.focusPrompt = () => promptApi.focus();
   ctx.submitPrompt = submitPrompt;
   ctx.ensureSession = ensureSession;
   ctx.startNewChat = startNewChat;

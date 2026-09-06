@@ -36,10 +36,17 @@ export function bindExtModal(ctx) {
     });
   }
 
+  function mcpPluginName(row) {
+    const src = String((row && (row.source || (row.doctor && row.doctor.source))) || "");
+    const m = src.match(/^plugin:\s*(.+)$/i);
+    return m ? String(m[1] || "").trim() : "";
+  }
+
   function mcpMeta(row) {
     const bits = [];
-    if (row.scope) bits.push(row.scope);
-    if (row.source) bits.push(row.source);
+    const plug = mcpPluginName(row);
+    if (plug) bits.push(t("mcpFromPlugin").replace("{name}", plug));
+    else if (row.scope) bits.push(row.scope);
     if (row.enabled === false || row.disabled) bits.push(t("mcpDisabled"));
     const doc = row.doctor || {};
     const st = doc.status || doc.state || doc.health;
@@ -133,6 +140,11 @@ export function bindExtModal(ctx) {
     });
   }
 
+  function pluginConnectorNames(row) {
+    const servers = (row && row.components && row.components.mcpServers) || [];
+    return servers.map((s) => String((s && (s.name || s.id)) || "").trim()).filter(Boolean);
+  }
+
   function pluginMeta(row) {
     const bits = [];
     if (row.marketplace) bits.push(row.marketplace);
@@ -143,8 +155,22 @@ export function bindExtModal(ctx) {
     const skills = (row.components && row.components.skills) || [];
     const n = row.skill_count || skills.length;
     if (n) bits.push(t("pluginSkills").replace("{n}", String(n)));
-    if (row.has_mcp || (row.components && (row.components.mcpServers || []).length)) bits.push("MCP");
+    const cons = pluginConnectorNames(row);
+    if (cons.length) bits.push(t("pluginProvidesMcp").replace("{name}", cons.join(", ")));
+    else if (row.has_mcp) bits.push("MCP");
     return bits.join(" · ");
+  }
+
+  function skillKind(skill) {
+    const k = String((skill && skill.kind) || "").toLowerCase();
+    if (k === "auto" || k === "guide" || k === "slash") return k;
+    return "slash";
+  }
+
+  function skillKindLabel(kind) {
+    if (kind === "auto") return t("skillKindAuto");
+    if (kind === "guide") return t("skillKindGuide");
+    return t("skillKindSlash");
   }
 
   function skillI18nKey(skill) {
@@ -469,7 +495,7 @@ export function bindExtModal(ctx) {
     return b;
   }
 
-  function extCard(name, desc, buttons, onCard) {
+  function extCard(name, desc, buttons, onCard, tags) {
     const card = document.createElement("div");
     card.className = "ext-card";
     const ico = mkEl("div", "ext-ico");
@@ -477,9 +503,21 @@ export function bindExtModal(ctx) {
     const main = mkEl("div", "ext-main");
     const nm = mkEl("div", "ext-name");
     nm.textContent = name || "—";
+    if (tags && tags.length) {
+      const row = mkEl("div", "ext-name-row");
+      row.appendChild(nm);
+      tags.forEach((tag) => {
+        const el = mkEl("span", "ext-tag");
+        el.textContent = tag;
+        row.appendChild(el);
+      });
+      main.appendChild(row);
+    } else {
+      main.appendChild(nm);
+    }
     const ds = mkEl("div", "ext-desc");
     ds.textContent = desc || "";
-    main.append(nm, ds);
+    main.appendChild(ds);
     card.append(ico, main);
     if (buttons && buttons.length) {
       const actions = mkEl("div", "ext-actions");
@@ -521,15 +559,25 @@ export function bindExtModal(ctx) {
         empty("mcpEmpty");
         return;
       }
-      rows.forEach((row) => {
-        const name = String(row.name || "");
-        const desc = row.description || mcpMeta(row) || t("mcpLocal");
-        const btn = extMkBtn(t("extAdded"), {
-          disabled: ctx.mcpBusy,
-          onClick: () => openDetail(name)
+      const manual = [];
+      const fromPlugin = [];
+      rows.forEach((row) => (mcpPluginName(row) ? fromPlugin : manual).push(row));
+      const paint = (title, list) => {
+        if (!list.length) return;
+        const sec = mkEl("div", "ext-skill-sec");
+        const head = mkEl("h2", "ext-sec-head");
+        head.textContent = title;
+        const listEl = mkEl("div", "ext-mcp-list");
+        list.forEach((row) => {
+          const name = String(row.name || "");
+          const desc = row.description || mcpMeta(row) || t("mcpLocal");
+          listEl.appendChild(extCard(name, desc, [], () => openDetail(name)));
         });
-        extGrid.appendChild(extCard(name, desc, [btn], () => openDetail(name)));
-      });
+        sec.append(head, listEl);
+        extGrid.appendChild(sec);
+      };
+      paint(t("mcpManual"), manual);
+      paint(t("mcpFromPlugins"), fromPlugin);
       return;
     }
     if (ctx.extTab === "plugins") {
@@ -546,11 +594,7 @@ export function bindExtModal(ctx) {
       rows.forEach((row) => {
         const name = row.name || row.id || "";
         const desc = row.description || pluginMeta(row);
-        const btn = extMkBtn(t("extAdded"), {
-          disabled: ctx.pluginBusy,
-          onClick: () => openDetail(name)
-        });
-        extGrid.appendChild(extCard(name, desc, [btn], () => openDetail(name)));
+        extGrid.appendChild(extCard(name, desc, [], () => openDetail(name)));
       });
       return;
     }
@@ -598,7 +642,11 @@ export function bindExtModal(ctx) {
       rows.forEach((skill) => {
         const name = (skill && (skill.name || skill.id)) || "";
         const id = String(skill.scope || "personal") + "::" + name;
-        list.appendChild(extCard(skillI18n(skill), skillI18n(skill, "desc"), [], () => openDetail(id)));
+        list.appendChild(
+          extCard(skillI18n(skill), skillI18n(skill, "desc"), [], () => openDetail(id), [
+            skillKindLabel(skillKind(skill))
+          ])
+        );
       });
       sec.appendChild(list);
       extGrid.appendChild(sec);
@@ -617,7 +665,13 @@ export function bindExtModal(ctx) {
       }
       const list = mkEl("div", "ext-skill-list");
       rows.forEach((skill) => {
-        list.appendChild(extCard(skillI18n(skill), skillI18n(skill, "desc"), [], () => trySkill(skill)));
+        const name = (skill && (skill.name || skill.id)) || "";
+        const id = String(skill.scope || "bundled") + "::" + name;
+        list.appendChild(
+          extCard(skillI18n(skill), skillI18n(skill, "desc"), [], () => openDetail(id), [
+            skillKindLabel(skillKind(skill))
+          ])
+        );
       });
       extGrid.appendChild(list);
     }
@@ -625,17 +679,28 @@ export function bindExtModal(ctx) {
 
   function extTryNow(installed, source, label) {
     if (installed) {
-      trySkill({ name: label || source });
+      useSkill({ name: label || source, kind: "slash" });
       return;
     }
     askExtInstall(source, label);
   }
 
-  function trySkill(skill) {
+  function useSkill(skill) {
     const slug = String((skill && (skill.name || skill.id)) || "").trim();
+    if (!slug) return;
+    const kind = skillKind(skill);
+    const label = skillI18n(skill) || slug;
+    const hint = String((skill && (skill.argument_hint || skill.argumentHint)) || "").trim();
     closeExtModal();
-    if (ctx.startNewChat) ctx.startNewChat();
-    if (ctx.fillComposer) ctx.fillComposer(slug ? "/" + slug + " " : "");
+    ctx.activeSkill = { name: slug, kind, label, hint };
+    if (ctx.renderChips) ctx.renderChips();
+    if (kind === "guide") {
+      const msg = t("skillGuidePrompt").replace("{name}", label);
+      if (ctx.fillComposer) ctx.fillComposer(msg);
+    } else if (ctx.focusPrompt) {
+      ctx.focusPrompt();
+    }
+    if (ctx.paintPromptPh) ctx.paintPromptPh(false);
   }
 
   function fillExtDetail() {
@@ -644,6 +709,7 @@ export function bindExtModal(ctx) {
     const backKey =
       {
         skills: "extAllSkills",
+        quick: "extAllBuiltin",
         marketplace: "extAllMarket",
         plugins: "extAllPlugins",
         mcp: "extAllConnectors"
@@ -675,15 +741,17 @@ export function bindExtModal(ctx) {
     if (ctx.extTab === "mcp") {
       const row = ((ctx.mcpData && ctx.mcpData.servers) || []).find((r) => String(r.name || "") === ctx.extOpen);
       if (!row) {
+        if (ctx.mcpBusy) return;
         ctx.extOpen = "";
         renderExtModal();
         return;
       }
       name = String(row.name || "");
       desc = row.description || "";
-      extra = mcpMeta(row) || t("mcpLocal");
+      extra = mcpMeta(row) || (mcpPluginName(row) ? "" : t("mcpLocal"));
       const bits = [];
       if (row.command) bits.push(row.command);
+      if (row.target) bits.push(row.target);
       if (row.url) bits.push(row.url);
       if (row.transport) bits.push(String(row.transport));
       const doc = row.doctor || {};
@@ -691,27 +759,43 @@ export function bindExtModal(ctx) {
       if (err) bits.push(String(err).replace(/\s+/g, " ").slice(0, 180));
       if (bits.length) extra = extra ? extra + " · " + bits.join(" · ") : bits.join(" · ");
       tools = mcpTools(row);
-      const off = row.enabled === false || row.disabled;
-      pushSec(off ? t("mcpEnable") : t("mcpDisable"), {
-        disabled: ctx.mcpBusy,
-        onClick: () => mcpOp(off ? "enable" : "disable", { name })
-      });
-      pushSec(ctx.mcpConfirm === name ? t("mcpConfirmRemove") : t("mcpRemove"), {
-        danger: true,
-        disabled: ctx.mcpBusy,
-        onClick: () => {
-          if (ctx.mcpConfirm !== name) {
-            ctx.mcpConfirm = name;
-            fillExtDetail();
-            return;
+      const plug = mcpPluginName(row);
+      if (plug) {
+        pushSec(t("viewPlugin"), {
+          onClick: () => {
+            ctx.extTab = "plugins";
+            ctx.extOpen = plug;
+            loadPlugins().then(() => {
+              ctx.extTab = "plugins";
+              ctx.extOpen = plug;
+              renderExtModal();
+            });
           }
-          ctx.mcpConfirm = "";
-          mcpOp("remove", { name, scope: row.scope || "" });
-        }
-      });
+        });
+      } else {
+        const off = row.enabled === false || row.disabled;
+        pushSec(off ? t("mcpEnable") : t("mcpDisable"), {
+          disabled: ctx.mcpBusy,
+          onClick: () => mcpOp(off ? "enable" : "disable", { name })
+        });
+        pushSec(ctx.mcpConfirm === name ? t("mcpConfirmRemove") : t("mcpRemove"), {
+          danger: true,
+          disabled: ctx.mcpBusy,
+          onClick: () => {
+            if (ctx.mcpConfirm !== name) {
+              ctx.mcpConfirm = name;
+              fillExtDetail();
+              return;
+            }
+            ctx.mcpConfirm = "";
+            mcpOp("remove", { name, scope: row.scope || "" });
+          }
+        });
+      }
     } else if (ctx.extTab === "plugins" || ctx.extTab === "marketplace") {
       const row = ((ctx.pluginData && ctx.pluginData.plugins) || []).find((r) => (r.name || r.id || "") === ctx.extOpen);
       if (!row) {
+        if (ctx.pluginBusy) return;
         ctx.extOpen = "";
         renderExtModal();
         return;
@@ -744,6 +828,20 @@ export function bindExtModal(ctx) {
             pluginOp("uninstall", { name });
           }
         });
+        const cons = pluginConnectorNames(row);
+        if (cons[0]) {
+          pushSec(t("viewConnector"), {
+            onClick: () => {
+              ctx.extTab = "mcp";
+              ctx.extOpen = cons[0];
+              loadMcps().then(() => {
+                ctx.extTab = "mcp";
+                ctx.extOpen = cons[0];
+                renderExtModal();
+              });
+            }
+          });
+        }
       } else {
         const installing = pluginBusyOn(name, "install");
         primary = {
@@ -767,7 +865,7 @@ export function bindExtModal(ctx) {
           });
         });
       }
-    } else if (ctx.extTab === "skills") {
+    } else if (ctx.extTab === "skills" || ctx.extTab === "quick") {
       const sep = ctx.extOpen.indexOf("::");
       const parent = sep >= 0 ? ctx.extOpen.slice(0, sep) : "";
       const skillName = sep >= 0 ? ctx.extOpen.slice(sep + 2) : ctx.extOpen;
@@ -788,16 +886,22 @@ export function bindExtModal(ctx) {
       }
       name = skillI18n(found);
       desc = skillI18n(found, "desc");
-      extra =
+      const kind = skillKind(found);
+      extra = [skillKindLabel(kind)];
+      extra.push(
         found.scope === "bundled"
           ? t("skillBuiltin")
           : found.scope === "project"
             ? t("mcpScopeProject")
-            : t("personal");
+            : t("personal")
+      );
+      extra = extra.filter(Boolean).join(" · ");
+      const cta =
+        kind === "auto" ? t("skillUseInChat") : kind === "guide" ? t("skillWritePrompt") : t("skillInsertCmd");
       primary = {
-        label: t("extTryNow"),
+        label: cta,
         disabled: false,
-        onClick: () => trySkill(found)
+        onClick: () => useSkill(found)
       };
       skillKey = String(found.scope || "") + "::" + String(found.name || found.id || "");
       skillDetail = ctx.skillDetailCache && ctx.skillDetailCache[skillKey];
@@ -805,7 +909,7 @@ export function bindExtModal(ctx) {
         ctx.skillDetailLoading = skillKey;
         loadSkillDetail(found)
           .then((data) => {
-            if (ctx.extTab === "skills" && ctx.extOpen && ctx.extOpen.indexOf(String(found.name || found.id || "")) >= 0) {
+            if ((ctx.extTab === "skills" || ctx.extTab === "quick") && ctx.extOpen && ctx.extOpen.indexOf(String(found.name || found.id || "")) >= 0) {
               fillExtDetail();
             }
           })
@@ -834,7 +938,7 @@ export function bindExtModal(ctx) {
       body.textContent = desc;
       scroll.appendChild(body);
     }
-    if (extra && (ctx.extTab === "mcp" || ctx.extTab === "plugins")) {
+    if (extra) {
       const sub = mkEl("div", "ext-detail-sub");
       sub.textContent = extra;
       scroll.appendChild(sub);
@@ -1006,8 +1110,8 @@ export function bindExtModal(ctx) {
         ["mcp", t("connectors")],
         ["plugins", t("plugins")],
         ["marketplace", t("marketplace")],
-        ["skills", t("skills")],
-        ["quick", t("quickSkills")]
+        ["skills", t("mySkills")],
+        ["quick", t("builtinSkills")]
       ].forEach(([id, lab]) => {
         const b = document.createElement("button");
         b.type = "button";
@@ -1267,7 +1371,8 @@ export function bindExtModal(ctx) {
   ctx.skillRows = skillRows;
   ctx.skillI18n = skillI18n;
   ctx.skillI18nKey = skillI18nKey;
-  ctx.trySkill = trySkill;
+  ctx.trySkill = useSkill;
+  ctx.useSkill = useSkill;
   ctx.extTryNow = extTryNow;
   ctx.extAddActions = extAddActions;
   ctx.askExtInstall = askExtInstall;

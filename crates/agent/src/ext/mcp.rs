@@ -188,6 +188,13 @@ fn merge(list: &Value, doctor: &Value) -> Value {
                 .or_insert_with(|| json!({ "name": name }));
             if let Some(obj) = entry.as_object_mut() {
                 obj.insert("doctor".into(), item.clone());
+                for key in ["source", "transport", "target", "healthy"] {
+                    if obj.get(key).is_none()
+                        && let Some(v) = item.get(key)
+                    {
+                        obj.insert(key.to_string(), v.clone());
+                    }
+                }
             }
         }
     }

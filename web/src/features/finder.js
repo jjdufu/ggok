@@ -27,7 +27,6 @@ export function bindFinder(ctx) {
   function syncSearchTip() {
     if (!searchBtn) return;
     const tip = t("search") + " " + finderShortcut();
-    setTip(searchBtn, tip);
     searchBtn.setAttribute("aria-label", tip);
   }
 

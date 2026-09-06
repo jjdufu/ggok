@@ -16,6 +16,10 @@ pub struct SkillInfo {
     pub path: String,
     pub scope: String,
     pub category: String,
+    pub kind: String,
+    pub argument_hint: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_invocable: Option<bool>,
 }
 
 #[must_use]
@@ -68,6 +72,8 @@ fn scan_dir(root: &Path, scope: &str, out: &mut Vec<SkillInfo>) {
         let description = card_description(&meta);
         let label = skill_label(&name);
         let category = skill_category(scope, &name);
+        let kind = skill_kind(&name, meta.user_invocable).to_string();
+        let argument_hint = meta.argument_hint.unwrap_or_default();
         out.push(SkillInfo {
             name,
             label,
@@ -75,6 +81,9 @@ fn scan_dir(root: &Path, scope: &str, out: &mut Vec<SkillInfo>) {
             path: md.to_string_lossy().into_owned(),
             scope: scope.to_string(),
             category,
+            kind,
+            argument_hint,
+            user_invocable: meta.user_invocable,
         });
     }
 }
@@ -83,12 +92,16 @@ struct Frontmatter {
     name: Option<String>,
     description: Option<String>,
     short_description: Option<String>,
+    argument_hint: Option<String>,
+    user_invocable: Option<bool>,
 }
 
 fn parse_frontmatter(text: &str) -> Frontmatter {
     let mut name = None;
     let mut description = None;
     let mut short_description = None;
+    let mut argument_hint = None;
+    let mut user_invocable = None;
     let trimmed = text.trim_start_matches('\u{feff}');
     let rest = trimmed
         .strip_prefix("---")
@@ -98,6 +111,8 @@ fn parse_frontmatter(text: &str) -> Frontmatter {
             name,
             description,
             short_description,
+            argument_hint,
+            user_invocable,
         };
     };
     let rest = rest
@@ -124,12 +139,29 @@ fn parse_frontmatter(text: &str) -> Frontmatter {
             && short_description.is_none()
         {
             short_description = Some(val);
+        } else if (key == "argument-hint" || key == "argument_hint")
+            && argument_hint.is_none()
+            && !looks_folded(&val)
+        {
+            argument_hint = Some(val);
+        } else if (key == "user-invocable" || key == "user_invocable") && user_invocable.is_none() {
+            user_invocable = parse_bool(&val);
         }
     }
     Frontmatter {
         name,
         description,
         short_description,
+        argument_hint,
+        user_invocable,
+    }
+}
+
+fn parse_bool(raw: &str) -> Option<bool> {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "true" | "yes" | "1" => Some(true),
+        "false" | "no" | "0" => Some(false),
+        _ => None,
     }
 }
 
@@ -179,6 +211,22 @@ fn skill_label(name: &str) -> String {
             .collect::<Vec<_>>()
             .join(" "),
     }
+}
+
+fn skill_kind(name: &str, user_invocable: Option<bool>) -> &'static str {
+    if user_invocable == Some(false) {
+        return "auto";
+    }
+    if matches!(
+        name,
+        "statusline" | "skill-design-principles" | "long-running-background-tasks"
+    ) {
+        return "guide";
+    }
+    if name == "imagine" {
+        return "auto";
+    }
+    "slash"
 }
 
 fn skill_category(scope: &str, name: &str) -> String {
@@ -677,5 +725,34 @@ fn file_kind(rel: &str) -> &'static str {
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "ico" | "pdf" | "zip" | "gz" | "woff"
         | "woff2" | "bin" => "binary",
         _ => "text",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_frontmatter, skill_kind};
+
+    #[test]
+    fn auto_when_not_user_invocable() {
+        let meta = parse_frontmatter(
+            "---\nname: pdf\nuser-invocable: false\ndescription: PDFs\n---\n",
+        );
+        assert_eq!(meta.user_invocable, Some(false));
+        assert_eq!(skill_kind("pdf", meta.user_invocable), "auto");
+    }
+
+    #[test]
+    fn guide_and_slash_kinds() {
+        assert_eq!(skill_kind("statusline", None), "guide");
+        assert_eq!(skill_kind("create-skill", None), "slash");
+        assert_eq!(skill_kind("imagine", None), "auto");
+    }
+
+    #[test]
+    fn argument_hint_parsed() {
+        let meta = parse_frontmatter(
+            "---\nname: review\nargument-hint: \"[--local]\"\n---\n",
+        );
+        assert_eq!(meta.argument_hint.as_deref(), Some("[--local]"));
     }
 }

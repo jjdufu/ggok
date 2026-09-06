@@ -1,4 +1,4 @@
-import { t, setTip } from "../lib/helpers.js";
+import { t } from "../lib/helpers.js";
 
 export function bindTheme(ctx) {
   const { THEME_KEY } = ctx;
@@ -17,7 +17,6 @@ export function bindTheme(ctx) {
     const themeBtn = document.getElementById("theme-btn");
     if (!themeBtn) return;
     const label = t(theme === "dark" ? "themeDark" : "themeLight");
-    setTip(themeBtn, label);
     themeBtn.setAttribute("aria-label", label);
   }
 

@@ -6,9 +6,7 @@
 
 ## 安装
 
-需要 `grok` 在 `PATH` 上。Linux / macOS，`amd64` 或 `aarch64`。二进制放 `~/.local/bin/ggok`（把该目录加入 PATH）。
-
-一键：
+需要 `grok` 在 `PATH` 上。Linux / macOS，`amd64` 或 `aarch64`。二进制装到 `~/.local/bin/ggok`。
 
 ```shell
 curl -fsSL https://github.com/jjdufu/ggok/releases/latest/download/install.sh | bash
@@ -16,16 +14,14 @@ curl -fsSL https://github.com/jjdufu/ggok/releases/latest/download/install.sh | 
 
 指定版本：`bash -s -- 0.0.0`。没有配置时写入 `~/.config/ggok/config.toml`。
 
-手动：从 [Releases](https://github.com/jjdufu/ggok/releases) 下载 `ggok_<版本>_<os>_<arch>.tar.gz`（`os` 为 `linux` / `darwin`，`arch` 为 `amd64` / `aarch64`；包内是 `ggok` + `config.toml`）。
+手动安装：从 [Releases](https://github.com/jjdufu/ggok/releases) 下载 `ggok_<版本>_<os>_<arch>.tar.gz`（`linux` / `darwin`，`amd64` / `aarch64`）。
 
 ```shell
 tar -xzf ggok_0.0.0_linux_amd64.tar.gz
 install -m 755 ggok ~/.local/bin/ggok
 mkdir -p ~/.config/ggok
-cp -n config.toml ~/.config/ggok/config.toml   # 已有配置不要覆盖
+cp -n config.toml ~/.config/ggok/config.toml
 ```
-
-`ggok start` 会自动生成 `~/.config/ggok/token`（权限 `600`）和 `~/.local/state/ggok/`（pid、日志）。
 
 ## 启动
 
@@ -33,30 +29,28 @@ cp -n config.toml ~/.config/ggok/config.toml   # 已有配置不要覆盖
 ggok start
 ```
 
-终端会打印监听地址和登录 token。浏览器打开 `http://127.0.0.1:9888`，用 token 登录（默认监听 `0.0.0.0:9888`）。
+打开终端打印的地址（默认 `http://127.0.0.1:9888`），用打印的 token 登录。
 
 ```shell
-ggok status    # pid、地址、token、leader、各会话占用
-ggok update    # 下载最新 Release，替换本机二进制；web 在跑则重启 web
-ggok stop      # 只停 Web，不杀 grok leader
-ggok stop --all  # 无进行中会话且 leader 由 ggok 拉起时才停 leader
-ggok restart   # 改配置后用这个；`--all` 约束同 stop --all
+ggok status
+ggok update
+ggok stop
+ggok stop --all
+ggok restart
 ```
 
-`ggok update` 已是最新会打印 `Already up to date (x.y.z).`。从 cargo 的 `target/` 里跑会拒绝，以免改掉构建产物。需要本机有 `curl` 和 `tar`。
+`stop` / `restart` 只停 Web；加 `--all` 时，无进行中会话且 leader 由 ggok 拉起才会停 leader。
 
 ## 日志
 
 ```shell
-ggok status          # 会打印日志路径
+ggok status
 tail -f ~/.local/state/ggok/ggok.log
 ```
 
 ## 配置
 
-文件：`~/.config/ggok/config.toml`
-
-一键安装写入的内容见 [`config/config.toml`](config/config.toml)，全部键见 [`config/config.toml.full`](config/config.toml.full)。
+`~/.config/ggok/config.toml`。默认见 [`config/config.toml`](config/config.toml)，全部键见 [`config/config.toml.full`](config/config.toml.full)。
 
 | 键 | 默认 | 说明 |
 | --- | --- | --- |
@@ -69,7 +63,7 @@ tail -f ~/.local/state/ggok/ggok.log
 | `poll_secs` | `5` | 会话轮询秒数，`0` 当作 `5` |
 | `upload_max_bytes` | `20971520` | 上传上限（字节） |
 
-`ggok start` 可用同名 flag 或环境变量覆盖：`GGOK_BIND`、`GROK_HOME`、`GGOK_GROK_BIN`、`GGOK_PERMISSION_MODE`、`GGOK_CONFIG`。也可用 `GGOK_TOKEN` 代替 token 文件。`ggok update` 可用 `GGOK_REPO`（默认 `jjdufu/ggok`）。
+`ggok start` 可用同名 flag 或环境变量覆盖：`GGOK_BIND`、`GROK_HOME`、`GGOK_GROK_BIN`、`GGOK_PERMISSION_MODE`、`GGOK_CONFIG`。也可用 `GGOK_TOKEN` 代替 token 文件。
 
 改完执行 `ggok restart`。
 
@@ -79,7 +73,7 @@ tail -f ~/.local/state/ggok/ggok.log
 ggok uninstall
 ```
 
-删掉 ggok 的二进制、配置、日志、缓存。不删 `~/.grok` 和工作区文件。
+不删 `~/.grok` 和工作区文件。
 
 ## 许可证
 

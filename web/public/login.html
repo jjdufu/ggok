@@ -64,14 +64,14 @@
       <span class="brand-text">GGOK</span>
     </a>
     <div class="login-top-actions">
-      <a id="github-link" class="icon-btn" href="https://github.com/jjdufu/ggok" target="_blank" rel="noopener noreferrer" data-tip="GitHub 仓库" data-i18n-title="githubRepo" aria-label="GitHub">
+      <a id="github-link" class="icon-btn" href="https://github.com/jjdufu/ggok" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
         <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-github"/></svg>
       </a>
-      <button type="button" id="lang-btn" class="lang-btn" data-tip="中文" aria-label="中文">
+      <button type="button" id="lang-btn" class="lang-btn" aria-label="中文">
         <span class="lang-icon" data-lang-icon="zh">中</span>
         <span class="lang-icon" data-lang-icon="en">EN</span>
       </button>
-      <button type="button" id="theme-btn" class="theme-btn" data-tip="浅色" aria-label="浅色">
+      <button type="button" id="theme-btn" class="theme-btn" aria-label="浅色">
         <svg class="theme-icon" data-theme-icon="light" viewBox="0 0 24 24"><use href="#i-sun"/></svg>
         <svg class="theme-icon" data-theme-icon="dark" viewBox="0 0 24 24"><use href="#i-moon"/></svg>
       </button>
@@ -108,11 +108,6 @@
         document.documentElement.dataset.theme = t;
         document.documentElement.style.colorScheme = t;
         const label = tx(t === "dark" ? "themeDark" : "themeLight");
-        if (window.I18n && typeof window.I18n.setTip === "function") window.I18n.setTip(btn, label);
-        else {
-          btn.setAttribute("data-tip", label);
-          btn.removeAttribute("title");
-        }
         btn.setAttribute("aria-label", label);
       }
       apply(pref());

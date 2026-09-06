@@ -1112,6 +1112,10 @@ html[data-lang="en"] .lang-icon[data-lang-icon="en"] {
 
 .file-chip.clickable { cursor: pointer; }
 
+.skill-chip {
+  padding-left: 10px;
+}
+
 .file-chip-spin {
   width: 14px;
   height: 14px;

@@ -19,20 +19,20 @@ export default function App() {
 <div id="app">
     <aside id="sidebar">
       <header className="side-head">
-        <a className="brand" href="/" data-tip="GGOK" aria-label="GGOK">
+        <a className="brand" href="/" aria-label="GGOK">
           <span className="brand-mark" aria-hidden="true">
             <svg className="logo-mark" viewBox="0 0 32 32"><use href="#i-mark"/></svg>
           </span>
           <span className="brand-text">GGOK</span>
         </a>
         <div className="side-head-actions">
-          <button type="button" id="search-btn" className="icon-btn" data-tip="搜索 ⌘K">
+          <button type="button" id="search-btn" className="icon-btn" aria-label="搜索" data-i18n-aria="search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M17.5 17L20.5 20" strokeLinecap="square"/>
               <circle cx="11.25" cy="10.75" r="7.75"/>
             </svg>
           </button>
-          <button type="button" id="collapse-side" className="icon-btn" data-tip="收起侧栏" data-i18n-title="collapseSidebar">
+          <button type="button" id="collapse-side" className="icon-btn" aria-label="收起侧栏" data-i18n-aria="collapseSidebar">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="4"/><path d="M9 4V20"/></svg>
           </button>
         </div>
@@ -100,22 +100,22 @@ export default function App() {
         </button>
         <div id="titlebar">
           <div className="title-tools">
-            <a id="github-link" className="icon-btn" href="https://github.com/jjdufu/ggok" target="_blank" rel="noopener noreferrer" data-tip="GitHub 仓库" data-i18n-title="githubRepo" aria-label="GitHub">
+            <a id="github-link" className="icon-btn" href="https://github.com/jjdufu/ggok" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
               <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-github"/></svg>
             </a>
-            <button type="button" id="lang-btn" className="icon-btn lang-btn" data-tip="中文" aria-label="中文">
+            <button type="button" id="lang-btn" className="icon-btn lang-btn" aria-label="中文">
               <span className="lang-icon" data-lang-icon="zh">中</span>
               <span className="lang-icon" data-lang-icon="en">EN</span>
             </button>
-            <button type="button" id="theme-btn" className="icon-btn theme-btn" data-tip="浅色" aria-label="浅色">
+            <button type="button" id="theme-btn" className="icon-btn theme-btn" aria-label="浅色">
               <svg className="theme-icon" data-theme-icon="light" viewBox="0 0 24 24"><use href="#i-sun"/></svg>
               <svg className="theme-icon" data-theme-icon="dark" viewBox="0 0 24 24"><use href="#i-moon"/></svg>
             </button>
             <div id="actions" hidden={true}>
-              <button type="button" id="copy-turn" className="icon-btn" data-tip="复制本轮" data-i18n-title="copyTurn">
+              <button type="button" id="copy-turn" className="icon-btn" aria-label="复制本轮" data-i18n-aria="copyTurn">
                 <svg viewBox="0 0 24 24"><use href="#i-copy"/></svg>
               </button>
-              <a id="dl-md" className="icon-btn" href="#" data-tip="下载 md" data-i18n-title="downloadMd">
+              <a id="dl-md" className="icon-btn" href="#" aria-label="下载 md" data-i18n-aria="downloadMd">
                 <svg viewBox="0 0 24 24"><use href="#i-download"/></svg>
               </a>
               <div id="info-pop" hidden={true} role="dialog" aria-label="会话信息" data-i18n-aria="sessionInfo">
@@ -123,10 +123,10 @@ export default function App() {
                 <div id="info-body" className="info-body"></div>
               </div>
             </div>
-            <button type="button" id="usage-toggle" className="icon-btn" aria-pressed="false" aria-expanded="false" data-tip="状态" data-i18n-title="status">
+            <button type="button" id="usage-toggle" className="icon-btn" aria-pressed="false" aria-expanded="false" aria-label="状态" data-i18n-aria="status">
               <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-usage"/></svg>
             </button>
-            <button type="button" id="ws-toggle" className="icon-btn" aria-pressed="false" aria-expanded="false" data-tip="工作区" data-i18n-title="workspace">
+            <button type="button" id="ws-toggle" className="icon-btn" aria-pressed="false" aria-expanded="false" aria-label="工作区" data-i18n-aria="workspace">
               <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-folder"/></svg>
             </button>
           </div>

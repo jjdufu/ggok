@@ -24,7 +24,6 @@ export function bindWorkspace(ctx) {
   function syncWsButton() {
     if (!wsToggle) return;
     const tip = ctx.selectedCwd || t("workspace");
-    setTip(wsToggle, tip);
     wsToggle.setAttribute("aria-label", tip);
   }
 

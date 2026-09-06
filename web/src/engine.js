@@ -281,6 +281,7 @@ export function boot() {
     if (ctx.fillModels) ctx.fillModels();
     if (ctx.paintPromptPh) ctx.paintPromptPh(false);
     if (ctx.renderSlash) ctx.renderSlash();
+    if (ctx.renderChips) ctx.renderChips();
     if (ctx.syncSearchTip) ctx.syncSearchTip();
     if (ctx.syncFinderKeys) ctx.syncFinderKeys();
     if (ctx.syncFinderPreview) ctx.syncFinderPreview();
