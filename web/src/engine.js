@@ -1,6 +1,7 @@
 import { bindTheme } from "./features/theme.js";
 import { bindConfirm } from "./lib/confirm.js";
 import { bindSidebar } from "./features/sidebar.js";
+import { bindLastModel } from "./features/last-model.js";
 import { bindModelMenu } from "./features/model-menu.js";
 import { bindFinder } from "./features/finder.js";
 import { bindDirModal } from "./features/dir-modal.js";
@@ -151,6 +152,7 @@ export function boot() {
   bindSidebar(ctx);
   bindQuota(ctx);
   bindVersion(ctx);
+  bindLastModel(ctx);
   bindModelMenu(ctx);
   bindFinder(ctx);
   bindDirModal(ctx);
@@ -317,6 +319,7 @@ export function boot() {
         ctx.accountEmail = String(ctx.runtime.email).trim();
         ctx.setPageTitle();
       }
+      if (ctx.applyRuntimeLastModel) ctx.applyRuntimeLastModel(ctx.runtime);
       if (ctx.fillModels) ctx.fillModels();
       ctx.selectedCwd = "";
       if (ctx.syncDirLabel) ctx.syncDirLabel();

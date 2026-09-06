@@ -1,4 +1,4 @@
-import { t } from "../lib/helpers.js";
+import { t, isSpectatingSource } from "../lib/helpers.js";
 import { placePopover } from "../lib/popover.js";
 import { svgUse } from "../lib/svg.js";
 import { post } from "../lib/api.js";
@@ -76,14 +76,17 @@ export function bindModelMenu(ctx) {
   }
 
   function fillModels() {
+    const spectating = isSpectatingSource(ctx.source);
     if (!ctx.selectedModel) ctx.selectedModel = ctx.runtime.current_model || ((ctx.runtime.models || [])[0] && ctx.runtime.models[0].id) || "";
     if (ctx.selectedModel && ctx.selectedEffort) {
       const m = modelById(ctx.selectedModel);
       if (m && (m.efforts || []).length && !(m.efforts || []).some((e) => e.id === ctx.selectedEffort)) {
-        ctx.selectedEffort = m.effort || (m.efforts[0] && m.efforts[0].id) || "";
+        if (!spectating) {
+          ctx.selectedEffort = m.effort || (m.efforts[0] && m.efforts[0].id) || "";
+        }
       }
     }
-    if (ctx.selectedModel && !ctx.selectedEffort) {
+    if (ctx.selectedModel && !ctx.selectedEffort && !spectating) {
       const m = modelById(ctx.selectedModel);
       if (m) ctx.selectedEffort = m.effort || ((m.efforts || [])[0] && m.efforts[0].id) || "";
     }
@@ -206,6 +209,8 @@ export function bindModelMenu(ctx) {
     ctx.selectedEffort = effort || "";
     fillModels();
     if (modelMenu) modelMenu.hidden = true;
+    if (isSpectatingSource(ctx.source) || ctx.writable === false) return;
+    if (ctx.persistLastModel) ctx.persistLastModel(model, effort || "");
     if (!ctx.currentId) return;
     try {
       const out = await post("/api/sessions/" + encodeURIComponent(ctx.currentId) + "/model", {

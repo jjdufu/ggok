@@ -35,6 +35,7 @@ pub struct SessionMeta {
     pub updated_at: String,
     pub updated_sort: i64,
     pub model: String,
+    pub effort: String,
     pub agent_name: String,
     pub num_messages: u64,
     pub parent_id: Option<String>,
@@ -236,6 +237,8 @@ pub struct SummaryFile {
     pub updated_at: Option<String>,
     #[serde(default)]
     pub current_model_id: Option<String>,
+    #[serde(default)]
+    pub reasoning_effort: Option<String>,
     #[serde(default)]
     pub agent_name: Option<String>,
     #[serde(default)]

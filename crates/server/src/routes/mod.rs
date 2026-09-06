@@ -41,6 +41,7 @@ pub(crate) fn map_agent_err(err: &anyhow::Error) -> Response {
 pub(crate) fn router(upload_max: usize) -> Router<Arc<AppState>> {
     Router::new()
         .route("/api/runtime", get(meta::api_runtime))
+        .route("/api/prefs/model", post(meta::api_prefs_model))
         .route("/api/dirs", get(fs::api_dirs))
         .route("/api/status", get(meta::api_status))
         .route("/api/account", get(meta::api_account))

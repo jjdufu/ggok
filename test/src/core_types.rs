@@ -26,6 +26,7 @@ fn session_meta_to_row_is_disk_idle() {
         updated_at: "u".into(),
         updated_sort: 1,
         model: "m".into(),
+        effort: "xhigh".into(),
         agent_name: "a".into(),
         num_messages: 3,
         parent_id: None,

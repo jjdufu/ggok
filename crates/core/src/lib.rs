@@ -2,6 +2,7 @@ pub mod config;
 pub mod occupy;
 pub mod parse;
 pub mod paths;
+pub mod prefs;
 pub mod release;
 pub mod scan;
 pub mod search;
@@ -28,6 +29,10 @@ pub use parse::{
 pub use paths::{
     DirEntry, FsEntry, compress_upload, cwd_allowed, fs_complete, is_under, list_dirs, open_upload,
     resolve_existing_dir, save_upload, under_any_root,
+};
+pub use prefs::{
+    LastModel, last_model_path, load_last_model, merge_grok_model_defaults, merge_models_section,
+    remember_model_choice, resolve_choice, save_last_model,
 };
 pub use scan::{SessionIndex, scan};
 pub use search::search_session_ids;

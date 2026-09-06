@@ -815,6 +815,13 @@ export function bindComposer(ctx) {
     renderChips();
   }
 
+  function applySessionModel(detail) {
+    if (!detail) return;
+    if (detail.model) ctx.selectedModel = detail.model;
+    if (detail.effort) ctx.selectedEffort = detail.effort;
+    if (ctx.fillModels) ctx.fillModels();
+  }
+
   function applyOccupancy(detail) {
     if (!detail) return;
     if (detail.source) ctx.source = detail.source;
@@ -865,6 +872,7 @@ export function bindComposer(ctx) {
         if (detail.work_started_ms) ctx.current.work_started_ms = detail.work_started_ms;
       }
       applyOccupancy(detail);
+      applySessionModel(detail);
       if (ctx.applyQuestionsFromSession) ctx.applyQuestionsFromSession(detail.pending_questions);
       else if (ctx.applyQuestions) ctx.applyQuestions(detail.pending_questions || []);
       syncSendBtn();

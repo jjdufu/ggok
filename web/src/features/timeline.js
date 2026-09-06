@@ -811,10 +811,18 @@ export function bindTimeline(ctx) {
     const sid = detail.id || "";
     if (timeline.querySelector(":scope > .empty")) timeline.innerHTML = "";
     const existing = [...timeline.querySelectorAll(":scope > article.turn")];
+    const prevSid = timeline.dataset.session || "";
+    const sameTimeline = !prevSid || !sid || prevSid === sid;
+    const promptsCompatible = (elPrompt, turnPrompt) => {
+      if (elPrompt === turnPrompt) return true;
+      if (isPendingPrompt(elPrompt) && turnPrompt && !isPendingPrompt(turnPrompt)) return true;
+      if (isPendingPrompt(turnPrompt) && elPrompt && !isPendingPrompt(elPrompt)) return true;
+      return false;
+    };
     const aligned =
-      timeline.dataset.session === sid &&
+      sameTimeline &&
       existing.length <= turns.length &&
-      existing.every((el, i) => (el.dataset.prompt || "") === (turns[i].prompt_id || ""));
+      existing.every((el, i) => promptsCompatible(el.dataset.prompt || "", turns[i].prompt_id || ""));
     if (!turns.length) {
       timeline.innerHTML = "";
       const empty = document.createElement("p");

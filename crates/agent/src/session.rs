@@ -23,6 +23,13 @@ impl Agent {
         effort: Option<&str>,
     ) -> Result<NewSession> {
         self.ensure().await?;
+        let last = ggok_core::config::config_dir()
+            .ok()
+            .map(|dir| ggok_core::prefs::load_last_model(&ggok_core::prefs::last_model_path(&dir)))
+            .unwrap_or_default();
+        let (model, effort) = ggok_core::prefs::resolve_choice(model, effort, &last);
+        let model = model.as_deref();
+        let effort = effort.as_deref();
         let params = json!({
             "cwd": cwd.to_string_lossy(),
             "mcpServers": self.ask_mcp_servers(),
@@ -353,6 +360,7 @@ impl Agent {
             "model",
             &json!({ "model": model, "effort": stored_effort }),
         );
+        ggok_core::prefs::remember_model_choice(&self.grok_home, model, &stored_effort);
         Ok((model.to_string(), stored_effort))
     }
 

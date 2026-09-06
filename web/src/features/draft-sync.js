@@ -43,14 +43,13 @@ export function bindDraftSync(ctx) {
     bc = null;
   }
 
-  function keyFor(id, cwd) {
+  function keyFor(id) {
     if (id) return PREFIX + id;
-    return PREFIX + "new:" + String(cwd || "");
+    return PREFIX + "new";
   }
 
   function currentKey() {
-    const cwd = ctx.selectedCwd || (ctx.current && ctx.current.cwd) || "";
-    return keyFor(ctx.currentId, cwd);
+    return keyFor(ctx.currentId);
   }
 
   function apply(text, ts) {
@@ -99,9 +98,8 @@ export function bindDraftSync(ctx) {
   }
 
   function clear(id) {
-    const cwd = ctx.selectedCwd || (ctx.current && ctx.current.cwd) || "";
-    storageSet(keyFor(id || ctx.currentId, cwd), "", Date.now());
-    storageSet(keyFor("", cwd), "", Date.now());
+    storageSet(keyFor(id || ctx.currentId), "", Date.now());
+    storageSet(keyFor(""), "", Date.now());
     lastTs = Date.now();
   }
 
@@ -138,7 +136,6 @@ export function bindDraftSync(ctx) {
     if (ctx.currentId) return;
     flush();
     ctx.selectedCwd = path;
-    load();
   };
 
   window.addEventListener("pagehide", flush);

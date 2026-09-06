@@ -191,6 +191,7 @@ fn load_session_meta(sess_path: &Path, dir_id: &str, fallback_cwd: &str) -> Opti
         updated_at,
         updated_sort,
         model: summary.current_model_id.unwrap_or_default(),
+        effort: summary.reasoning_effort.unwrap_or_default(),
         agent_name: summary.agent_name.unwrap_or_default(),
         num_messages: summary.num_messages,
         parent_id,

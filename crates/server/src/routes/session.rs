@@ -8,7 +8,7 @@ use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::response::{IntoResponse, Response};
 use ggok_agent::QuestionView;
 use ggok_agent::session_ops::delete_session;
-use ggok_core::occupy::{self, Source};
+use ggok_core::occupy::{self, LiveView, Source};
 use ggok_core::parse::{blocks_to_markdown, extract_tool};
 use ggok_core::paths;
 use ggok_core::scan;
@@ -145,23 +145,7 @@ pub(crate) async fn api_session(
     }
     let live = state.agent.live_view(&id).await;
     let occ = super::occupancy(&state, &id).await;
-    let model = live
-        .as_ref()
-        .and_then(|l| {
-            if l.model.is_empty() {
-                None
-            } else {
-                Some(l.model.clone())
-            }
-        })
-        .unwrap_or(meta.model);
-    let effort = live.as_ref().and_then(|l| {
-        if l.effort.is_empty() {
-            None
-        } else {
-            Some(l.effort.clone())
-        }
-    });
+    let (model, effort) = session_model_effort(live.as_ref(), &meta);
     let window = ggok_core::parse::context_window(&state.grok_home, &model);
     let live_usage = state.agent.live_usage(&id).await;
     let (usage, ctx_used) = match live_usage {
@@ -395,6 +379,7 @@ fn insert_stub(state: &AppState, id: &str, cwd: &str, model: &str) {
         )
         .unwrap_or(0),
         model: model.to_string(),
+        effort: String::new(),
         agent_name: String::new(),
         num_messages: 0,
         parent_id: None,
@@ -415,4 +400,22 @@ fn insert_stub(state: &AppState, id: &str, cwd: &str, model: &str) {
 
 fn percent_encode(cwd: &str) -> String {
     percent_encoding::utf8_percent_encode(cwd, percent_encoding::NON_ALPHANUMERIC).to_string()
+}
+
+fn nonempty_owned(s: &str) -> Option<String> {
+    if s.is_empty() {
+        None
+    } else {
+        Some(s.to_string())
+    }
+}
+
+fn session_model_effort(live: Option<&LiveView>, meta: &SessionMeta) -> (String, Option<String>) {
+    let model = live
+        .and_then(|l| nonempty_owned(&l.model))
+        .unwrap_or_else(|| meta.model.clone());
+    let effort = live
+        .and_then(|l| nonempty_owned(&l.effort))
+        .or_else(|| nonempty_owned(&meta.effort));
+    (model, effort)
 }
