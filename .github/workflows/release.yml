@@ -60,7 +60,7 @@ jobs:
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             goos: linux
-            goarch: arm64
+            goarch: aarch64
           - os: macos-15-intel
             target: x86_64-apple-darwin
             goos: darwin
@@ -68,7 +68,7 @@ jobs:
           - os: macos-14
             target: aarch64-apple-darwin
             goos: darwin
-            goarch: arm64
+            goarch: aarch64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -195,10 +195,10 @@ jobs:
 
             | Platform | Archive |
             | --- | --- |
-            | macOS Apple silicon | `ggok_${{ needs.meta.outputs.version }}_darwin_arm64.tar.gz` |
+            | macOS Apple silicon | `ggok_${{ needs.meta.outputs.version }}_darwin_aarch64.tar.gz` |
             | macOS Intel | `ggok_${{ needs.meta.outputs.version }}_darwin_amd64.tar.gz` |
             | Linux x86_64 | `ggok_${{ needs.meta.outputs.version }}_linux_amd64.tar.gz` |
-            | Linux ARM64 | `ggok_${{ needs.meta.outputs.version }}_linux_arm64.tar.gz` |
+            | Linux aarch64 | `ggok_${{ needs.meta.outputs.version }}_linux_aarch64.tar.gz` |
 
             Each tarball contains the `ggok` binary and a sample `config.toml`.
         env:

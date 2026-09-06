@@ -98,7 +98,7 @@ fn os_arch_maps_this_host() {
     if cfg!(target_arch = "x86_64") {
         assert_eq!(arch, "amd64");
     } else if cfg!(target_arch = "aarch64") {
-        assert_eq!(arch, "arm64");
+        assert_eq!(arch, "aarch64");
     } else {
         panic!("unexpected arch {arch}");
     }
@@ -123,6 +123,8 @@ fn asset_url_requires_version_and_allow_list() {
     assert!(asset_url("latest", "linux", "amd64").is_err());
     assert!(asset_url("0.1.4", "windows", "amd64").is_err());
     assert!(asset_url("0.1.4", "linux", "x86_64").is_err());
+    assert!(asset_url("0.1.4", "linux", "arm64").is_err());
+    assert!(asset_url("0.1.4", "linux", "aarch64").expect("aarch64").contains("_aarch64."));
 }
 
 #[test]

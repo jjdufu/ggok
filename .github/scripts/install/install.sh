@@ -55,7 +55,7 @@ os_arch() {
   esac
   case "$mach" in
     x86_64|amd64) ARCH="amd64" ;;
-    arm64|aarch64) ARCH="arm64" ;;
+    arm64|aarch64) ARCH="aarch64" ;;
     *) die "unsupported arch: ${mach:-unknown}" ;;
   esac
 }

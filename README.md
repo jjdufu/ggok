@@ -6,7 +6,7 @@
 
 ## 安装
 
-需要 `grok` 在 `PATH` 上。二进制放 `~/.local/bin/ggok`（把该目录加入 PATH）。
+需要 `grok` 在 `PATH` 上。Linux / macOS，`amd64` 或 `aarch64`。二进制放 `~/.local/bin/ggok`（把该目录加入 PATH）。
 
 一键：
 
@@ -16,7 +16,7 @@ curl -fsSL https://github.com/jjdufu/ggok/releases/latest/download/install.sh | 
 
 指定版本：`bash -s -- 0.0.0`。没有配置时写入 `~/.config/ggok/config.toml`。
 
-手动：从 [Releases](https://github.com/jjdufu/ggok/releases) 下载 `ggok_<版本>_<os>_<arch>.tar.gz`（包内是 `ggok` + `config.toml`）。
+手动：从 [Releases](https://github.com/jjdufu/ggok/releases) 下载 `ggok_<版本>_<os>_<arch>.tar.gz`（`os` 为 `linux` / `darwin`，`arch` 为 `amd64` / `aarch64`；包内是 `ggok` + `config.toml`）。
 
 ```shell
 tar -xzf ggok_0.0.0_linux_amd64.tar.gz
@@ -33,15 +33,17 @@ cp -n config.toml ~/.config/ggok/config.toml   # 已有配置不要覆盖
 ggok start
 ```
 
-终端会打印监听地址和登录 token。浏览器打开 `http://127.0.0.1:9888`，用 token 登录。
+终端会打印监听地址和登录 token。浏览器打开 `http://127.0.0.1:9888`，用 token 登录（默认监听 `0.0.0.0:9888`）。
 
 ```shell
 ggok status    # pid、地址、token、leader、各会话占用
-ggok update    # 下载最新 Release，替换二进制；web 在跑则重启 web
+ggok update    # 下载最新 Release，替换本机二进制；web 在跑则重启 web
 ggok stop      # 只停 Web，不杀 grok leader
 ggok stop --all  # 无进行中会话且 leader 由 ggok 拉起时才停 leader
 ggok restart   # 改配置后用这个；`--all` 约束同 stop --all
 ```
+
+`ggok update` 已是最新会打印 `Already up to date (x.y.z).`。从 cargo 的 `target/` 里跑会拒绝，以免改掉构建产物。需要本机有 `curl` 和 `tar`。
 
 ## 日志
 
@@ -66,6 +68,8 @@ tail -f ~/.local/state/ggok/ggok.log
 | `grok_bin` | `grok` | PATH 名或绝对路径 |
 | `poll_secs` | `5` | 会话轮询秒数，`0` 当作 `5` |
 | `upload_max_bytes` | `20971520` | 上传上限（字节） |
+
+`ggok start` 可用同名 flag 或环境变量覆盖：`GGOK_BIND`、`GROK_HOME`、`GGOK_GROK_BIN`、`GGOK_PERMISSION_MODE`、`GGOK_CONFIG`。也可用 `GGOK_TOKEN` 代替 token 文件。`ggok update` 可用 `GGOK_REPO`（默认 `jjdufu/ggok`）。
 
 改完执行 `ggok restart`。
 

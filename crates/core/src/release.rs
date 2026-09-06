@@ -13,7 +13,7 @@ pub const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const OS_LINUX: &str = "linux";
 const OS_DARWIN: &str = "darwin";
 const ARCH_AMD64: &str = "amd64";
-const ARCH_ARM64: &str = "arm64";
+const ARCH_AARCH64: &str = "aarch64";
 
 /// Parsed `major.minor.patch` with optional pre-release suffix.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -134,7 +134,7 @@ fn checked_os_arch<'a>(os: &'a str, arch: &'a str) -> Result<(&'a str, &'a str)>
     if os != OS_LINUX && os != OS_DARWIN {
         bail!("unsupported OS: {os}");
     }
-    if arch != ARCH_AMD64 && arch != ARCH_ARM64 {
+    if arch != ARCH_AMD64 && arch != ARCH_AARCH64 {
         bail!("unsupported arch: {arch}");
     }
     Ok((os, arch))
@@ -151,7 +151,7 @@ pub fn os_arch() -> Result<(String, String)> {
     };
     let arch = match std::env::consts::ARCH {
         "x86_64" => ARCH_AMD64,
-        "aarch64" => ARCH_ARM64,
+        "aarch64" => ARCH_AARCH64,
         other => bail!("unsupported arch: {other}"),
     };
     Ok((os.to_string(), arch.to_string()))
