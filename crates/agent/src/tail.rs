@@ -70,6 +70,7 @@ fn current_occ(job: &TailJob) -> occupy::Occupancy {
         leftover_noleader_alive: leftover,
         jsonl_running: occupy::jsonl_running(&job.session_dir),
         can_attach: job.our_runtime_pid.is_some() && !leftover,
+        cmdline: None,
     })
 }
 
@@ -166,6 +167,9 @@ async fn emit_line(
         Ingest::Usage => {
             let _ = send_event(tx, "usage", &parser.usage_snapshot()).await;
         }
+        Ingest::Plan => {
+            let _ = send_event(tx, "todos", &parser.todos()).await;
+        }
         Ingest::None => {
             let _ = before;
         }
@@ -182,6 +186,7 @@ fn classify_update(obj: &Value) -> Ingest {
         "tool_call" | "tool_call_update" => Ingest::Tool,
         "turn_completed" => Ingest::TurnEnd,
         "usage_update" => Ingest::Usage,
+        "plan" => Ingest::Plan,
         _ => Ingest::None,
     }
 }

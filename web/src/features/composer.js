@@ -6,9 +6,11 @@ import { svgUse } from "../lib/svg.js";
 import { api, post } from "../lib/api.js";
 import { escapeHtml } from "../lib/markdown.js";
 import { toast } from "../lib/clipboard.js";
+import { slashKind } from "../lib/slash.js";
+
+const STASH_KEY = "ggok-stash";
 
 export function bindComposer(ctx) {
-  const { TUI_ONLY_SLASH } = ctx;
   const app = document.getElementById("app");
   const actions = document.getElementById("actions");
   const timeline = document.getElementById("timeline");
@@ -105,10 +107,13 @@ export function bindComposer(ctx) {
     const canWrite = ctx.writable === true && !spectating;
     sendBtn.disabled = spectating || (!canWrite && !attachedRunning);
     sendBtn.classList.toggle("stopping", attachedRunning);
-    const sendTip = attachedRunning ? t("stop") : t("send");
+    const draft = !promptIsEmpty() || (ctx.attachments && ctx.attachments.length);
+    const interject = attachedRunning && draft;
+    const sendTip = interject ? t("sendNow") : attachedRunning ? t("stop") : t("send");
     setTip(sendBtn, sendTip);
     sendBtn.setAttribute("aria-label", sendTip);
-    if (sendIcon) sendIcon.dataset.state = attachedRunning ? "b" : "a";
+    sendBtn.classList.toggle("interject", interject);
+    if (sendIcon) sendIcon.dataset.state = attachedRunning && !interject ? "b" : "a";
     if (modelBtn) modelBtn.disabled = spectating || ctx.writable !== true;
     const attachBtn = document.getElementById("attach-btn");
     if (attachBtn) attachBtn.disabled = spectating;
@@ -608,7 +613,82 @@ export function bindComposer(ctx) {
       if (ctx.setInfoOpen) ctx.setInfoOpen(true, "context");
       return true;
     }
-    if (hit("resume")) return true;
+    if (hit("resume")) {
+      if (ctx.openFinder) ctx.openFinder();
+      return true;
+    }
+    if (hit("dashboard", "agents-dashboard")) {
+      if (ctx.focusLiveGroup) ctx.focusLiveGroup();
+      return true;
+    }
+    if (hit("find", "jump")) {
+      if (ctx.openTimelineFind) ctx.openTimelineFind();
+      return true;
+    }
+    if (hit("rewind", "undo")) {
+      if (ctx.openRewind) ctx.openRewind();
+      return true;
+    }
+    if (hit("view-plan", "show-plan", "plan-view")) {
+      if (ctx.openPlan) ctx.openPlan();
+      return true;
+    }
+    if (hit("plan") && !tok.args) {
+      if (ctx.setMode) ctx.setMode("plan");
+      return true;
+    }
+    if (hit("always-approve")) {
+      if (ctx.setMode) ctx.setMode("always-approve");
+      return true;
+    }
+    if (hit("auto")) {
+      if (ctx.setMode) ctx.setMode("auto");
+      return true;
+    }
+    if (hit("compact")) {
+      post("/api/sessions/" + encodeURIComponent(ctx.currentId) + "/compact", {
+        context: tok.args || ""
+      }).catch((err) => toast(String(err.message || err)));
+      return true;
+    }
+    if (hit("fork")) {
+      post("/api/sessions/" + encodeURIComponent(ctx.currentId) + "/fork", {
+        directive: tok.args || "",
+        worktree: false
+      })
+        .then((s) => {
+          if (s && s.id && ctx.openSession) ctx.openSession(s.id);
+        })
+        .catch((err) => toast(String(err.message || err)));
+      return true;
+    }
+    if (hit("export")) {
+      window.location.href =
+        "/api/sessions/" + encodeURIComponent(ctx.currentId) + "/export?format=md";
+      return true;
+    }
+    if (hit("btw")) {
+      if (!tok.args) {
+        toast(t("btwNeedText"));
+        return true;
+      }
+      post("/api/sessions/" + encodeURIComponent(ctx.currentId) + "/btw", { text: tok.args }).catch(
+        (err) => toast(String(err.message || err))
+      );
+      return true;
+    }
+    if (hit("hooks")) {
+      if (ctx.openExtModal) ctx.openExtModal("hooks");
+      return true;
+    }
+    if (hit("workflows")) {
+      if (ctx.openExtModal) ctx.openExtModal("workflows");
+      return true;
+    }
+    if (hit("agents", "personas")) {
+      if (ctx.openExtModal) ctx.openExtModal("agents");
+      return true;
+    }
     if (hit("mcps", "mcp")) {
       if (ctx.openExtModal) ctx.openExtModal("mcp");
       return true;
@@ -625,8 +705,13 @@ export function bindComposer(ctx) {
       if (ctx.openExtModal) ctx.openExtModal("skills");
       return true;
     }
-    if (TUI_ONLY_SLASH && (TUI_ONLY_SLASH.has(canon) || TUI_ONLY_SLASH.has(tok.name.toLowerCase()))) {
+    const kind = slashKind(canon) || slashKind(tok.name);
+    if (kind === "tui") {
       toast(t("slashTuiOnly"));
+      return true;
+    }
+    if (kind === "rpc") {
+      toast(t("slashRpcSoon"));
       return true;
     }
     return false;
@@ -816,7 +901,12 @@ export function bindComposer(ctx) {
     if (!detail) return;
     if (detail.model) ctx.selectedModel = detail.model;
     if (detail.effort) ctx.selectedEffort = detail.effort;
+    if (detail.mode) {
+      ctx.mode = detail.mode;
+      if (ctx.current) ctx.current.mode = detail.mode;
+    }
     if (ctx.fillModels) ctx.fillModels();
+    if (ctx.syncModeBtn) ctx.syncModeBtn();
   }
 
   function applyOccupancy(detail) {
@@ -883,6 +973,12 @@ export function bindComposer(ctx) {
         if (detail.work_started_ms) ctx.current.work_started_ms = detail.work_started_ms;
       }
       applyOccupancy(detail);
+      if (detail.mode) {
+        ctx.mode = detail.mode;
+        if (ctx.current) ctx.current.mode = detail.mode;
+        if (ctx.syncModeBtn) ctx.syncModeBtn();
+      }
+      if (Array.isArray(detail.todos) && ctx.renderTodos) ctx.renderTodos(detail.todos);
       if (ctx.running || ctx.awaitingAgent) armWorkWatch();
       else stopWorkWatch();
       applySessionModel(detail);
@@ -999,6 +1095,24 @@ export function bindComposer(ctx) {
     if (!text.trim() && !(ctx.attachments && ctx.attachments.length)) {
       if (ctx.running && ctx.queue && ctx.queue.length) {
         await sendQueueNow(ctx.queue[0]);
+      }
+      return;
+    }
+    if (ctx.retryPending && ctx.currentId) {
+      const pending = ctx.retryPending;
+      ctx.retryPending = null;
+      promptApi.setText("");
+      drafts.clear();
+      clearAttachments();
+      renderChips();
+      try {
+        await post("/api/sessions/" + encodeURIComponent(ctx.currentId) + "/retry", {
+          prompt_index: pending.prompt_index,
+          text
+        });
+      } catch (e) {
+        promptApi.setText(text);
+        toast(String(e.message || e));
       }
       return;
     }
@@ -1157,6 +1271,16 @@ export function bindComposer(ctx) {
       if (cmd) pickSlash(cmd, e.key === "Enter");
       return;
     }
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      if (isSpectating()) return;
+      if (ctx.source === "attached" && ctx.running && (!promptIsEmpty() || (ctx.attachments && ctx.attachments.length))) {
+        interjectNow();
+        return;
+      }
+      submitPrompt();
+      return;
+    }
     if (e.key !== "Enter") return;
     if (imeBlocked(e)) return;
     if (e.shiftKey) return;
@@ -1169,29 +1293,95 @@ export function bindComposer(ctx) {
     submitPrompt();
   });
 
+  async function interjectNow() {
+    if (!ctx.currentId) return;
+    const text = applyActiveSkill(promptApi.getText());
+    const files = (ctx.attachments || []).map((a) => ({ path: a.path, mime: a.mime }));
+    promptApi.setText("");
+    drafts.clear();
+    clearAttachments();
+    renderChips();
+    try {
+      await post("/api/sessions/" + encodeURIComponent(ctx.currentId) + "/interject", { text, files });
+    } catch (err) {
+      promptApi.setText(text);
+      toast(String(err.message || err));
+    }
+  }
+
+  function cancelRunning() {
+    ctx.running = false;
+    ctx.awaitingAgent = false;
+    stopWorkWatch();
+    if (ctx.current && ctx.current.blocks && ctx.current.blocks.length) {
+      const last = ctx.current.blocks[ctx.current.blocks.length - 1];
+      last.cancelled = true;
+      if (last.prompt_id && ctx.cancelledByUser) ctx.cancelledByUser[last.prompt_id] = true;
+    }
+    syncSendBtn();
+    if (ctx.scheduleRender) ctx.scheduleRender();
+    post("/api/sessions/" + encodeURIComponent(ctx.currentId) + "/cancel", {}).catch((err) =>
+      toast(String(err.message || err))
+    );
+  }
+
   if (sendBtn) {
     sendBtn.addEventListener("click", (e) => {
       e.stopPropagation();
       if (isSpectating()) return;
       if (ctx.source === "attached" && ctx.running) {
-        ctx.running = false;
-        ctx.awaitingAgent = false;
-        stopWorkWatch();
-        if (ctx.current && ctx.current.blocks && ctx.current.blocks.length) {
-          const last = ctx.current.blocks[ctx.current.blocks.length - 1];
-          last.cancelled = true;
-          if (last.prompt_id && ctx.cancelledByUser) ctx.cancelledByUser[last.prompt_id] = true;
+        const draft = !promptIsEmpty() || (ctx.attachments && ctx.attachments.length);
+        if (draft) {
+          interjectNow();
+          return;
         }
-        syncSendBtn();
-        if (ctx.scheduleRender) ctx.scheduleRender();
-        post("/api/sessions/" + encodeURIComponent(ctx.currentId) + "/cancel", {}).catch((err) =>
-          toast(String(err.message || err))
-        );
+        cancelRunning();
         return;
       }
       submitPrompt();
     });
   }
+
+  function stashDraft() {
+    const text = promptApi.getText();
+    const files = (ctx.attachments || [])
+      .filter((a) => a.path)
+      .map((a) => ({ path: a.path, mime: a.mime, name: a.name || a.rel || fileNameOf(a) }));
+    if (String(text || "").trim() || files.length) {
+      try {
+        sessionStorage.setItem(STASH_KEY, JSON.stringify({ text, files }));
+      } catch (err) {
+        toast(t("stashFailed"));
+        return;
+      }
+      promptApi.setText("");
+      drafts.clear();
+      clearAttachments();
+      renderChips();
+      toast(t("stashSaved"));
+      return;
+    }
+    let raw = "";
+    try {
+      raw = sessionStorage.getItem(STASH_KEY) || "";
+    } catch (err) {
+      raw = "";
+    }
+    if (!raw) {
+      toast(t("stashEmpty"));
+      return;
+    }
+    try {
+      const v = JSON.parse(raw);
+      promptApi.setText(String((v && v.text) || ""));
+      toast(t("stashRestored"));
+    } catch (err) {
+      toast(t("stashEmpty"));
+    }
+  }
+
+  const stashBtn = document.getElementById("stash-btn");
+  if (stashBtn) stashBtn.addEventListener("click", stashDraft);
 
   const attachBtn = document.getElementById("attach-btn");
   if (attachBtn && fileInput) {

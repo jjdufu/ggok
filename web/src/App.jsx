@@ -141,6 +141,11 @@ export default function App() {
           <div className="composer-fade" aria-hidden="true"></div>
           <div className="composer-wrap">
             <div id="occupy-banner" className="occupy-banner" hidden={true}></div>
+            <div id="todos-bar" className="todos-bar" hidden={true}></div>
+            <div id="find-bar" className="find-bar" hidden={true}>
+              <input id="find-input" type="search" data-i18n-placeholder="findPlaceholder" placeholder="查找" />
+              <button type="button" id="find-close" className="icon-btn" data-i18n-title="close">×</button>
+            </div>
             <div id="queue" hidden={true}></div>
             <div id="slash-menu" hidden={true}></div>
             <div id="at-menu" hidden={true}></div>
@@ -167,7 +172,11 @@ export default function App() {
                   <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-folder"/></svg>
                   <span id="dir-label" hidden={true}><span className="dir-path-text"></span></span>
                 </button>
+                <button type="button" id="stash-btn" className="icon-btn" data-tip="暂存" data-i18n-title="stash">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-stash"/></svg>
+                </button>
                 <span className="composer-spacer"></span>
+                <button type="button" id="mode-btn" className="composer-btn" hidden={true} data-i18n-title="modeTip">Ask</button>
                 <div className="model-wrap">
                   <button type="button" id="model-btn" className="model-btn" data-tip="模型" data-i18n-title="model">
                     <span id="model-label">4.6</span>
@@ -202,6 +211,10 @@ export default function App() {
           </button>
         </header>
         <div id="drawer-body"></div>
+        <div id="drawer-tasks" hidden={true}>
+          <div className="usage-pop-title" data-i18n="tasksTitle">任务</div>
+          <div id="tasks-list"></div>
+        </div>
         <div id="drawer-status" hidden={true}>
           <div className="usage-pop-title" data-i18n="sessionUsage">会话用量</div>
           <div className="usage-pop-sub" data-i18n="sinceStart">自启动或上次恢复起</div>
@@ -223,6 +236,28 @@ export default function App() {
     </section>
   </div>
 
+  <div id="rewind-scrim" className="ui-scrim" hidden={true}></div>
+  <div id="rewind-panel" className="ui-dialog rewind-panel" hidden={true} role="dialog" aria-modal="true">
+    <header className="drawer-head">
+      <div className="drawer-title" data-i18n="rewindTitle">回退</div>
+      <button type="button" id="rewind-close" className="icon-btn drawer-x" data-i18n-title="close">×</button>
+    </header>
+    <p className="rewind-note" data-i18n="rewindNote">之后的对话会丢掉，工作区文件不还原。</p>
+    <div id="rewind-list" className="rewind-list"></div>
+  </div>
+  <div id="plan-scrim" className="ui-scrim" hidden={true}></div>
+  <div id="plan-panel" className="ui-dialog plan-panel" hidden={true} role="dialog" aria-modal="true">
+    <header className="drawer-head">
+      <div className="drawer-title" data-i18n="planTitle">计划</div>
+      <button type="button" id="plan-close" className="icon-btn drawer-x" data-i18n-title="close">×</button>
+    </header>
+    <div id="plan-md" className="plan-md md"></div>
+    <div className="plan-actions">
+      <button type="button" id="plan-approve" className="perm-allow" data-i18n="planApprove">批准</button>
+      <button type="button" id="plan-revise" className="composer-btn" data-i18n="planRevise">要改</button>
+      <button type="button" id="plan-exit" className="perm-deny" data-i18n="planExit">退出计划</button>
+    </div>
+  </div>
   <div id="ext-scrim" className="ui-scrim" hidden={true}></div>
   <div id="ext-modal" className="ui-dialog" hidden={true} role="dialog" aria-modal="true">
     <header className="ext-head">

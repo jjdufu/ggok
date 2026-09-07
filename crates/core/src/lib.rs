@@ -42,5 +42,5 @@ pub use sys::{effective_uid, pid_cmdline, pid_is_alive, resolve_default_grok_bin
 pub use types::{
     Block, ContextUse, EffortInfo, ModelInfo, ModelUsageRow, ProjectRow, PromptFile, QueueItem,
     SessionDetail, SessionMeta, SessionRow, SlashCommand, SubagentMeta, SummaryFile, SummaryInfo,
-    TokenUsage, ToolDetail,
+    TodoItem, TokenUsage, ToolDetail,
 };

@@ -14,6 +14,9 @@ import { bindSse } from "./features/sse.js";
 import { bindTimeline } from "./features/timeline.js";
 import { bindQuestion } from "./features/question.js";
 import { bindComposer } from "./features/composer.js";
+import { bindRewind } from "./features/rewind.js";
+import { bindMode } from "./features/mode.js";
+import { bindTasks } from "./features/tasks.js";
 import { api } from "./lib/api.js";
 import { relocalizeDyn, hideTip, formatError } from "./lib/helpers.js";
 
@@ -24,24 +27,6 @@ export function boot() {
   const THEME_KEY = "ggok-theme";
   const SIDE_KEY = "ggok-sidebar";
   const FINDER_PREVIEW_KEY = "ggok-finder-preview";
-
-  const TUI_ONLY_SLASH = new Set([
-    "quit",
-    "exit",
-    "home",
-    "welcome",
-    "multiline",
-    "ml",
-    "vim-mode",
-    "minimal",
-    "fullscreen",
-    "theme",
-    "timestamps",
-    "dashboard",
-    "agents-dashboard",
-    "edit-prompt",
-    "history"
-  ]);
 
   const EFFORT_I18N = {
     low: { label: "effortLow", desc: "effortLowDesc" },
@@ -54,7 +39,6 @@ export function boot() {
     THEME_KEY,
     SIDE_KEY,
     FINDER_PREVIEW_KEY,
-    TUI_ONLY_SLASH,
     EFFORT_I18N,
 
     sessions: [],
@@ -93,6 +77,12 @@ export function boot() {
     pendingQuestions: {},
     questionDrafts: {},
     traceOpen: new Set(),
+    mode: "ask",
+    todos: [],
+    tasks: [],
+    retryPending: null,
+    compactPhase: "",
+    stash: null,
 
     drawerPromptId: "",
     drawerFocusKey: "",
@@ -163,12 +153,22 @@ export function boot() {
   bindTimeline(ctx);
   bindQuestion(ctx);
   bindComposer(ctx);
+  bindRewind(ctx);
+  bindMode(ctx);
+  bindTasks(ctx);
 
   document.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === "j" || e.key === "J")) {
       e.preventDefault();
       if (ctx.startNewChat) ctx.startNewChat();
       return;
+    }
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === "f" || e.key === "F")) {
+      if (ctx.currentId && ctx.openTimelineFind) {
+        e.preventDefault();
+        ctx.openTimelineFind();
+        return;
+      }
     }
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === "k" || e.key === "K")) {
       e.preventDefault();

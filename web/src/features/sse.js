@@ -244,6 +244,33 @@ export function bindSse(ctx) {
       if (ctx.applyQuestions) ctx.applyQuestions(Array.isArray(list) ? list : []);
     });
 
+    on("rewind", () => {
+      if (id === ctx.currentId && ctx.pullSession) ctx.pullSession(id).catch(() => {});
+    });
+
+    on("compact", (ev) => {
+      ctx.compactPhase = ev && ev.phase;
+      if (ctx.syncCompact) ctx.syncCompact(ev);
+      if (ev && ev.phase === "done" && ctx.pullSession) ctx.pullSession(id).catch(() => {});
+      if (ev && ev.phase === "error" && ev.message) toast(String(ev.message));
+    });
+
+    on("mode", (ev) => {
+      if (ev && ev.mode) {
+        ctx.mode = ev.mode;
+        if (ctx.current) ctx.current.mode = ev.mode;
+        if (ctx.syncModeBtn) ctx.syncModeBtn();
+      }
+    });
+
+    on("todos", (list) => {
+      if (ctx.renderTodos) ctx.renderTodos(Array.isArray(list) ? list : []);
+    });
+
+    on("tasks", () => {
+      if (ctx.loadTasks) ctx.loadTasks().then(() => ctx.renderTasks && ctx.renderTasks());
+    });
+
     return opened;
   }
 

@@ -229,10 +229,21 @@ export function bindTimeline(ctx) {
     actionsEl.className = "user-actions";
     actionsEl.append(
       userActionBtn("i-edit", "edit", () => {
-        if (ctx.fillComposer) ctx.fillComposer(block.text);
+        if (ctx.editThenRetry) ctx.editThenRetry(block);
+        else if (ctx.fillComposer) ctx.fillComposer(block.text);
       }),
       userActionBtn("i-copy", "copy", () => copyText(block.text))
     );
+    if (ctx.writable === true && ctx.currentId) {
+      actionsEl.append(
+        userActionBtn("i-rewind", "rewindHere", () => {
+          if (ctx.rewindToPrompt) ctx.rewindToPrompt(block.prompt_id);
+        }),
+        userActionBtn("i-retry", "retryHere", () => {
+          if (ctx.retryFromPrompt) ctx.retryFromPrompt(block.prompt_id, block.text);
+        })
+      );
+    }
     row.appendChild(actionsEl);
     return row;
   }
@@ -560,19 +571,36 @@ export function bindTimeline(ctx) {
     titleEl.className = "perm-title";
     titleEl.textContent = perm.title || t("allowTool");
     if (!perm.title) titleEl.setAttribute("data-i18n", "allowTool");
-    const allow = document.createElement("button");
-    allow.type = "button";
-    allow.className = "perm-allow";
-    allow.setAttribute("data-i18n", "allow");
-    allow.textContent = t("allow");
-    const deny = document.createElement("button");
-    deny.type = "button";
-    deny.className = "perm-deny";
-    deny.setAttribute("data-i18n", "deny");
-    deny.textContent = t("deny");
-    allow.addEventListener("click", () => answerPerm(perm, true));
-    deny.addEventListener("click", () => answerPerm(perm, false));
-    card.append(titleEl, allow, deny);
+    card.appendChild(titleEl);
+    const opts = Array.isArray(perm.options) ? perm.options : [];
+    if (opts.length) {
+      const row = document.createElement("div");
+      row.className = "perm-opts";
+      opts.forEach((opt) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        const kind = String(opt.kind || "").toLowerCase();
+        btn.className = "perm-opt" + (kind.includes("reject") || kind.includes("deny") ? " perm-deny" : " perm-allow");
+        btn.textContent = opt.name || opt.id || kind;
+        btn.addEventListener("click", () => answerPermOption(perm, opt));
+        row.appendChild(btn);
+      });
+      card.appendChild(row);
+    } else {
+      const allow = document.createElement("button");
+      allow.type = "button";
+      allow.className = "perm-allow";
+      allow.setAttribute("data-i18n", "allow");
+      allow.textContent = t("allow");
+      const deny = document.createElement("button");
+      deny.type = "button";
+      deny.className = "perm-deny";
+      deny.setAttribute("data-i18n", "deny");
+      deny.textContent = t("deny");
+      allow.addEventListener("click", () => answerPerm(perm, true));
+      deny.addEventListener("click", () => answerPerm(perm, false));
+      card.append(allow, deny);
+    }
     return card;
   }
 
@@ -581,6 +609,26 @@ export function bindTimeline(ctx) {
       await post(
         "/api/sessions/" + encodeURIComponent(ctx.currentId) + "/permissions/" + encodeURIComponent(perm.req),
         { allow }
+      );
+      if (ctx.pendingPerms) delete ctx.pendingPerms[perm.tool_id];
+      scheduleRender();
+    } catch (e) {
+      toast(String(e.message || e));
+    }
+  }
+
+  async function answerPermOption(perm, opt) {
+    const kind = String((opt && opt.kind) || "").toLowerCase();
+    const reject = kind.includes("reject") || kind.includes("deny");
+    let message;
+    if (reject) {
+      const typed = window.prompt(t("permRejectMessage"), "");
+      if (typed && typed.trim()) message = typed.trim();
+    }
+    try {
+      await post(
+        "/api/sessions/" + encodeURIComponent(ctx.currentId) + "/permissions/" + encodeURIComponent(perm.req),
+        { option_id: opt.id, message, allow: !reject }
       );
       if (ctx.pendingPerms) delete ctx.pendingPerms[perm.tool_id];
       scheduleRender();
@@ -1005,6 +1053,52 @@ export function bindTimeline(ctx) {
   ctx.splitTrace = splitTrace;
   ctx.renderPerm = renderPerm;
   ctx.answerPerm = answerPerm;
+  ctx.answerPermOption = answerPermOption;
+
+  function openTimelineFind() {
+    const bar = document.getElementById("find-bar");
+    const input = document.getElementById("find-input");
+    if (!bar) return;
+    bar.hidden = false;
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }
+
+  function closeTimelineFind() {
+    const bar = document.getElementById("find-bar");
+    if (bar) bar.hidden = true;
+    ctx.findQuery = "";
+    if (ctx.scheduleRender) ctx.scheduleRender();
+  }
+
+  function applyFind() {
+    const input = document.getElementById("find-input");
+    ctx.findQuery = String((input && input.value) || "").trim().toLowerCase();
+    const q = ctx.findQuery;
+    if (!q || !timeline) return;
+    const nodes = [...timeline.querySelectorAll(".block-body, .say")];
+    const hit = nodes.find((n) => String(n.textContent || "").toLowerCase().includes(q));
+    if (hit && hit.scrollIntoView) hit.scrollIntoView({ block: "center" });
+  }
+
+  const findInput = document.getElementById("find-input");
+  if (findInput) {
+    findInput.addEventListener("input", applyFind);
+    findInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        applyFind();
+      }
+      if (e.key === "Escape") closeTimelineFind();
+    });
+  }
+  const findClose = document.getElementById("find-close");
+  if (findClose) findClose.addEventListener("click", closeTimelineFind);
+
+  ctx.openTimelineFind = openTimelineFind;
+  ctx.closeTimelineFind = closeTimelineFind;
   ctx.syncWorkTimer = syncWorkTimer;
   ctx.tickWorkSeconds = tickWorkSeconds;
   ctx.liveSeconds = liveSeconds;

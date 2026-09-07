@@ -36,18 +36,59 @@ fn occ(
         leftover_noleader_alive: leftover,
         jsonl_running: jsonl,
         can_attach: false,
+        cmdline: None,
     })
 }
 
 #[test]
 fn classify_attached_when_loaded() {
-    let s3 = HashMap::from([("s1".into(), 1_u32)]);
-    let got = occ("s1", Some(&live(true, true)), None, &s3, false, true);
-    assert_eq!(got.source, Source::Attached);
-    assert!(got.writable);
-    assert!(got.running);
+    let s3 = HashMap::from([("s1".into(), 42_u32)]);
+    let tui = b"/home/grok/.grok/bin/grok\0--permission-mode\0bypassPermissions\0";
+    let noleader = b"grok\0agent\0--no-leader\0stdio\0";
 
-    let idle = occ("s1", Some(&live(true, false)), None, &s3, false, false);
+    let tui_held = classify(&ClassifyInput {
+        id: "s1",
+        live: Some(&live(true, true)),
+        our_runtime_pid: None,
+        s3: &s3,
+        leftover_noleader_alive: false,
+        jsonl_running: true,
+        can_attach: false,
+        cmdline: Some(tui),
+    });
+    assert_eq!(tui_held.source, Source::Tui);
+    assert!(!tui_held.writable);
+    assert!(tui_held.running);
+
+    let foreign = classify(&ClassifyInput {
+        id: "s1",
+        live: Some(&live(true, false)),
+        our_runtime_pid: Some(3),
+        s3: &s3,
+        leftover_noleader_alive: false,
+        jsonl_running: false,
+        can_attach: true,
+        cmdline: Some(noleader),
+    });
+    assert_eq!(foreign.source, Source::Foreign);
+    assert!(!foreign.writable);
+    assert!(foreign.running);
+
+    let own = classify(&ClassifyInput {
+        id: "s1",
+        live: Some(&live(true, true)),
+        our_runtime_pid: Some(42),
+        s3: &s3,
+        leftover_noleader_alive: false,
+        jsonl_running: true,
+        can_attach: true,
+        cmdline: Some(tui),
+    });
+    assert_eq!(own.source, Source::Attached);
+    assert!(own.writable);
+    assert!(own.running);
+
+    let idle = occ("s1", Some(&live(true, false)), Some(42), &s3, false, false);
     assert_eq!(idle.source, Source::Attached);
     assert!(idle.writable);
     assert!(!idle.running);
@@ -176,6 +217,7 @@ fn classify_s3_non_tui_with_can_attach_is_writable() {
         leftover_noleader_alive: false,
         jsonl_running: false,
         can_attach: true,
+        cmdline: None,
     });
     let cmd = ggok_core::sys::pid_cmdline(9);
     if is_tui_cmd(&cmd) {
@@ -203,6 +245,7 @@ fn classify_jsonl_running_with_can_attach_is_writable() {
         leftover_noleader_alive: false,
         jsonl_running: true,
         can_attach: true,
+        cmdline: None,
     });
     assert_eq!(got.source, Source::Disk);
     assert!(got.writable);

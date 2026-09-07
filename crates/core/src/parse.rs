@@ -1,5 +1,5 @@
 use crate::types::{
-    Block, EffortInfo, ModelInfo, ModelUsageRow, PromptFile, TokenUsage, ToolDetail,
+    Block, EffortInfo, ModelInfo, ModelUsageRow, PromptFile, TodoItem, TokenUsage, ToolDetail,
 };
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
@@ -15,6 +15,7 @@ pub struct ParsedSession {
     pub usage: TokenUsage,
     pub context_tokens: u64,
     pub work_started_ms: Option<u64>,
+    pub todos: Vec<TodoItem>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -41,6 +42,7 @@ pub struct Parser {
     turn_start_ms: Option<u64>,
     last_ts_ms: Option<u64>,
     current_prompt_id: String,
+    todos: Vec<TodoItem>,
 }
 
 impl Default for Parser {
@@ -62,6 +64,7 @@ impl Parser {
             turn_start_ms: None,
             last_ts_ms: None,
             current_prompt_id: String::new(),
+            todos: Vec::new(),
         }
     }
 
@@ -363,6 +366,7 @@ impl Parser {
             usage,
             context_tokens: self.context_tokens,
             work_started_ms: self.turn_start_ms,
+            todos: self.todos,
         }
     }
 
@@ -434,6 +438,15 @@ impl Parser {
         }
     }
 
+    #[must_use]
+    pub fn todos(&self) -> Vec<TodoItem> {
+        self.todos.clone()
+    }
+
+    pub fn replace_todos(&mut self, todos: Vec<TodoItem>) {
+        self.todos = todos;
+    }
+
     pub fn note_meta(&mut self, meta: &Value) {
         if let Some(n) = json_u64_opt(meta, &["totalTokens", "total_tokens"]) {
             self.context_tokens = n;
@@ -448,6 +461,7 @@ pub enum Ingest {
     Tool,
     TurnEnd,
     Usage,
+    Plan,
 }
 
 fn ingest_update(
@@ -484,8 +498,53 @@ fn ingest_update(
         "tool_call" => ingest_tool_call(parser, &prompt_id, update, ts_ms),
         "tool_call_update" => ingest_tool_update(parser, update, ts_ms),
         "turn_completed" => ingest_turn_completed(parser, prompt_id, update, ts_ms),
+        "plan" => ingest_plan(parser, update, ts_ms),
         _ => ingest_usage_field(parser, update),
     }
+}
+
+fn ingest_plan(parser: &mut Parser, update: &Value, ts_ms: Option<u64>) -> Ingest {
+    parser.note_time(ts_ms);
+    let entries = update
+        .get("entries")
+        .or_else(|| update.get("todos"))
+        .or_else(|| update.get("items"))
+        .and_then(Value::as_array);
+    let Some(entries) = entries else {
+        let _ = ingest_usage_field(parser, update);
+        return Ingest::None;
+    };
+    parser.todos = entries.iter().filter_map(todo_from_value).collect();
+    let _ = ingest_usage_field(parser, update);
+    Ingest::Plan
+}
+
+fn todo_from_value(v: &Value) -> Option<TodoItem> {
+    let content = v
+        .get("content")
+        .or_else(|| v.get("text"))
+        .or_else(|| v.get("title"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())?
+        .to_string();
+    let status = v
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("pending")
+        .trim()
+        .to_string();
+    let priority = v
+        .get("priority")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    Some(TodoItem {
+        content,
+        status,
+        priority,
+    })
 }
 
 fn ingest_text(

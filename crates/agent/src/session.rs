@@ -21,6 +21,7 @@ impl Agent {
         cwd: &Path,
         model: Option<&str>,
         effort: Option<&str>,
+        agent: Option<&str>,
     ) -> Result<NewSession> {
         self.ensure().await?;
         let last = ggok_core::config::config_dir()
@@ -30,10 +31,21 @@ impl Agent {
         let (model, effort) = ggok_core::prefs::resolve_choice(model, effort, &last);
         let model = model.as_deref();
         let effort = effort.as_deref();
+        let bind = Uuid::new_v4().to_string();
+        {
+            let mut g = self.inner.lock().await;
+            g.ask_binds.insert(bind.clone(), String::new());
+        }
+        let mut meta = crate::question::acp_session_meta(&self.permission_mode);
+        if let Some(agent) = agent.map(str::trim).filter(|s| !s.is_empty())
+            && let Some(obj) = meta.as_object_mut()
+        {
+            obj.insert("agentProfile".into(), json!(agent));
+        }
         let params = json!({
             "cwd": cwd.to_string_lossy(),
-            "mcpServers": self.ask_mcp_servers(),
-            "_meta": crate::question::acp_session_meta(&self.permission_mode)
+            "mcpServers": self.ask_mcp_servers(None, &bind),
+            "_meta": meta
         });
         let result = self.call("session/new", params).await?;
         let id = result
@@ -41,6 +53,10 @@ impl Agent {
             .and_then(Value::as_str)
             .ok_or_else(|| anyhow::anyhow!("session/new missing sessionId"))?
             .to_string();
+        {
+            let mut g = self.inner.lock().await;
+            g.ask_binds.insert(bind, id.clone());
+        }
         self.yield_web_active(&id).await;
         self.apply_session_result(&id, cwd.to_string_lossy().as_ref(), &result)
             .await;
@@ -98,13 +114,18 @@ impl Agent {
                 return Ok(());
             }
         }
+        let bind = Uuid::new_v4().to_string();
+        {
+            let mut g = self.inner.lock().await;
+            g.ask_binds.insert(bind.clone(), id.to_string());
+        }
         let result = self
             .call(
                 "session/load",
                 json!({
                     "sessionId": id,
                     "cwd": cwd,
-                    "mcpServers": self.ask_mcp_servers(),
+                    "mcpServers": self.ask_mcp_servers(Some(id), &bind),
                     "_meta": crate::question::acp_session_meta(&self.permission_mode)
                 }),
             )
@@ -113,10 +134,12 @@ impl Agent {
         Ok(())
     }
 
-    fn ask_mcp_servers(&self) -> Value {
+    fn ask_mcp_servers(&self, session_id: Option<&str>, bind: &str) -> Value {
         self.ask_bridge
             .as_ref()
-            .map_or(json!([]), crate::question::mcp_ask_servers)
+            .map_or(json!([]), |bridge| {
+                crate::question::mcp_ask_servers(bridge, session_id, bind)
+            })
     }
 
     /// # Errors
@@ -367,6 +390,22 @@ impl Agent {
     /// # Errors
     /// Returns an error if the session or permission request is missing, or stdin write fails.
     pub async fn answer_permission(&self, id: &str, req: &str, allow: bool) -> Result<()> {
+        let option_id = {
+            let g = self.inner.lock().await;
+            let sess = g.sessions.get(id).ok_or_else(|| anyhow::anyhow!("session not loaded"))?;
+            let pending = sess
+                .perms
+                .get(req)
+                .ok_or_else(|| anyhow::anyhow!("permission request not found"))?;
+            pick_option(&pending.options, allow)
+                .ok_or_else(|| anyhow::anyhow!("no matching permission option"))?
+        };
+        self.answer_permission_option(id, req, &option_id).await
+    }
+
+    /// # Errors
+    /// Returns an error if the session or permission request is missing, or stdin write fails.
+    pub async fn answer_permission_option(&self, id: &str, req: &str, option_id: &str) -> Result<()> {
         self.require_attached(id).await?;
         let mut g = self.inner.lock().await;
         let Some(sess) = g.sessions.get_mut(id) else {
@@ -375,8 +414,10 @@ impl Agent {
         let Some(pending) = sess.perms.remove(req) else {
             bail!("permission request not found");
         };
-        let option_id = pick_option(&pending.options, allow)
-            .ok_or_else(|| anyhow::anyhow!("no matching permission option"))?;
+        if !pending.options.iter().any(|o| o.id == option_id) {
+            sess.perms.insert(req.to_string(), pending);
+            bail!("permission option not found");
+        }
         let msg = json!({
             "jsonrpc": "2.0",
             "id": pending.rpc_id,
@@ -388,6 +429,36 @@ impl Agent {
             }
         });
         write_stdin(g.stdin.as_mut(), &msg).await
+    }
+
+    /// # Errors
+    /// Returns an error if the session is occupied or the prompt cannot start.
+    pub async fn interject(&self, id: &str, item: QueueItem) -> Result<PromptOutcome> {
+        self.require_attached(id).await?;
+        self.yield_web_active(id).await;
+        let running;
+        {
+            let mut g = self.inner.lock().await;
+            let Some(sess) = g.sessions.get_mut(id) else {
+                bail!("session not loaded");
+            };
+            running = sess.running;
+            if running {
+                sess.resume = Some(item.clone());
+            }
+        }
+        if running {
+            self.cancel(id).await?;
+            return Ok(PromptOutcome {
+                queued: false,
+                queue: self.queue_list(id).await,
+            });
+        }
+        self.start_prompt(id, item).await?;
+        Ok(PromptOutcome {
+            queued: false,
+            queue: Vec::new(),
+        })
     }
 
     pub(crate) async fn require_attached(&self, id: &str) -> Result<()> {
@@ -423,7 +494,7 @@ impl Agent {
             )
         };
         self.emit(id, "queue", &queue);
-        self.emit_live(id, true);
+        self.emit_live(id, true).await;
         self.emit(
             id,
             "block",
@@ -542,6 +613,12 @@ impl Agent {
         if !effort.is_empty() && sess.effort.is_empty() {
             sess.effort = effort;
         }
+        if sess.mode.is_empty() {
+            sess.mode = match self.permission_mode.as_str() {
+                "always-approve" | "auto" => self.permission_mode.clone(),
+                _ => "ask".to_string(),
+            };
+        }
     }
 
     pub(crate) async fn on_session_update(&self, params: &Value) {
@@ -576,7 +653,7 @@ impl Agent {
             .unwrap_or("")
             .to_string();
         let ts = ggok_core::parse::timestamp_ms(params.get("timestamp")).or_else(|| Some(now_ms()));
-        let (block, usage, emit_usage, before_ctx, ctx_used, model_id) = {
+        let (block, usage, emit_usage, before_ctx, ctx_used, model_id, todos) = {
             let mut g = self.inner.lock().await;
             let sess = live_entry(&mut g, &sid, "");
             if kind == "user_message_chunk" && sess.user_emitted {
@@ -609,6 +686,10 @@ impl Agent {
                     sess.parser.tool(&sess.last_tool_id)
                 }
                 Ingest::TurnEnd => sess.parser.last_block(),
+                Ingest::Plan => {
+                    sess.todos = sess.parser.todos();
+                    None
+                }
                 Ingest::Usage | Ingest::None => None,
             };
             let emit_usage = matches!(ingest, Ingest::TurnEnd | Ingest::Usage);
@@ -618,9 +699,13 @@ impl Agent {
             let ctx_used = sess.parser.context_tokens();
             let model_id = sess.model.clone();
             let usage = sess.usage.clone();
-            (block, usage, emit_usage, before_ctx, ctx_used, model_id)
+            let todos = matches!(ingest, Ingest::Plan).then(|| sess.todos.clone());
+            (block, usage, emit_usage, before_ctx, ctx_used, model_id, todos)
         };
         let context = self.context_payload(ctx_used, before_ctx, &model_id).await;
+        if let Some(todos) = todos {
+            self.emit(&sid, "todos", &todos);
+        }
         if let Some(block) = block {
             self.emit(&sid, "block", &block);
         }

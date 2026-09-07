@@ -13,6 +13,8 @@ use std::sync::Arc;
 pub(crate) struct AskBody {
     #[serde(default)]
     session_id: String,
+    #[serde(default)]
+    bind: String,
     questions: Value,
 }
 
@@ -22,7 +24,11 @@ pub(crate) async fn api_ask_create(
 ) -> Response {
     match state
         .agent
-        .present_web_question(Some(body.session_id.as_str()), body.questions)
+        .present_web_question(
+            Some(body.session_id.as_str()),
+            Some(body.bind.as_str()),
+            body.questions,
+        )
         .await
     {
         Ok((id, req)) => json_ok(&json!({ "session_id": id, "req": req })),

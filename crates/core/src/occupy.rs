@@ -79,6 +79,8 @@ pub struct ClassifyInput<'a> {
     pub leftover_noleader_alive: bool,
     pub jsonl_running: bool,
     pub can_attach: bool,
+    /// When set, used instead of reading `/proc/<pid>/cmdline` for the s3 holder.
+    pub cmdline: Option<&'a [u8]>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -274,6 +276,28 @@ pub fn reap_idle_leftover(pid_file: &Path, grok_home: &Path) {
 
 #[must_use]
 pub fn classify(input: &ClassifyInput<'_>) -> Occupancy {
+    let cmd_buf;
+    let holder_cmd: &[u8] = if let Some(cmd) = input.cmdline {
+        cmd
+    } else if let Some(&pid) = input.s3.get(input.id) {
+        cmd_buf = crate::sys::pid_cmdline(pid);
+        cmd_buf.as_slice()
+    } else {
+        &[]
+    };
+    // A TUI pager or foreign no-leader stdio client always wins over Live.loaded.
+    // Web may have created the session (loaded=true); whoever later attaches the
+    // TUI must turn Web into a spectator.
+    if let Some(&pid) = input.s3.get(input.id)
+        && Some(pid) != input.our_runtime_pid
+        && (is_tui_cmd(holder_cmd) || is_noleader_stdio(holder_cmd))
+    {
+        return Occupancy {
+            source: peer_source(holder_cmd),
+            writable: false,
+            running: true,
+        };
+    }
     if input.live.is_some_and(|l| l.loaded) {
         return Occupancy {
             source: Source::Attached,
@@ -288,15 +312,14 @@ pub fn classify(input: &ClassifyInput<'_>) -> Occupancy {
             running: input.jsonl_running,
         };
     }
-    if let Some(&pid) = input.s3.get(input.id) {
-        let cmd = crate::sys::pid_cmdline(pid);
-        if s3_is_hard_foreign(pid, input.our_runtime_pid, input.can_attach, &cmd) {
-            return Occupancy {
-                source: peer_source(&cmd),
-                writable: false,
-                running: true,
-            };
-        }
+    if let Some(&pid) = input.s3.get(input.id)
+        && s3_is_hard_foreign(pid, input.our_runtime_pid, input.can_attach, holder_cmd)
+    {
+        return Occupancy {
+            source: peer_source(holder_cmd),
+            writable: false,
+            running: true,
+        };
     }
     if input.jsonl_running {
         if input.can_attach {

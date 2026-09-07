@@ -537,6 +537,7 @@ fn session_occupancies(grok_home: &Path) -> Vec<(String, occupy::Occupancy)> {
             leftover_noleader_alive: leftover,
             jsonl_running: occupy::jsonl_running(&meta.dir),
             can_attach,
+            cmdline: None,
         });
         out.push((id, occ));
     }

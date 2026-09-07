@@ -24,6 +24,8 @@ pub struct SessionRow {
     pub source: String,
     #[serde(default)]
     pub pinned: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_turn_summary: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +43,7 @@ pub struct SessionMeta {
     pub parent_id: Option<String>,
     pub empty: bool,
     pub dir: PathBuf,
+    pub last_turn_summary: Option<String>,
 }
 
 impl SessionMeta {
@@ -60,6 +63,7 @@ impl SessionMeta {
             running: false,
             source: "disk".to_string(),
             pinned: false,
+            last_turn_summary: self.last_turn_summary.clone(),
         }
     }
 }
@@ -130,6 +134,10 @@ pub struct SessionDetail {
     pub context: ContextUse,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub work_started_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub todos: Vec<TodoItem>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -245,6 +253,19 @@ pub struct SummaryFile {
     pub num_messages: u64,
     #[serde(default)]
     pub parent_session_id: Option<String>,
+    #[serde(default)]
+    pub last_turn_summary: Option<String>,
+    #[serde(default)]
+    pub last_recap: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TodoItem {
+    pub content: String,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub priority: String,
 }
 
 #[derive(Debug, Deserialize)]

@@ -1,3 +1,4 @@
+pub(crate) mod control;
 pub(crate) mod events;
 pub(crate) mod ext;
 pub(crate) mod fs;
@@ -31,8 +32,12 @@ pub(crate) fn map_agent_err(err: &anyhow::Error) -> Response {
     let msg = err.to_string();
     if msg == SESSION_BUSY {
         session_busy()
-    } else if msg.contains("invalid effort") {
+    } else if msg.contains("invalid effort") || msg.contains("invalid mode") {
         (StatusCode::BAD_REQUEST, msg).into_response()
+    } else if msg.starts_with(ggok_agent::ACP_UNAVAILABLE)
+        || msg.contains("worktree fork is not implemented")
+    {
+        (StatusCode::NOT_IMPLEMENTED, msg).into_response()
     } else {
         (StatusCode::BAD_GATEWAY, msg).into_response()
     }
@@ -85,7 +90,28 @@ pub(crate) fn router(upload_max: usize) -> Router<Arc<AppState>> {
         .route("/api/sessions/{id}/load", post(session::api_load))
         .route("/api/sessions/{id}/prompt", post(prompt::api_prompt))
         .route("/api/sessions/{id}/cancel", post(prompt::api_cancel))
+        .route("/api/sessions/{id}/interject", post(prompt::api_interject))
         .route("/api/sessions/{id}/model", post(session::api_model))
+        .route(
+            "/api/sessions/{id}/rewind/points",
+            get(control::api_rewind_points),
+        )
+        .route("/api/sessions/{id}/rewind", post(control::api_rewind))
+        .route("/api/sessions/{id}/retry", post(control::api_retry))
+        .route("/api/sessions/{id}/fork", post(control::api_fork))
+        .route("/api/sessions/{id}/compact", post(control::api_compact))
+        .route("/api/sessions/{id}/mode", post(control::api_mode))
+        .route("/api/sessions/{id}/plan", get(control::api_plan))
+        .route("/api/sessions/{id}/btw", post(control::api_btw))
+        .route("/api/sessions/{id}/tasks", get(control::api_tasks))
+        .route(
+            "/api/sessions/{id}/tasks/{tid}/kill",
+            post(control::api_task_kill),
+        )
+        .route("/api/sessions/{id}/export", get(control::api_export))
+        .route("/api/hooks", get(control::api_hooks))
+        .route("/api/workflows", get(control::api_workflows))
+        .route("/api/agents", get(control::api_agents))
         .route("/api/sessions/{id}/events", get(events::api_events))
         .route("/api/sessions/{id}/queue", get(queue::api_queue))
         .route(

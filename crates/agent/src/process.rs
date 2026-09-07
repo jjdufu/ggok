@@ -353,6 +353,7 @@ impl Agent {
             leftover_noleader_alive: leftover,
             jsonl_running: jsonl,
             can_attach,
+            cmdline: None,
         })
     }
 

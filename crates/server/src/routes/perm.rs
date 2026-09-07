@@ -10,7 +10,9 @@ use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct PermBody {
-    pub allow: bool,
+    pub allow: Option<bool>,
+    pub option_id: Option<String>,
+    pub message: Option<String>,
 }
 
 pub(crate) async fn api_permission(
@@ -25,8 +27,40 @@ pub(crate) async fn api_permission(
     if ggok_core::occupy::conflict_busy(occ, ggok_core::occupy::SessionOp::Control) {
         return super::session_busy();
     }
-    match state.agent.answer_permission(&id, &req, body.allow).await {
-        Ok(()) => json_ok(&json!({ "ok": true })),
+    let result = if let Some(option_id) = body
+        .option_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        state
+            .agent
+            .answer_permission_option(&id, &req, option_id)
+            .await
+    } else if let Some(allow) = body.allow {
+        state.agent.answer_permission(&id, &req, allow).await
+    } else {
+        return (StatusCode::BAD_REQUEST, "option_id or allow required").into_response();
+    };
+    match result {
+        Ok(()) => {
+            if let Some(msg) = body
+                .message
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                && body.allow == Some(false)
+            {
+                let cwd = state.session(&id).map(|m| m.cwd).unwrap_or_default();
+                if !cwd.is_empty() {
+                    let _ = state
+                        .agent
+                        .prompt(&id, &cwd, msg.to_string(), Vec::new())
+                        .await;
+                }
+            }
+            json_ok(&json!({ "ok": true }))
+        }
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     }
 }

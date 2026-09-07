@@ -4,16 +4,20 @@ pub(crate) mod process;
 pub(crate) mod question;
 pub(crate) mod rpc;
 pub(crate) mod session;
+pub(crate) mod session_control;
 pub mod session_ops;
 pub mod slash;
 pub mod tail;
 
 pub use mcp_ask::run_mcp_ask;
 pub use question::{AskBridge, AskOption, AskQuestion, QuestionReply, QuestionView};
+pub use session_control::{
+    ACP_UNAVAILABLE, ForkedSession, RewindPoint, SessionPlan, TaskRow,
+};
 
 use ggok_core::occupy::{self, LiveView};
 use ggok_core::parse::Parser;
-use ggok_core::types::{Block, ModelInfo, QueueItem, SlashCommand, TokenUsage};
+use ggok_core::types::{Block, ModelInfo, QueueItem, SlashCommand, TodoItem, TokenUsage};
 use question::PendingQuestion;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -76,6 +80,7 @@ pub(crate) struct Inner {
     pub(crate) web_active_id: Option<String>,
     pub(crate) question_tx: HashMap<String, oneshot::Sender<QuestionReply>>,
     pub(crate) question_rx: HashMap<String, oneshot::Receiver<QuestionReply>>,
+    pub(crate) ask_binds: HashMap<String, String>,
 }
 
 pub(crate) struct Live {
@@ -92,6 +97,8 @@ pub(crate) struct Live {
     pub(crate) parser: Parser,
     pub(crate) last_tool_id: String,
     pub(crate) effort: String,
+    pub(crate) mode: String,
+    pub(crate) todos: Vec<TodoItem>,
 }
 
 pub(crate) struct PendingPerm {
@@ -133,6 +140,7 @@ impl Agent {
                 web_active_id: occupy::read_web_active(&occupy::web_active_path(&leader_json)),
                 question_tx: HashMap::new(),
                 question_rx: HashMap::new(),
+                ask_binds: HashMap::new(),
             })),
             bus: Arc::new(parking_lot::Mutex::new(HashMap::new())),
             grok_bin,
@@ -225,6 +233,32 @@ impl Agent {
         g.sessions.get(id).and_then(|s| s.parser.work_started_ms())
     }
 
+    pub async fn live_todos(&self, id: &str) -> Vec<TodoItem> {
+        let g = self.inner.lock().await;
+        g.sessions
+            .get(id)
+            .map(|s| {
+                let from_parser = s.parser.todos();
+                if from_parser.is_empty() {
+                    s.todos.clone()
+                } else {
+                    from_parser
+                }
+            })
+            .unwrap_or_default()
+    }
+
+    pub async fn live_mode(&self, id: &str) -> Option<String> {
+        let g = self.inner.lock().await;
+        g.sessions.get(id).and_then(|s| {
+            if s.mode.is_empty() {
+                None
+            } else {
+                Some(s.mode.clone())
+            }
+        })
+    }
+
     pub async fn live_usage(&self, id: &str) -> Option<(TokenUsage, u64)> {
         let g = self.inner.lock().await;
         g.sessions.get(id).map(|s| {
@@ -236,14 +270,15 @@ impl Agent {
         })
     }
 
-    pub(crate) fn emit_live(&self, session_id: &str, running: bool) {
+    pub(crate) async fn emit_live(&self, session_id: &str, running: bool) {
+        let occ = self.occupancy_of(session_id, None).await;
         self.emit(
             session_id,
             "live",
             &json!({
-                "source": "attached",
-                "writable": true,
-                "running": running,
+                "source": occ.source.as_str(),
+                "writable": occ.writable,
+                "running": running || occ.running,
             }),
         );
     }
@@ -286,6 +321,8 @@ pub(crate) fn live_entry<'a>(inner: &'a mut Inner, id: &str, cwd: &str) -> &'a m
             parser: Parser::new(),
             last_tool_id: String::new(),
             effort: String::new(),
+            mode: String::new(),
+            todos: Vec::new(),
         })
 }
 

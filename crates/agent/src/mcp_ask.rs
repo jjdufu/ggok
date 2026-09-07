@@ -132,11 +132,30 @@ fn tool_call(params: &Value, base: &str, token: &str) -> Result<Value> {
         .get("questions")
         .cloned()
         .unwrap_or_else(|| args.clone());
+    let session_id = json_string(args.get("session_id"))
+        .or_else(|| json_string(args.get("sessionId")))
+        .or_else(|| json_string(params.get("sessionId")))
+        .or_else(|| json_string(params.get("session_id")))
+        .or_else(|| {
+            params
+                .get("_meta")
+                .and_then(|m| json_string(m.get("sessionId")).or_else(|| json_string(m.get("session_id"))))
+        })
+        .or_else(|| std::env::var("GGOK_ASK_SESSION_ID").ok().filter(|s| !s.is_empty()))
+        .unwrap_or_default();
+    let bind = std::env::var("GGOK_ASK_BIND")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_default();
     let created = http_json(
         "POST",
         &format!("{}/api/ask", base.trim_end_matches('/')),
         token,
-        Some(&json!({ "questions": questions })),
+        Some(&json!({
+            "session_id": session_id,
+            "bind": bind,
+            "questions": questions
+        })),
         Duration::from_secs(30),
     )?;
     let req = created
@@ -154,6 +173,13 @@ fn tool_call(params: &Value, base: &str, token: &str) -> Result<Value> {
     Ok(json!({
         "content": [{ "type": "text", "text": serde_json::to_string_pretty(&reply)? }]
     }))
+}
+
+fn json_string(v: Option<&Value>) -> Option<String> {
+    v.and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 fn http_json(

@@ -222,6 +222,49 @@ export function bindExtModal(ctx) {
     if (ctx.renderSlash) ctx.renderSlash();
   }
 
+  async function loadHooks() {
+    try {
+      const cwd = mcpCwd();
+      const qs = cwd ? "?cwd=" + encodeURIComponent(cwd) : "";
+      const data = await api("/api/hooks" + qs);
+      ctx.hookRows = Array.isArray(data)
+        ? data
+        : (data && (data.hooks || data.items || data.entries)) || [];
+    } catch (e) {
+      ctx.hookRows = [];
+      toast(String(e.message || e));
+    }
+    if (extModalOpen()) renderExtModal();
+  }
+
+  async function loadWorkflows() {
+    try {
+      const cwd = mcpCwd();
+      const qs = cwd ? "?cwd=" + encodeURIComponent(cwd) : "";
+      const data = await api("/api/workflows" + qs);
+      ctx.workflowRows = Array.isArray(data)
+        ? data
+        : (data && (data.workflows || data.items)) || [];
+    } catch (e) {
+      ctx.workflowRows = [];
+      toast(String(e.message || e));
+    }
+    if (extModalOpen()) renderExtModal();
+  }
+
+  async function loadAgents() {
+    try {
+      const cwd = mcpCwd();
+      const qs = cwd ? "?cwd=" + encodeURIComponent(cwd) : "";
+      const data = await api("/api/agents" + qs);
+      ctx.agentRows = Array.isArray(data) ? data : (data && (data.agents || data.items)) || [];
+    } catch (e) {
+      ctx.agentRows = [];
+      toast(String(e.message || e));
+    }
+    if (extModalOpen()) renderExtModal();
+  }
+
   async function loadSkillDetail(skill) {
     const name = String((skill && (skill.name || skill.id)) || "").trim();
     const scope = String((skill && skill.scope) || "");
@@ -323,7 +366,7 @@ export function bindExtModal(ctx) {
     openOverlay(extScrim, extModal);
     renderExtModal();
     hideSkillMenu();
-    Promise.all([loadMcps(), loadPlugins(), loadSkills()]);
+    Promise.all([loadMcps(), loadPlugins(), loadSkills(), loadHooks(), loadWorkflows(), loadAgents()]);
     if (extSearch) extSearch.focus();
   }
 
@@ -674,6 +717,24 @@ export function bindExtModal(ctx) {
         );
       });
       extGrid.appendChild(list);
+      return;
+    }
+    if (ctx.extTab === "hooks" || ctx.extTab === "workflows" || ctx.extTab === "agents") {
+      const rows =
+        ctx.extTab === "hooks"
+          ? ctx.hookRows || []
+          : ctx.extTab === "workflows"
+            ? ctx.workflowRows || []
+            : ctx.agentRows || [];
+      if (!rows.length) {
+        empty(ctx.extTab === "hooks" ? "hooksEmpty" : ctx.extTab === "workflows" ? "workflowsEmpty" : "agentsEmpty");
+        return;
+      }
+      rows.forEach((row) => {
+        const name = row.name || row.id || row.path || "";
+        const desc = row.description || row.path || row.kind || "";
+        extGrid.appendChild(extCard(name, desc, [], null));
+      });
     }
   }
 
@@ -1111,7 +1172,10 @@ export function bindExtModal(ctx) {
         ["plugins", t("plugins")],
         ["marketplace", t("marketplace")],
         ["skills", t("mySkills")],
-        ["quick", t("builtinSkills")]
+        ["quick", t("builtinSkills")],
+        ["hooks", t("hooksTab")],
+        ["workflows", t("workflowsTab")],
+        ["agents", t("agentsTab")]
       ].forEach(([id, lab]) => {
         const b = document.createElement("button");
         b.type = "button";
@@ -1138,6 +1202,9 @@ export function bindExtModal(ctx) {
           ctx.pluginConfirm = "";
           hideSkillMenu();
           if (id === "skills" || id === "quick") loadSkills();
+          if (id === "hooks") loadHooks();
+          if (id === "workflows") loadWorkflows();
+          if (id === "agents") loadAgents();
           renderExtModal();
         });
         extTabs.appendChild(b);
@@ -1149,15 +1216,19 @@ export function bindExtModal(ctx) {
     }
     if (extCta) {
       const ctaKey = { mcp: "newConnector", plugins: "pluginInstall", marketplace: "pluginAddSource", skills: "newSkill" }[ctx.extTab];
-      extCta.hidden = !ctaKey;
-      if (ctaKey) extCta.textContent = t(ctaKey);
-      extCta.disabled = ctx.extTab === "mcp" ? ctx.mcpBusy : ctx.extTab === "skills" || ctx.extTab === "quick" ? ctx.skillBusy : ctx.pluginBusy;
-      if (ctx.extTab === "skills") {
-        extCta.setAttribute("aria-haspopup", "menu");
-        extCta.setAttribute("aria-expanded", extSkillMenu && !extSkillMenu.hidden ? "true" : "false");
+      if (ctx.extTab === "hooks" || ctx.extTab === "workflows" || ctx.extTab === "agents") {
+        extCta.hidden = true;
       } else {
-        extCta.removeAttribute("aria-haspopup");
-        hideSkillMenu();
+        extCta.hidden = !ctaKey;
+        if (ctaKey) extCta.textContent = t(ctaKey);
+        extCta.disabled = ctx.extTab === "mcp" ? ctx.mcpBusy : ctx.extTab === "skills" || ctx.extTab === "quick" ? ctx.skillBusy : ctx.pluginBusy;
+        if (ctx.extTab === "skills") {
+          extCta.setAttribute("aria-haspopup", "menu");
+          extCta.setAttribute("aria-expanded", extSkillMenu && !extSkillMenu.hidden ? "true" : "false");
+        } else {
+          extCta.removeAttribute("aria-haspopup");
+          hideSkillMenu();
+        }
       }
     }
     if (extGrid) {

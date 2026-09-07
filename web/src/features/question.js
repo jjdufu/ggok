@@ -138,7 +138,9 @@ export function bindQuestion(ctx) {
       return;
     }
     if (!host) return;
-    const pending = reqList(ctx.pendingQuestions).map((req) => ctx.pendingQuestions[req]);
+    const pending = reqList(ctx.pendingQuestions)
+      .map((req) => ctx.pendingQuestions[req])
+      .filter((card) => (card.questions || []).some((q) => questionOptions(q).length > 0));
     const byReq = new Map(cards.map((el) => [el.dataset.req, el]));
     const keep = new Set();
     for (const card of pending) {

@@ -30,6 +30,7 @@ fn session_meta_to_row_is_disk_idle() {
         agent_name: "a".into(),
         num_messages: 3,
         parent_id: None,
+        last_turn_summary: None,
         empty: false,
         dir: PathBuf::from("/tmp"),
     }

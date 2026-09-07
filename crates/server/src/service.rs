@@ -157,6 +157,7 @@ impl AppState {
                 usage: ggok_core::types::TokenUsage::default(),
                 context_tokens: 0,
                 work_started_ms: None,
+                todos: Vec::new(),
             }));
         };
         let mtime = fs_meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);

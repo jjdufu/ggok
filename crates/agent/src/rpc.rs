@@ -90,7 +90,7 @@ impl Agent {
                     self.emit(&sid, "error", &json!({ "message": e }));
                 }
                 self.clear_questions(&sid).await;
-                self.emit_live(&sid, false);
+                self.emit_live(&sid, false).await;
                 self.emit(&sid, "done", &json!({}));
                 let agent = self.clone();
                 tokio::spawn(async move {
@@ -115,7 +115,9 @@ impl Agent {
             self.handle_permission(id, params).await;
             return;
         }
-        if crate::question::looks_like_ask_user(&params) {
+        if crate::question::looks_like_ask_user(&params)
+            && !crate::question::is_plan_payload(&params)
+        {
             tracing::info!(%method, "treating ACP request as ask_user_question");
             self.handle_ask_user(id, params).await;
             return;
@@ -203,9 +205,13 @@ impl Agent {
         match method {
             "session/update" | "_x.ai/session/update" => self.on_session_update(params).await,
             "_x.ai/queue/changed" => self.on_queue_changed(params).await,
+            "x.ai/session_notification" | "_x.ai/session_notification" => {
+                self.on_session_notification(params);
+            }
             method
                 if crate::question::is_ask_user_method(method)
-                    || crate::question::looks_like_ask_user(params) =>
+                    || (crate::question::looks_like_ask_user(params)
+                        && !crate::question::is_plan_payload(params)) =>
             {
                 tracing::info!(%method, "acp ask_user_question notification");
                 self.handle_ask_user(Value::Null, params.clone()).await;
@@ -255,6 +261,55 @@ impl Agent {
             }
             other => {
                 tracing::debug!(method = other, "acp notification");
+            }
+        }
+    }
+
+    fn on_session_notification(&self, params: &Value) {
+        let sid = params
+            .get("sessionId")
+            .or_else(|| params.get("session_id"))
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        if sid.is_empty() {
+            return;
+        }
+        let text = params
+            .get("message")
+            .or_else(|| params.get("text"))
+            .or_else(|| params.get("title"))
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        let kind = params
+            .get("kind")
+            .or_else(|| params.get("type"))
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        let hay = format!("{kind} {text}");
+        if hay.contains("compact") {
+            let phase = if hay.contains("error") || hay.contains("fail") {
+                "error"
+            } else if hay.contains("done") || hay.contains("complete") {
+                "done"
+            } else {
+                "start"
+            };
+            let message = params
+                .get("message")
+                .or_else(|| params.get("text"))
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            self.emit(
+                &sid,
+                "compact",
+                &json!({ "phase": phase, "message": message }),
+            );
+            if phase == "done" {
+                self.emit(&sid, "resync", &json!({}));
             }
         }
     }

@@ -236,6 +236,18 @@ export function bindSidebar(ctx) {
       name.className = "name";
       name.textContent = label;
       b.appendChild(name);
+      if (s.last_turn_summary) {
+        const recap = document.createElement("span");
+        recap.className = "sess-recap";
+        recap.textContent = s.last_turn_summary;
+        b.appendChild(recap);
+      }
+      if (s.parent_id) {
+        const fork = document.createElement("span");
+        fork.className = "sess-fork";
+        fork.textContent = t("forkedFrom");
+        b.appendChild(fork);
+      }
       if (s.source === "tui") {
         const tag = document.createElement("span");
         tag.className = "sess-tui";
@@ -282,10 +294,14 @@ export function bindSidebar(ctx) {
       wrap.appendChild(list);
       items.forEach((s) => addSess(list, s));
       tree.appendChild(wrap);
+      return wrap;
     };
     const pinned = ctx.sessions.filter((s) => s.pinned);
     addGroup(t("pinnedGroup"), "", pinned, "pinnedGroup");
-    const rest = ctx.sessions.filter((s) => !s.pinned);
+    const live = ctx.sessions.filter((s) => !s.pinned && (s.source === "attached" || s.source === "tui"));
+    const liveWrap = addGroup(t("liveGroup"), "", live, "liveGroup");
+    if (liveWrap) liveWrap.id = "live-group";
+    const rest = ctx.sessions.filter((s) => !s.pinned && s.source !== "attached" && s.source !== "tui");
     const grouped = groupTree(rest);
     for (const g of grouped) addGroup(shortCwd(g.cwd), g.cwd, g.sessions);
     if (!pinned.length && !grouped.length) {
@@ -354,6 +370,26 @@ export function bindSidebar(ctx) {
     }
   }
 
+  function focusLiveGroup() {
+    const el = document.getElementById("live-group");
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+    const tog = el && el.querySelector(".proj-toggle");
+    if (tog) tog.focus();
+  }
+
+  function syncCompact(ev) {
+    const label = document.getElementById("ctx-label");
+    if (!label) return;
+    if (ev && ev.phase === "start") {
+      label.dataset.compact = "1";
+      label.textContent = t("compacting");
+    } else if (label.dataset.compact) {
+      delete label.dataset.compact;
+    }
+  }
+
+  ctx.focusLiveGroup = focusLiveGroup;
+  ctx.syncCompact = syncCompact;
   ctx.setSidebarCollapsed = setSidebarCollapsed;
   ctx.closeMobile = closeMobile;
   ctx.openMobile = openMobile;

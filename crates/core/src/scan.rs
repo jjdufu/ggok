@@ -179,6 +179,10 @@ fn load_session_meta(sess_path: &Path, dir_id: &str, fallback_cwd: &str) -> Opti
         .unwrap_or_else(|| created_at.clone());
     let updated_sort = parse_sort_ts(&updated_at);
     let parent_id = summary.parent_session_id.filter(|s| !s.is_empty());
+    let last_turn_summary = summary
+        .last_turn_summary
+        .filter(|s| !s.is_empty())
+        .or_else(|| summary.last_recap.filter(|s| !s.is_empty()));
     Some(SessionMeta {
         id: if summary.info.id.is_empty() {
             dir_id.to_string()
@@ -197,6 +201,7 @@ fn load_session_meta(sess_path: &Path, dir_id: &str, fallback_cwd: &str) -> Opti
         parent_id,
         empty,
         dir: sess_path.to_path_buf(),
+        last_turn_summary,
     })
 }
 

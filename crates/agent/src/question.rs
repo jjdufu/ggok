@@ -126,10 +126,55 @@ pub(crate) fn is_mcp_ask_tool(title: &str, name: &str) -> bool {
     mentions_mcp_ask(title) || mentions_mcp_ask(name)
 }
 
+fn mentions_plan_tool(s: &str) -> bool {
+    let lower = s.to_ascii_lowercase();
+    lower.contains("exit_plan_mode")
+        || lower.contains("enter_plan_mode")
+        || lower.contains("toggle_plan_mode")
+}
+
+/// Plan-mode tools and `_meta` plan kinds must not become ggok-ask cards.
+#[must_use]
+pub(crate) fn is_plan_tool(title: &str, name: &str, update: &Value) -> bool {
+    if mentions_plan_tool(title) || mentions_plan_tool(name) {
+        return true;
+    }
+    let kind = update
+        .pointer("/_meta/x.ai/tool/kind")
+        .or_else(|| update.pointer("/_meta/x.ai/tool.kind"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    kind.eq_ignore_ascii_case("plan")
+}
+
+#[must_use]
+pub(crate) fn is_plan_payload(params: &Value) -> bool {
+    let title = json_str(params, &["title"]);
+    let name = json_str(
+        params,
+        &["name", "tool", "toolName", "tool_name"],
+    );
+    let name = if name.is_empty() {
+        params
+            .pointer("/_meta/x.ai/tool/name")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string()
+    } else {
+        name
+    };
+    is_plan_tool(&title, &name, params)
+}
+
 /// Whether a session `tool_call` update should open a question card.
 #[must_use]
 pub(crate) fn should_present_tool_call_as_ask(title: &str, name: &str, update: &Value) -> bool {
-    !is_mcp_ask_tool(title, name) && looks_like_ask_user(update)
+    !is_mcp_ask_tool(title, name) && !is_plan_tool(title, name, update) && looks_like_ask_user(update)
+}
+
+#[must_use]
+pub(crate) fn questions_have_options(questions: &[AskQuestion]) -> bool {
+    questions.iter().any(|q| !q.options.is_empty())
 }
 
 #[must_use]
@@ -210,15 +255,20 @@ pub(crate) fn acp_initialize_params() -> Value {
 }
 
 #[must_use]
-pub(crate) fn mcp_ask_servers(bridge: &AskBridge) -> Value {
+pub(crate) fn mcp_ask_servers(bridge: &AskBridge, session_id: Option<&str>, bind: &str) -> Value {
+    let mut env = vec![
+        json!({"name": "GGOK_ASK_URL", "value": bridge.url}),
+        json!({"name": "GGOK_ASK_TOKEN", "value": bridge.token}),
+        json!({"name": "GGOK_ASK_BIND", "value": bind}),
+    ];
+    if let Some(id) = session_id.map(str::trim).filter(|s| !s.is_empty()) {
+        env.push(json!({"name": "GGOK_ASK_SESSION_ID", "value": id}));
+    }
     json!([{
         "name": ASK_MCP_NAME,
         "command": bridge.exe,
         "args": ["__mcp-ask"],
-        "env": [
-            {"name": "GGOK_ASK_URL", "value": bridge.url},
-            {"name": "GGOK_ASK_TOKEN", "value": bridge.token}
-        ]
+        "env": env
     }])
 }
 
@@ -780,12 +830,20 @@ impl Agent {
                 .clone()
                 .unwrap_or_default();
         }
-        if parsed.session_id.is_empty() || parsed.questions.is_empty() {
+        if parsed.session_id.is_empty()
+            || parsed.questions.is_empty()
+            || !questions_have_options(&parsed.questions)
+        {
             tracing::warn!(
                 session_id = %parsed.session_id,
                 question_count = parsed.questions.len(),
+                option_count = parsed
+                    .questions
+                    .iter()
+                    .map(|q| q.options.len())
+                    .sum::<usize>(),
                 params = %params,
-                "ask_user_question skipped (missing session id or questions)"
+                "ask_user_question skipped (missing session id, questions, or options)"
             );
             if !rpc_id.is_null() {
                 let result = ask_user_result("skip_interview", Value::Null, Value::Null);
@@ -881,11 +939,24 @@ impl Agent {
         Ok(())
     }
 
+    pub async fn resolve_ask_bind(&self, bind: &str) -> Option<String> {
+        let bind = bind.trim();
+        if bind.is_empty() {
+            return None;
+        }
+        let g = self.inner.lock().await;
+        g.ask_binds
+            .get(bind)
+            .cloned()
+            .filter(|id| !id.is_empty())
+    }
+
     /// # Errors
-    /// Returns an error if no session is active or the payload has no questions.
+    /// Returns an error if `session_id` is missing or the payload has no questions.
     pub async fn present_web_question(
         &self,
         session_id: Option<&str>,
+        bind: Option<&str>,
         questions: Value,
     ) -> Result<(String, String)> {
         let mut sid = session_id
@@ -893,19 +964,30 @@ impl Agent {
             .filter(|s| !s.is_empty())
             .unwrap_or("")
             .to_string();
+        if sid.is_empty()
+            && let Some(bind) = bind.map(str::trim).filter(|s| !s.is_empty())
+        {
+            sid = self.resolve_ask_bind(bind).await.unwrap_or_default();
+        }
         if sid.is_empty() {
-            sid = self
-                .inner
-                .lock()
-                .await
-                .web_active_id
-                .clone()
-                .unwrap_or_default();
+            bail!("session_id required");
+        }
+        let occ = self.occupancy_of(&sid, None).await;
+        if occ.source == ggok_core::occupy::Source::Tui {
+            tracing::info!(session_id = %sid, "skip web question: tui held");
+            let req = Uuid::new_v4().to_string();
+            let (tx, rx) = oneshot::channel();
+            let skip = QuestionReply {
+                outcome: "skip_interview".into(),
+                answers: Value::Null,
+                notes: Value::Null,
+            };
+            let _ = tx.send(skip);
+            let mut g = self.inner.lock().await;
+            g.question_rx.insert(req.clone(), rx);
+            return Ok((sid, req));
         }
         let mut params = json!({ "questions": questions });
-        if sid.is_empty() {
-            bail!("no active session");
-        }
         if let Some(obj) = params.as_object_mut() {
             obj.insert("sessionId".into(), json!(sid));
         }
@@ -930,7 +1012,7 @@ impl Agent {
             let mut g = self.inner.lock().await;
             g.question_tx.remove(&req);
             g.question_rx.remove(&req);
-            bail!("ask_user_question skipped (missing session id or questions)");
+            bail!("ask_user_question skipped (missing session id, questions, or options)");
         }
         Ok((sid, req))
     }
@@ -1089,13 +1171,56 @@ mod tests {
         );
         assert_eq!(init["clientCapabilities"]["elicitation"]["form"], json!({}));
         assert_eq!(init["clientInfo"]["name"], json!("ggok"));
-        let servers = mcp_ask_servers(&AskBridge {
-            exe: PathBuf::from("/bin/ggok"),
-            url: "http://127.0.0.1:9888".into(),
-            token: "t".into(),
-        });
+        let servers = mcp_ask_servers(
+            &AskBridge {
+                exe: PathBuf::from("/bin/ggok"),
+                url: "http://127.0.0.1:9888".into(),
+                token: "t".into(),
+            },
+            Some("sid-1"),
+            "bind-1",
+        );
         assert_eq!(servers[0]["name"], json!(ASK_MCP_NAME));
         assert_eq!(servers[0]["args"][0], json!("__mcp-ask"));
+        let env = servers[0]["env"].as_array().cloned().unwrap_or_default();
+        assert!(env.iter().any(|e| e["name"] == json!("GGOK_ASK_SESSION_ID")
+            && e["value"] == json!("sid-1")));
+        assert!(env.iter().any(|e| e["name"] == json!("GGOK_ASK_BIND")
+            && e["value"] == json!("bind-1")));
+    }
+
+    #[test]
+    fn plan_tools_are_not_presented_as_ask() {
+        let update = json!({
+            "title": "exit_plan_mode",
+            "toolCallId": "t-plan",
+            "rawInput": {
+                "questions": [{ "question": "Approve?", "options": ["Yes"] }]
+            },
+            "_meta": { "x.ai": { "tool": { "kind": "plan", "name": "exit_plan_mode" } } }
+        });
+        assert!(is_plan_tool(
+            "exit_plan_mode",
+            "exit_plan_mode",
+            &update
+        ));
+        assert!(!should_present_tool_call_as_ask(
+            "exit_plan_mode",
+            "exit_plan_mode",
+            &update
+        ));
+        assert!(is_plan_payload(&update));
+    }
+
+    #[test]
+    fn questions_without_options_are_unusable() {
+        let qs = vec![AskQuestion {
+            question: "Go?".into(),
+            header: String::new(),
+            options: Vec::new(),
+            multi_select: false,
+        }];
+        assert!(!questions_have_options(&qs));
     }
 
     #[test]

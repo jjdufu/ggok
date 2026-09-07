@@ -38,6 +38,32 @@ fn timestamp_ms_seconds_millis_and_rfc3339() {
 }
 
 #[test]
+fn ingest_plan_entries_become_todos() {
+    let mut p = Parser::new();
+    assert_eq!(
+        p.ingest_at(
+            &json!({
+                "sessionUpdate": "plan",
+                "entries": [
+                    {"content": "Explore", "status": "completed", "priority": "high"},
+                    {"text": "Ship", "status": "pending"}
+                ]
+            }),
+            "p1",
+            Some(10)
+        ),
+        Ingest::Plan
+    );
+    let todos = p.todos();
+    assert_eq!(todos.len(), 2);
+    assert_eq!(todos[0].content, "Explore");
+    assert_eq!(todos[0].status, "completed");
+    assert_eq!(todos[0].priority, "high");
+    assert_eq!(todos[1].content, "Ship");
+    assert_eq!(todos[1].status, "pending");
+}
+
+#[test]
 fn ingest_merges_text_chunks_then_turn_end() {
     let mut p = Parser::new();
     assert_eq!(

@@ -61,6 +61,7 @@ pub(crate) async fn api_sessions(
             leftover_noleader_alive: leftover,
             jsonl_running: jsonl,
             can_attach,
+            cmdline: None,
         });
         row.running = occ.running;
         row.source = occ.source.as_str().to_string();
@@ -74,6 +75,7 @@ pub(crate) struct CreateSession {
     pub cwd: String,
     pub model: Option<String>,
     pub effort: Option<String>,
+    pub agent: Option<String>,
 }
 
 pub(crate) async fn api_create_session(
@@ -86,7 +88,12 @@ pub(crate) async fn api_create_session(
     };
     match state
         .agent
-        .session_new(&cwd, body.model.as_deref(), body.effort.as_deref())
+        .session_new(
+            &cwd,
+            body.model.as_deref(),
+            body.effort.as_deref(),
+            body.agent.as_deref(),
+        )
         .await
     {
         Ok(s) => {
@@ -190,6 +197,15 @@ pub(crate) async fn api_session(
                 window,
             },
             work_started_ms,
+            todos: {
+                let live = state.agent.live_todos(&id).await;
+                if live.is_empty() {
+                    parsed.todos.clone()
+                } else {
+                    live
+                }
+            },
+            mode: state.agent.live_mode(&id).await,
         },
         pending_questions,
     })
@@ -363,7 +379,7 @@ pub(crate) async fn api_model(
     }
 }
 
-fn insert_stub(state: &AppState, id: &str, cwd: &str, model: &str) {
+pub(crate) fn insert_stub(state: &AppState, id: &str, cwd: &str, model: &str) {
     let now = chrono::Utc::now().to_rfc3339();
     let meta = SessionMeta {
         id: id.to_string(),
@@ -383,6 +399,7 @@ fn insert_stub(state: &AppState, id: &str, cwd: &str, model: &str) {
         agent_name: String::new(),
         num_messages: 0,
         parent_id: None,
+        last_turn_summary: None,
         empty: true,
         dir: state
             .grok_home
