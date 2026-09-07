@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/jjdufu/ggok/compare/v0.1.13...v0.1.14) (2026-09-07)
+
+
+### Features
+
+* add rewind, fork, tasks, and session mode controls ([9d5cdfb](https://github.com/jjdufu/ggok/commit/9d5cdfb727bc862da90e94a660921699d90879ec))
+
 ## [0.1.13](https://github.com/jjdufu/ggok/compare/v0.1.12...v0.1.13) (2026-09-07)
 
 
