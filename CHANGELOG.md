@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.15](https://github.com/jjdufu/ggok/compare/v0.1.14...v0.1.15) (2026-09-07)
+
+
+### Features
+
+* mode picker menu and collapsible todos ([366c214](https://github.com/jjdufu/ggok/commit/366c21492b23cf59d016ed982d8334e76c4e2eb8))
+
 ## [0.1.14](https://github.com/jjdufu/ggok/compare/v0.1.13...v0.1.14) (2026-09-07)
 
 
