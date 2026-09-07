@@ -1,30 +1,101 @@
-import { t, setTip } from "../lib/helpers.js";
+import { t, setTip, isSpectatingSource } from "../lib/helpers.js";
 import { api, post } from "../lib/api.js";
 import { toast, bindCodeCopy } from "../lib/clipboard.js";
 import { openOverlay, closeOverlay } from "../lib/overlay.js";
+import { placePopover } from "../lib/popover.js";
 import { renderMarkdown } from "../lib/markdown.js";
 
-const CYCLE = ["ask", "plan", "auto", "always-approve"];
+const MODES = [
+  ["ask", "modeAsk"],
+  ["plan", "modePlan"],
+  ["auto", "modeAuto"],
+  ["always-approve", "modeAlways"]
+];
 
 function modeLabel(mode) {
-  const key = {
-    ask: "modeAsk",
-    plan: "modePlan",
-    auto: "modeAuto",
-    "always-approve": "modeAlways"
-  }[mode];
-  return key ? t(key) : mode || t("modeAsk");
+  const hit = MODES.find(([id]) => id === mode);
+  return hit ? t(hit[1]) : mode || t("modeAsk");
+}
+
+function todoMark(status) {
+  if (status === "completed") return "✓";
+  if (status === "in_progress") return "…";
+  return "○";
+}
+
+function todoCurrent(items) {
+  return (
+    items.find((x) => x.status === "in_progress") ||
+    items.find((x) => x.status !== "completed") ||
+    items[items.length - 1] ||
+    null
+  );
 }
 
 export function bindMode(ctx) {
+  const modeBtn = document.getElementById("mode-btn");
+  const modeMenu = document.getElementById("mode-menu");
+
+  function closeModeMenu() {
+    if (modeMenu) modeMenu.hidden = true;
+    if (modeBtn) modeBtn.setAttribute("aria-expanded", "false");
+  }
+
+  function pinModeMenu() {
+    if (!modeBtn || !modeMenu || modeMenu.hidden) return;
+    placePopover(modeMenu, modeBtn, {
+      gap: 8,
+      pad: 12,
+      minH: 80,
+      width: 168,
+      align: "right",
+      zIndex: 40
+    });
+  }
+
+  function renderModeMenu() {
+    if (!modeMenu) return;
+    const cur = (ctx.current && ctx.current.mode) || ctx.mode || "ask";
+    modeMenu.replaceChildren();
+    MODES.forEach(([id, key]) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("role", "menuitem");
+      b.className = "menu-item" + (cur === id ? " on" : "");
+      b.textContent = t(key);
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeModeMenu();
+        setMode(id);
+      });
+      modeMenu.appendChild(b);
+    });
+    modeMenu.hidden = false;
+    if (modeBtn) modeBtn.setAttribute("aria-expanded", "true");
+    pinModeMenu();
+  }
+
+  function toggleModeMenu() {
+    if (!ctx.currentId) return;
+    if (modeMenu && !modeMenu.hidden) {
+      closeModeMenu();
+      return;
+    }
+    const modelMenu = document.getElementById("model-menu");
+    if (modelMenu) modelMenu.hidden = true;
+    renderModeMenu();
+  }
+
   function syncModeBtn() {
-    const btn = document.getElementById("mode-btn");
-    if (!btn) return;
+    if (!modeBtn) return;
     const mode = (ctx.current && ctx.current.mode) || ctx.mode || "ask";
     ctx.mode = mode;
-    btn.textContent = modeLabel(mode);
-    setTip(btn, t("modeTip"));
-    btn.hidden = !ctx.currentId;
+    modeBtn.textContent = modeLabel(mode);
+    setTip(modeBtn, t("modeTip"));
+    const spectating = isSpectatingSource(ctx.source);
+    modeBtn.hidden = !ctx.currentId;
+    modeBtn.disabled = !ctx.currentId || spectating || ctx.writable !== true;
+    if (!ctx.currentId || modeBtn.disabled) closeModeMenu();
   }
 
   async function setMode(mode) {
@@ -35,17 +106,11 @@ export function bindMode(ctx) {
       ctx.mode = next;
       if (ctx.current) ctx.current.mode = next;
       syncModeBtn();
+      if (modeMenu && !modeMenu.hidden) renderModeMenu();
       if (next === "plan" && ctx.openPlan) ctx.openPlan();
     } catch (e) {
       toast(String(e.message || e));
     }
-  }
-
-  function cycleMode() {
-    const cur = (ctx.current && ctx.current.mode) || ctx.mode || "ask";
-    const i = CYCLE.indexOf(cur);
-    const next = CYCLE[(i + 1) % CYCLE.length];
-    setMode(next);
   }
 
   function renderTodos(todos) {
@@ -53,17 +118,38 @@ export function bindMode(ctx) {
     if (!bar) return;
     const items = Array.isArray(todos) ? todos : [];
     ctx.todos = items;
-    if (!items.length) {
+    if (!ctx.currentId || !items.length) {
+      ctx.todosOpen = false;
       bar.hidden = true;
+      bar.classList.remove("open");
       bar.replaceChildren();
       return;
     }
+    const done = items.filter((x) => x.status === "completed").length;
+    const current = todoCurrent(items);
     bar.hidden = false;
+    bar.classList.toggle("open", !!ctx.todosOpen);
     bar.replaceChildren();
-    const title = document.createElement("div");
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "todos-toggle";
+    const title = document.createElement("span");
     title.className = "todos-title";
-    title.textContent = t("todosTitle");
-    bar.appendChild(title);
+    title.textContent = t("todosProgress", { done, total: items.length });
+    toggle.appendChild(title);
+    if (!ctx.todosOpen && current && current.content) {
+      const preview = document.createElement("span");
+      preview.className = "todos-preview";
+      preview.textContent = current.content;
+      toggle.appendChild(preview);
+    }
+    toggle.addEventListener("click", () => {
+      ctx.todosOpen = !ctx.todosOpen;
+      renderTodos(ctx.todos);
+    });
+    bar.appendChild(toggle);
+
     const list = document.createElement("ul");
     list.className = "todos-list";
     items.forEach((item) => {
@@ -71,7 +157,7 @@ export function bindMode(ctx) {
       li.className = "todo-item " + String(item.status || "pending");
       const mark = document.createElement("span");
       mark.className = "todo-mark";
-      mark.textContent = item.status === "completed" ? "✓" : item.status === "in_progress" ? "…" : "○";
+      mark.textContent = todoMark(item.status);
       const text = document.createElement("span");
       text.className = "todo-text";
       text.textContent = item.content || "";
@@ -92,7 +178,6 @@ export function bindMode(ctx) {
         body.innerHTML = renderMarkdown(String((data && data.markdown) || t("planEmpty")));
         bindCodeCopy(body);
       }
-      if (data && data.todos) renderTodos(data.todos);
       openOverlay(scrim, panel);
     } catch (e) {
       toast(String(e.message || e));
@@ -135,8 +220,20 @@ export function bindMode(ctx) {
     toast(t("planReviseHint"));
   }
 
-  const modeBtn = document.getElementById("mode-btn");
-  if (modeBtn) modeBtn.addEventListener("click", cycleMode);
+  if (modeBtn) {
+    modeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleModeMenu();
+    });
+  }
+  document.addEventListener("click", (e) => {
+    if (modeMenu && !modeMenu.hidden && !modeMenu.contains(e.target) && (!modeBtn || !modeBtn.contains(e.target))) {
+      closeModeMenu();
+    }
+  });
+  window.addEventListener("resize", pinModeMenu);
+  window.addEventListener("scroll", pinModeMenu, true);
+
   const scrim = document.getElementById("plan-scrim");
   if (scrim) scrim.addEventListener("click", closePlan);
   const closeBtn = document.getElementById("plan-close");
@@ -155,9 +252,10 @@ export function bindMode(ctx) {
 
   ctx.syncModeBtn = syncModeBtn;
   ctx.setMode = setMode;
-  ctx.cycleMode = cycleMode;
   ctx.renderTodos = renderTodos;
   ctx.openPlan = openPlan;
   ctx.closePlan = closePlan;
+  ctx.closeModeMenu = closeModeMenu;
+  ctx.renderModeMenu = renderModeMenu;
   ctx.modeLabel = modeLabel;
 }

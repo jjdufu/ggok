@@ -1055,50 +1055,6 @@ export function bindTimeline(ctx) {
   ctx.answerPerm = answerPerm;
   ctx.answerPermOption = answerPermOption;
 
-  function openTimelineFind() {
-    const bar = document.getElementById("find-bar");
-    const input = document.getElementById("find-input");
-    if (!bar) return;
-    bar.hidden = false;
-    if (input) {
-      input.focus();
-      input.select();
-    }
-  }
-
-  function closeTimelineFind() {
-    const bar = document.getElementById("find-bar");
-    if (bar) bar.hidden = true;
-    ctx.findQuery = "";
-    if (ctx.scheduleRender) ctx.scheduleRender();
-  }
-
-  function applyFind() {
-    const input = document.getElementById("find-input");
-    ctx.findQuery = String((input && input.value) || "").trim().toLowerCase();
-    const q = ctx.findQuery;
-    if (!q || !timeline) return;
-    const nodes = [...timeline.querySelectorAll(".block-body, .say")];
-    const hit = nodes.find((n) => String(n.textContent || "").toLowerCase().includes(q));
-    if (hit && hit.scrollIntoView) hit.scrollIntoView({ block: "center" });
-  }
-
-  const findInput = document.getElementById("find-input");
-  if (findInput) {
-    findInput.addEventListener("input", applyFind);
-    findInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        applyFind();
-      }
-      if (e.key === "Escape") closeTimelineFind();
-    });
-  }
-  const findClose = document.getElementById("find-close");
-  if (findClose) findClose.addEventListener("click", closeTimelineFind);
-
-  ctx.openTimelineFind = openTimelineFind;
-  ctx.closeTimelineFind = closeTimelineFind;
   ctx.syncWorkTimer = syncWorkTimer;
   ctx.tickWorkSeconds = tickWorkSeconds;
   ctx.liveSeconds = liveSeconds;

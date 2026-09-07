@@ -47,37 +47,53 @@
 .todos-bar {
   width: min(704px, 100%);
   margin: 0 auto 8px;
-  padding: 8px 12px;
+  padding: 6px 12px;
   border-radius: 12px;
   background: var(--hover);
   font-size: 13px;
 }
 
-.todos-title { color: var(--muted); margin-bottom: 6px; }
+.todos-bar[hidden] { display: none !important; }
 
-.todos-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.todos-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.todos-title { color: var(--muted); flex-shrink: 0; }
+
+.todos-preview {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+}
+
+.todos-list {
+  margin: 0;
+  padding: 6px 0 2px;
+  list-style: none;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.todos-bar.open .todos-list { display: flex; }
 
 .todo-item { display: flex; gap: 8px; align-items: baseline; }
 
 .todo-item.completed .todo-text { text-decoration: line-through; color: var(--faint); }
-
-.find-bar {
-  width: min(704px, 100%);
-  margin: 0 auto 8px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.find-bar input {
-  flex: 1;
-  height: 32px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--composer);
-  color: var(--fg);
-  padding: 0 10px;
-}
 
 .rewind-panel, .plan-panel {
   width: min(560px, calc(100vw - 24px));

@@ -142,10 +142,6 @@ export default function App() {
           <div className="composer-wrap">
             <div id="occupy-banner" className="occupy-banner" hidden={true}></div>
             <div id="todos-bar" className="todos-bar" hidden={true}></div>
-            <div id="find-bar" className="find-bar" hidden={true}>
-              <input id="find-input" type="search" data-i18n-placeholder="findPlaceholder" placeholder="查找" />
-              <button type="button" id="find-close" className="icon-btn" data-i18n-title="close">×</button>
-            </div>
             <div id="queue" hidden={true}></div>
             <div id="slash-menu" hidden={true}></div>
             <div id="at-menu" hidden={true}></div>
@@ -176,7 +172,10 @@ export default function App() {
                   <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-stash"/></svg>
                 </button>
                 <span className="composer-spacer"></span>
-                <button type="button" id="mode-btn" className="composer-btn" hidden={true} data-i18n-title="modeTip">Ask</button>
+                <div className="mode-wrap">
+                  <button type="button" id="mode-btn" className="composer-btn" hidden={true} data-i18n-title="modeTip" aria-haspopup="menu" aria-expanded="false">Ask</button>
+                  <div id="mode-menu" hidden={true} role="menu"></div>
+                </div>
                 <div className="model-wrap">
                   <button type="button" id="model-btn" className="model-btn" data-tip="模型" data-i18n-title="model">
                     <span id="model-label">4.6</span>

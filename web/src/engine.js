@@ -79,6 +79,7 @@ export function boot() {
     traceOpen: new Set(),
     mode: "ask",
     todos: [],
+    todosOpen: false,
     tasks: [],
     retryPending: null,
     compactPhase: "",
@@ -163,13 +164,6 @@ export function boot() {
       if (ctx.startNewChat) ctx.startNewChat();
       return;
     }
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === "f" || e.key === "F")) {
-      if (ctx.currentId && ctx.openTimelineFind) {
-        e.preventDefault();
-        ctx.openTimelineFind();
-        return;
-      }
-    }
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === "k" || e.key === "K")) {
       e.preventDefault();
       if (ctx.finderOpen && ctx.finderOpen()) {
@@ -231,9 +225,12 @@ export function boot() {
       const slashMenu = document.getElementById("slash-menu");
       const atMenu = document.getElementById("at-menu");
       const modelMenu = document.getElementById("model-menu");
+      const modeMenu = document.getElementById("mode-menu");
       if (slashMenu) slashMenu.hidden = true;
       if (atMenu) atMenu.hidden = true;
       if (modelMenu) modelMenu.hidden = true;
+      if (ctx.closeModeMenu) ctx.closeModeMenu();
+      else if (modeMenu) modeMenu.hidden = true;
       hideTip(false);
       if (ctx.dirModalOpen && ctx.dirModalOpen()) {
         if (ctx.closeDirModal) ctx.closeDirModal();
@@ -304,8 +301,12 @@ export function boot() {
       if (drawerEl && !drawerEl.hidden && ctx.renderDrawer) ctx.renderDrawer();
     }
     if (ctx.dirModalOpen && ctx.dirModalOpen() && ctx.renderDirModal) ctx.renderDirModal();
+    if (ctx.syncModeBtn) ctx.syncModeBtn();
+    if (ctx.todos && ctx.renderTodos) ctx.renderTodos(ctx.todos);
     const modelMenu = document.getElementById("model-menu");
     if (modelMenu && !modelMenu.hidden && ctx.renderModelMenu) ctx.renderModelMenu();
+    const modeMenu = document.getElementById("mode-menu");
+    if (modeMenu && !modeMenu.hidden && ctx.renderModeMenu) ctx.renderModeMenu();
     const infoPop = document.getElementById("info-pop");
     if (infoPop && !infoPop.hidden && ctx.setInfoOpen) ctx.setInfoOpen(true, ctx.lastInfoKind);
   });

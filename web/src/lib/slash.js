@@ -23,9 +23,7 @@ export const SLASH_LOCAL = new Set([
   "hooks",
   "workflows",
   "agents",
-  "personas",
-  "find",
-  "jump"
+  "personas"
 ]);
 
 export const SLASH_RPC = new Set([

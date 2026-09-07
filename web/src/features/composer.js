@@ -115,6 +115,7 @@ export function bindComposer(ctx) {
     sendBtn.classList.toggle("interject", interject);
     if (sendIcon) sendIcon.dataset.state = attachedRunning && !interject ? "b" : "a";
     if (modelBtn) modelBtn.disabled = spectating || ctx.writable !== true;
+    if (ctx.syncModeBtn) ctx.syncModeBtn();
     const attachBtn = document.getElementById("attach-btn");
     if (attachBtn) attachBtn.disabled = spectating;
     if (composer) {
@@ -621,10 +622,6 @@ export function bindComposer(ctx) {
       if (ctx.focusLiveGroup) ctx.focusLiveGroup();
       return true;
     }
-    if (hit("find", "jump")) {
-      if (ctx.openTimelineFind) ctx.openTimelineFind();
-      return true;
-    }
     if (hit("rewind", "undo")) {
       if (ctx.openRewind) ctx.openRewind();
       return true;
@@ -895,6 +892,9 @@ export function bindComposer(ctx) {
     promptApi.setText("");
     ctx.activeSkill = null;
     renderChips();
+    if (ctx.renderTodos) ctx.renderTodos([]);
+    if (ctx.closeModeMenu) ctx.closeModeMenu();
+    if (ctx.syncModeBtn) ctx.syncModeBtn();
   }
 
   function applySessionModel(detail) {
@@ -978,7 +978,7 @@ export function bindComposer(ctx) {
         if (ctx.current) ctx.current.mode = detail.mode;
         if (ctx.syncModeBtn) ctx.syncModeBtn();
       }
-      if (Array.isArray(detail.todos) && ctx.renderTodos) ctx.renderTodos(detail.todos);
+      if (ctx.renderTodos) ctx.renderTodos(Array.isArray(detail.todos) ? detail.todos : []);
       if (ctx.running || ctx.awaitingAgent) armWorkWatch();
       else stopWorkWatch();
       applySessionModel(detail);
@@ -997,6 +997,9 @@ export function bindComposer(ctx) {
     location.hash = id;
     ctx.drawerDetailCache = {};
     ctx.pendingPerms = {};
+    ctx.todosOpen = false;
+    if (ctx.renderTodos) ctx.renderTodos([]);
+    if (ctx.closeModeMenu) ctx.closeModeMenu();
     if (ctx.resetQuestions) ctx.resetQuestions();
     if (ctx.closeDrawer) ctx.closeDrawer();
     if (ctx.renderTree) ctx.renderTree();
