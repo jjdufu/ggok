@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/jjdufu/ggok/compare/v0.1.12...v0.1.13) (2026-09-07)
+
+
+### Features
+
+* keep upload attachments in chat and harden live SSE ([d8a75db](https://github.com/jjdufu/ggok/commit/d8a75dbf48c17fa4fc81b34ca2a56f6d7d1e7c08))
+
 ## [0.1.12](https://github.com/jjdufu/ggok/compare/v0.1.11...v0.1.12) (2026-09-07)
 
 
