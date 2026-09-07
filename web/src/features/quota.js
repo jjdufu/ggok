@@ -4,6 +4,8 @@ import { placePopover } from "../lib/popover.js";
 import { api } from "../lib/api.js";
 
 const ACCOUNT_KEY = "ggok-account";
+const QUOTA_OK_MS = 60 * 1000;
+const QUOTA_RETRY_MS = [1000, 3000, 8000];
 
 function readCachedAccount() {
   try {
@@ -39,6 +41,9 @@ export function bindQuota(ctx) {
   const body = document.getElementById("quota-pop-body");
   const pctEl = document.getElementById("quota-pct");
   const fill = document.getElementById("quota-fill");
+  let retryAttempt = 0;
+  let quotaBusy = false;
+  let quotaAgain = false;
 
   function placeQuotaPop() {
     if (!pop || !btn || pop.hidden) return;
@@ -157,27 +162,82 @@ export function bindQuota(ctx) {
     if (pop && !pop.hidden) placeQuotaPop();
   }
 
+  function accountReady(st) {
+    return !!(st && st.ok !== false && usedPctOf(st) != null);
+  }
+
+  function paintAccount(acc) {
+    if (ctx.applyAccount) ctx.applyAccount(acc);
+    else {
+      ctx.lastAccount = acc;
+      writeCachedAccount(acc);
+      renderAccount(acc);
+    }
+  }
+
+  function applyFetchedAccount(acc) {
+    if (accountReady(acc)) {
+      paintAccount(acc);
+      return;
+    }
+    if (accountReady(ctx.lastAccount)) {
+      renderAccount(ctx.lastAccount);
+      return;
+    }
+    if (retryAttempt >= QUOTA_RETRY_MS.length) {
+      paintAccount(acc && acc.ok === false ? acc : { ok: false, error: t("couldntLoadUsage") });
+    }
+  }
+
+  function armQuotaTimer(ready) {
+    clearInterval(ctx.quotaTimer);
+    clearTimeout(ctx.quotaRetry);
+    ctx.quotaTimer = 0;
+    ctx.quotaRetry = 0;
+    if (ready || retryAttempt >= QUOTA_RETRY_MS.length) {
+      if (ready) retryAttempt = 0;
+      ctx.quotaTimer = setInterval(refreshAccount, QUOTA_OK_MS);
+      return;
+    }
+    const delay = QUOTA_RETRY_MS[retryAttempt];
+    retryAttempt += 1;
+    ctx.quotaRetry = setTimeout(() => {
+      ctx.quotaRetry = 0;
+      refreshAccount();
+    }, delay);
+  }
+
   async function refreshAccount() {
+    if (quotaBusy) {
+      quotaAgain = true;
+      return;
+    }
+    quotaBusy = true;
     try {
       const acc = await api("/api/account");
-      if (ctx.applyAccount) ctx.applyAccount(acc);
-      else {
-        ctx.lastAccount = acc;
-        writeCachedAccount(acc);
-        renderAccount(acc);
-      }
+      applyFetchedAccount(acc);
+      armQuotaTimer(accountReady(acc) || accountReady(ctx.lastAccount));
     } catch (e) {
-      if (ctx.lastAccount && ctx.lastAccount.ok !== false && usedPctOf(ctx.lastAccount) != null) {
+      if (accountReady(ctx.lastAccount)) {
         renderAccount(ctx.lastAccount);
-        return;
+        armQuotaTimer(true);
+      } else if (retryAttempt >= QUOTA_RETRY_MS.length) {
+        renderAccount({ ok: false, error: String(e.message || e) });
+        armQuotaTimer(false);
+      } else {
+        armQuotaTimer(false);
       }
-      renderAccount({ ok: false, error: String(e.message || e) });
+    } finally {
+      quotaBusy = false;
+      if (quotaAgain) {
+        quotaAgain = false;
+        refreshAccount();
+      }
     }
   }
 
   function startQuotaPoll() {
-    clearInterval(ctx.quotaTimer);
-    ctx.quotaTimer = setInterval(refreshAccount, 60 * 1000);
+    armQuotaTimer(accountReady(ctx.lastAccount));
   }
 
   if (btn) {
@@ -211,5 +271,4 @@ export function bindQuota(ctx) {
   }
   renderAccount(ctx.lastAccount);
   refreshAccount();
-  startQuotaPoll();
 }

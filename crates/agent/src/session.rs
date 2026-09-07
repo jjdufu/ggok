@@ -399,7 +399,10 @@ impl Agent {
     }
 
     pub(crate) async fn start_prompt(&self, id: &str, item: QueueItem) -> Result<()> {
-        let (cwd, image_ok, queue) = {
+        if item.files.iter().any(file_is_image) {
+            self.wait_image_capability().await;
+        }
+        let (cwd, image_ok, queue, user_text, user_files) = {
             let mut g = self.inner.lock().await;
             let image_ok = g.image_ok;
             let sess = live_entry(&mut g, id, "");
@@ -407,10 +410,16 @@ impl Agent {
             sess.user_emitted = true;
             reset_parser_keep_usage(sess);
             sess.parser.note_time(Some(now_ms()));
+            let (visible, files) =
+                ggok_core::parse::normalize_user_payload(&item.text, item.files.clone());
+            sess.parser
+                .seed_user(item.id.clone(), &visible, files.clone());
             (
                 sess.cwd.clone(),
                 image_ok,
                 sess.queue.iter().cloned().collect::<Vec<_>>(),
+                visible,
+                files,
             )
         };
         self.emit(id, "queue", &queue);
@@ -420,8 +429,8 @@ impl Agent {
             "block",
             &Block::User {
                 prompt_id: item.id.clone(),
-                text: item.text.clone(),
-                files: item.files.clone(),
+                text: user_text,
+                files: user_files,
             },
         );
         let prompt = build_prompt(&item.text, &item.files, &cwd, image_ok);
@@ -437,6 +446,22 @@ impl Agent {
             .in_flight
             .insert(rpc_id, id.to_string());
         Ok(())
+    }
+
+    async fn wait_image_capability(&self) {
+        {
+            let g = self.inner.lock().await;
+            if g.image_ok || g.initialized {
+                return;
+            }
+        }
+        for _ in 0..80 {
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+            let g = self.inner.lock().await;
+            if g.image_ok || g.initialized {
+                return;
+            }
+        }
     }
 
     pub(crate) async fn drain(&self, id: &str) {
@@ -848,23 +873,46 @@ pub(crate) fn parse_commands(v: &Value) -> Vec<SlashCommand> {
         .unwrap_or_default()
 }
 
+fn file_is_image(f: &PromptFile) -> bool {
+    if f.mime
+        .as_deref()
+        .is_some_and(|mime| mime.starts_with("image/"))
+    {
+        return true;
+    }
+    Path::new(&f.path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|ext| {
+            matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "svg"
+            )
+        })
+}
+
+fn image_mime(f: &PromptFile) -> &str {
+    match f.mime.as_deref() {
+        Some(mime) if mime.starts_with("image/") => mime,
+        _ => "image/png",
+    }
+}
+
 fn build_prompt(text: &str, files: &[PromptFile], cwd: &str, image_ok: bool) -> Value {
     let mut parts = Vec::new();
     let mut body = text.to_string();
     let cwd_path = Path::new(cwd);
     for f in files {
         let path = Path::new(&f.path);
-        let mime = f.mime.as_deref().unwrap_or("");
         if image_ok
-            && mime.starts_with("image/")
+            && file_is_image(f)
             && let Ok(bytes) = fs::read(path)
         {
             parts.push(json!({
                 "type": "image",
-                "mimeType": mime,
+                "mimeType": image_mime(f),
                 "data": STANDARD.encode(bytes)
             }));
-            continue;
         }
         let rel = path
             .strip_prefix(cwd_path)

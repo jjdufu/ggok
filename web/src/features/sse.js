@@ -1,8 +1,25 @@
 import { t, isSpectatingSource } from "../lib/helpers.js";
 import { toast } from "../lib/clipboard.js";
 
+const STALE_MS = 12000;
+const CONNECTING_MS = 8000;
+const WATCH_MS = 2000;
+const RECONNECT_GAP_MS = 2000;
+
 export function bindSse(ctx) {
-  function closeEvents() {
+  function noteSseLive() {
+    ctx.esLastLive = Date.now();
+    ctx.esConnectingSince = 0;
+  }
+
+  function stopWatchdog() {
+    if (ctx.esWatch) {
+      clearInterval(ctx.esWatch);
+      ctx.esWatch = 0;
+    }
+  }
+
+  function closeStream() {
     if (ctx.esRetry) {
       clearTimeout(ctx.esRetry);
       ctx.esRetry = 0;
@@ -13,16 +30,58 @@ export function bindSse(ctx) {
     }
   }
 
+  function closeEvents() {
+    stopWatchdog();
+    closeStream();
+  }
+
   function reconnectIfNeeded(id) {
     if (!id || id !== ctx.currentId) return;
     if (ctx.es && ctx.es.readyState === EventSource.OPEN) return;
     connectEvents(id);
   }
 
+  function forceReconnect(id) {
+    if (!id || id !== ctx.currentId) return;
+    const now = Date.now();
+    if (now - (ctx.esReconnectAt || 0) < RECONNECT_GAP_MS) return;
+    ctx.esReconnectAt = now;
+    connectEvents(id);
+  }
+
+  function armWatchdog() {
+    if (ctx.esWatch) return;
+    ctx.esWatch = setInterval(() => {
+      const id = ctx.currentId;
+      if (!id) return;
+      const es = ctx.es;
+      if (!es) {
+        connectEvents(id);
+        return;
+      }
+      const now = Date.now();
+      if (es.readyState === EventSource.CONNECTING) {
+        const since = ctx.esConnectingSince || ctx.esReconnectAt || now;
+        if (now - since > CONNECTING_MS) forceReconnect(id);
+        return;
+      }
+      if (es.readyState === EventSource.CLOSED) {
+        forceReconnect(id);
+        return;
+      }
+      if (!(ctx.running || ctx.awaitingAgent)) return;
+      if (now - (ctx.esLastLive || 0) > STALE_MS) forceReconnect(id);
+    }, WATCH_MS);
+  }
+
   function connectEvents(id) {
-    closeEvents();
+    closeStream();
+    ctx.esConnectingSince = Date.now();
+    ctx.esLastLive = Date.now();
+    ctx.esReconnectAt = Date.now();
     ctx.es = new EventSource("/api/sessions/" + encodeURIComponent(id) + "/events");
     const es = ctx.es;
+    armWatchdog();
 
     const opened = new Promise((resolve) => {
       let done = false;
@@ -32,6 +91,7 @@ export function bindSse(ctx) {
         resolve();
       };
       es.addEventListener("open", () => {
+        noteSseLive();
         finish();
         if (id === ctx.currentId && ctx.pullSession) ctx.pullSession(id).catch(() => {});
       });
@@ -40,6 +100,7 @@ export function bindSse(ctx) {
 
     const on = (name, fn) =>
       es.addEventListener(name, (e) => {
+        noteSseLive();
         if (e.data == null || e.data === "") return;
         try {
           fn(JSON.parse(e.data));
@@ -56,6 +117,8 @@ export function bindSse(ctx) {
     on("queue", (list) => {
       if (ctx.applyQueue) ctx.applyQueue(list);
     });
+
+    on("ping", () => {});
 
     on("live", (ev) => {
       if (!ev || typeof ev !== "object") return;
@@ -76,6 +139,11 @@ export function bindSse(ctx) {
         ctx.current.source = ctx.source;
         ctx.current.writable = ctx.writable;
       }
+      if (ctx.running) {
+        if (ctx.armWorkWatch) ctx.armWorkWatch();
+      } else if (ctx.stopWorkWatch) {
+        ctx.stopWorkWatch();
+      }
       if (ctx.syncSendBtn) ctx.syncSendBtn();
       if (ctx.scheduleRender) ctx.scheduleRender();
       if (prev !== "attached" && ev.source === "attached" && id === ctx.currentId) {
@@ -94,6 +162,7 @@ export function bindSse(ctx) {
       if (ctx.syncSendBtn) ctx.syncSendBtn();
       if (ctx.loadList) ctx.loadList();
       if (ctx.refreshSessionUsage) ctx.refreshSessionUsage();
+      if (ctx.refreshAccount) ctx.refreshAccount();
       if (ctx.scheduleRender) ctx.scheduleRender();
     });
 
@@ -109,11 +178,15 @@ export function bindSse(ctx) {
 
     es.addEventListener("error", () => {
       if (es !== ctx.es || ctx.currentId !== id) return;
+      if (es.readyState === EventSource.CONNECTING) {
+        if (!ctx.esConnectingSince) ctx.esConnectingSince = Date.now();
+        return;
+      }
       if (es.readyState !== EventSource.CLOSED) return;
       if (ctx.esRetry) clearTimeout(ctx.esRetry);
       ctx.esRetry = setTimeout(() => {
         ctx.esRetry = 0;
-        if (ctx.currentId === id) connectEvents(id);
+        if (ctx.currentId === id) forceReconnect(id);
       }, 1500);
     });
 

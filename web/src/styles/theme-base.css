@@ -1060,6 +1060,34 @@ html[data-lang="en"] .lang-icon[data-lang-icon="en"] {
   max-width: min(80%, 560px);
 }
 
+.user-previews {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: min(80%, 560px);
+}
+
+.user-preview {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: var(--bubble);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: zoom-in;
+  max-width: min(80%, 280px);
+}
+
+.user-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
 .file-chip {
   display: inline-flex;
   align-items: center;

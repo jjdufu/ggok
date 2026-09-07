@@ -1,4 +1,6 @@
-use crate::types::{Block, EffortInfo, ModelInfo, ModelUsageRow, TokenUsage, ToolDetail};
+use crate::types::{
+    Block, EffortInfo, ModelInfo, ModelUsageRow, PromptFile, TokenUsage, ToolDetail,
+};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::{self, File};
@@ -26,6 +28,7 @@ struct TextBuf {
     kind: TextKind,
     prompt_id: String,
     text: String,
+    files: Vec<PromptFile>,
 }
 
 pub struct Parser {
@@ -88,7 +91,7 @@ impl Parser {
                 TextKind::User => Block::User {
                     prompt_id: buf.prompt_id,
                     text: buf.text,
-                    files: Vec::new(),
+                    files: buf.files,
                 },
                 TextKind::Thought => Block::Thought {
                     prompt_id: buf.prompt_id,
@@ -103,7 +106,12 @@ impl Parser {
         }
     }
 
-    fn push_text(&mut self, kind: TextKind, prompt_id: String, text: &str) {
+    fn push_text(&mut self, kind: TextKind, prompt_id: String, raw: &str) {
+        let (text, files) = if kind == TextKind::User {
+            split_upload_refs(raw)
+        } else {
+            (raw.to_string(), Vec::new())
+        };
         let continue_buf = self.buf.as_ref().is_some_and(|buf| {
             buf.kind == kind
                 && (buf.prompt_id == prompt_id || prompt_id.is_empty() || buf.prompt_id.is_empty())
@@ -113,13 +121,22 @@ impl Parser {
                 if buf.prompt_id.is_empty() && !prompt_id.is_empty() {
                     buf.prompt_id = prompt_id;
                 }
-                buf.text.push_str(text);
+                if kind == TextKind::User {
+                    merge_user_buf_text(buf, &text);
+                    merge_prompt_files(&mut buf.files, files);
+                } else {
+                    buf.text.push_str(&text);
+                }
             }
             return;
         }
         // Session load / MCP reinit can replay the same user_message_chunk
         // into a live parser that already has this turn.
-        if kind == TextKind::User && !text.is_empty() && self.open_turn_has_user(text) {
+        if kind == TextKind::User
+            && (self.open_turn_has_user(&text)
+                || (text.is_empty() && self.open_turn_has_any_user()))
+        {
+            self.merge_open_user_files(files);
             if !prompt_id.is_empty() {
                 self.backfill_user_prompt(&prompt_id);
                 self.current_prompt_id.clone_from(&prompt_id);
@@ -133,8 +150,49 @@ impl Parser {
         self.buf = Some(TextBuf {
             kind,
             prompt_id,
-            text: text.to_string(),
+            text,
+            files,
         });
+    }
+
+    /// Seed the open user block so live snapshots keep attachment metadata.
+    pub fn seed_user(&mut self, prompt_id: String, text: &str, files: Vec<PromptFile>) {
+        let (text, extracted) = split_upload_refs(text);
+        let mut all = files;
+        merge_prompt_files(&mut all, extracted);
+        self.flush_text();
+        if !prompt_id.is_empty() {
+            self.current_prompt_id.clone_from(&prompt_id);
+        }
+        self.buf = Some(TextBuf {
+            kind: TextKind::User,
+            prompt_id,
+            text,
+            files: all,
+        });
+    }
+
+    fn merge_open_user_files(&mut self, files: Vec<PromptFile>) {
+        if files.is_empty() {
+            return;
+        }
+        if let Some(buf) = self.buf.as_mut()
+            && buf.kind == TextKind::User
+        {
+            merge_prompt_files(&mut buf.files, files);
+            return;
+        }
+        let start = self
+            .blocks
+            .iter()
+            .rposition(|b| matches!(b, Block::TurnEnd { .. }))
+            .map_or(0, |i| i + 1);
+        for b in self.blocks[start..].iter_mut().rev() {
+            if let Block::User { files: prev, .. } = b {
+                merge_prompt_files(prev, files);
+                break;
+            }
+        }
     }
 
     fn open_turn_has_user(&self, text: &str) -> bool {
@@ -153,6 +211,24 @@ impl Parser {
         self.blocks[start..]
             .iter()
             .any(|b| matches!(b, Block::User { text: t, .. } if t == text))
+    }
+
+    fn open_turn_has_any_user(&self) -> bool {
+        if self
+            .buf
+            .as_ref()
+            .is_some_and(|buf| buf.kind == TextKind::User)
+        {
+            return true;
+        }
+        let start = self
+            .blocks
+            .iter()
+            .rposition(|b| matches!(b, Block::TurnEnd { .. }))
+            .map_or(0, |i| i + 1);
+        self.blocks[start..]
+            .iter()
+            .any(|b| matches!(b, Block::User { .. }))
     }
 
     fn backfill_user_prompt(&mut self, prompt_id: &str) {
@@ -310,7 +386,7 @@ impl Parser {
             TextKind::User => Block::User {
                 prompt_id: buf.prompt_id.clone(),
                 text: buf.text.clone(),
-                files: Vec::new(),
+                files: buf.files.clone(),
             },
             TextKind::Thought => Block::Thought {
                 prompt_id: buf.prompt_id.clone(),
@@ -987,6 +1063,141 @@ fn normalize_tool_json(v: &mut Value) {
     }
 }
 
+fn merge_user_buf_text(buf: &mut TextBuf, incoming: &str) {
+    if incoming.is_empty() || buf.text == incoming || buf.text.starts_with(incoming) {
+        return;
+    }
+    if incoming.starts_with(&buf.text) {
+        buf.text = incoming.to_string();
+        return;
+    }
+    buf.text.push_str(incoming);
+}
+
+fn merge_prompt_files(dst: &mut Vec<PromptFile>, extra: Vec<PromptFile>) {
+    for f in extra {
+        if f.path.is_empty() {
+            continue;
+        }
+        if let Some(existing) = dst.iter_mut().find(|p| p.path == f.path) {
+            if existing.mime.is_none() {
+                existing.mime = f.mime;
+            }
+            continue;
+        }
+        dst.push(f);
+    }
+}
+
+fn mime_for_upload(path: &str) -> Option<String> {
+    let guessed = mime_guess::from_path(path)
+        .first()
+        .map(|m| m.essence_str().to_string());
+    if guessed
+        .as_deref()
+        .is_some_and(|mime| mime.starts_with("image/"))
+    {
+        return guessed;
+    }
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase);
+    match ext.as_deref() {
+        Some("png") => Some("image/png".into()),
+        Some("jpg" | "jpeg") => Some("image/jpeg".into()),
+        Some("gif") => Some("image/gif".into()),
+        Some("webp") => Some("image/webp".into()),
+        Some("bmp") => Some("image/bmp".into()),
+        Some("svg") => Some("image/svg+xml".into()),
+        _ => guessed,
+    }
+}
+
+fn take_upload_path<'a>(s: &'a str, upload_dir: &str) -> Option<(&'a str, &'a str)> {
+    if !s.starts_with(upload_dir) {
+        return None;
+    }
+    let after = s.get(upload_dir.len()..)?;
+    if !after.starts_with('/') {
+        return None;
+    }
+    let rel = &after[1..];
+    if rel.is_empty() {
+        return None;
+    }
+    let name_len = rel.find(char::is_whitespace).unwrap_or(rel.len());
+    if name_len == 0 {
+        return None;
+    }
+    let path_len = upload_dir.len() + 1 + name_len;
+    Some((s.get(..path_len)?, s.get(path_len..)?))
+}
+
+fn collapse_trim(s: &str) -> String {
+    let t = s.trim();
+    let mut out = String::with_capacity(t.len());
+    let mut newlines = 0_u8;
+    for c in t.chars() {
+        if c == '\n' {
+            if newlines < 2 {
+                out.push('\n');
+            }
+            newlines = newlines.saturating_add(1);
+        } else {
+            newlines = 0;
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Pull `@/tmp/.ggok-uploads/...` tags out of user text into attachment metadata.
+#[must_use]
+pub fn split_upload_refs(text: &str) -> (String, Vec<PromptFile>) {
+    let upload_dir = crate::paths::UPLOAD_DIR;
+    let mut files = Vec::new();
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(idx) = rest.find('@') {
+        out.push_str(&rest[..idx]);
+        let tail = &rest[idx..];
+        let (mark_len, after_mark) = if let Some(stripped) = tail.strip_prefix("@!") {
+            (2, stripped)
+        } else if let Some(stripped) = tail.strip_prefix('@') {
+            (1, stripped)
+        } else {
+            out.push('@');
+            rest = &tail[1..];
+            continue;
+        };
+        if let Some((path, leftover)) = take_upload_path(after_mark, upload_dir) {
+            merge_prompt_files(
+                &mut files,
+                vec![PromptFile {
+                    path: path.to_string(),
+                    mime: mime_for_upload(path),
+                }],
+            );
+            rest = leftover;
+        } else {
+            out.push_str(&tail[..mark_len]);
+            rest = &tail[mark_len..];
+        }
+    }
+    out.push_str(rest);
+    (collapse_trim(&out), files)
+}
+
+/// Strip upload tags from visible text and merge them into `files`.
+#[must_use]
+pub fn normalize_user_payload(text: &str, files: Vec<PromptFile>) -> (String, Vec<PromptFile>) {
+    let (visible, extracted) = split_upload_refs(text);
+    let mut all = files;
+    merge_prompt_files(&mut all, extracted);
+    (visible, all)
+}
+
 #[must_use]
 pub fn merge_live_over_disk(disk: &[Block], live: &[Block]) -> Vec<Block> {
     if live.is_empty() {
@@ -1026,19 +1237,38 @@ fn compact_duplicate_open_users(blocks: &mut Vec<Block>) {
     let mut out = Vec::with_capacity(blocks.len());
     let mut seen_user: Option<String> = None;
     for b in blocks.drain(..) {
-        match &b {
+        match b {
             Block::TurnEnd { .. } => {
                 seen_user = None;
                 out.push(b);
             }
-            Block::User { text, .. } => {
+            Block::User {
+                text,
+                files,
+                prompt_id,
+            } => {
                 if seen_user.as_deref() == Some(text.as_str()) {
+                    if let Some(Block::User {
+                        files: prev,
+                        prompt_id: pid,
+                        ..
+                    }) = out.last_mut()
+                    {
+                        merge_prompt_files(prev, files);
+                        if pid.is_empty() && !prompt_id.is_empty() {
+                            pid.clone_from(&prompt_id);
+                        }
+                    }
                     continue;
                 }
                 seen_user = Some(text.clone());
-                out.push(b);
+                out.push(Block::User {
+                    text,
+                    files,
+                    prompt_id,
+                });
             }
-            _ => out.push(b),
+            other => out.push(other),
         }
     }
     *blocks = out;

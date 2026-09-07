@@ -156,7 +156,7 @@ impl Agent {
         if let Some(tx) = bus.get(session_id) {
             return tx.subscribe();
         }
-        let (tx, rx) = broadcast::channel(256);
+        let (tx, rx) = broadcast::channel(2048);
         bus.insert(session_id.to_string(), tx);
         rx
     }
@@ -253,11 +253,17 @@ impl Agent {
             return;
         };
         let bus = self.bus.lock();
-        if let Some(tx) = bus.get(session_id) {
-            let _ = tx.send(SseEvent {
+        let Some(tx) = bus.get(session_id) else {
+            return;
+        };
+        if tx
+            .send(SseEvent {
                 kind: kind.to_string(),
                 data,
-            });
+            })
+            .is_err()
+        {
+            tracing::warn!(session_id, kind, "sse emit dropped: no subscribers");
         }
     }
 }

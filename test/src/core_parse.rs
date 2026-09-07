@@ -1,8 +1,8 @@
 use ggok_core::parse::{
     Ingest, Parser, apply_event, blocks_to_markdown, fallback_window, merge_live_over_disk,
-    models_from_cache, parse_updates_file, timestamp_ms,
+    models_from_cache, parse_updates_file, split_upload_refs, timestamp_ms,
 };
-use ggok_core::types::Block;
+use ggok_core::types::{Block, PromptFile};
 use serde_json::json;
 use std::fs;
 
@@ -266,4 +266,75 @@ fn parse_updates_file_and_models_cache() {
     let models = models_from_cache(dir.path());
     assert_eq!(models.len(), 1);
     assert_eq!(models[0].id, "grok-3");
+}
+
+#[test]
+fn split_upload_refs_strips_tag_keeps_workspace_at() {
+    let (text, files) = split_upload_refs("hello\n@/tmp/.ggok-uploads/image.png");
+    assert_eq!(text, "hello");
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0].path, "/tmp/.ggok-uploads/image.png");
+    assert_eq!(files[0].mime.as_deref(), Some("image/png"));
+
+    let (kept, none) = split_upload_refs("see @src/main.rs and @!hidden/x.rs");
+    assert_eq!(kept, "see @src/main.rs and @!hidden/x.rs");
+    assert!(none.is_empty());
+
+    let (empty, only) = split_upload_refs("@/tmp/.ggok-uploads/a.webp");
+    assert_eq!(empty, "");
+    assert_eq!(only.len(), 1);
+    assert_eq!(only[0].path, "/tmp/.ggok-uploads/a.webp");
+}
+
+#[test]
+fn seed_user_keeps_files_when_chunk_echoes_tag() {
+    let mut p = Parser::new();
+    p.seed_user(
+        "p1".into(),
+        "why",
+        vec![PromptFile {
+            path: "/tmp/.ggok-uploads/image.png".into(),
+            mime: Some("image/png".into()),
+        }],
+    );
+    p.ingest_at(
+        &chunk("user_message_chunk", "why\n@/tmp/.ggok-uploads/image.png"),
+        "p1",
+        Some(10),
+    );
+    let blocks = p.snapshot_blocks();
+    assert!(
+        matches!(
+            &blocks[0],
+            Block::User { text, files, prompt_id, .. }
+                if text == "why"
+                    && prompt_id == "p1"
+                    && files.len() == 1
+                    && files[0].path == "/tmp/.ggok-uploads/image.png"
+        ),
+        "{blocks:?}"
+    );
+}
+
+#[test]
+fn jsonl_user_chunk_recovers_upload_file() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let updates = dir.path().join("updates.jsonl");
+    fs::write(
+        &updates,
+        r#"{"params":{"update":{"sessionUpdate":"user_message_chunk","content":{"text":"@/tmp/.ggok-uploads/snap.png"}},"_meta":{"promptId":"p"}}}"#,
+    )
+    .expect("write jsonl");
+    let parsed = parse_updates_file(&updates).expect("parse");
+    assert!(
+        matches!(
+            &parsed.blocks[0],
+            Block::User { text, files, .. }
+                if text.is_empty()
+                    && files.len() == 1
+                    && files[0].path == "/tmp/.ggok-uploads/snap.png"
+        ),
+        "{:?}",
+        parsed.blocks
+    );
 }

@@ -135,6 +135,53 @@ export function isImageAttach(f) {
   return /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(name);
 }
 
+export function mergePromptFiles(dst, extra) {
+  const out = Array.isArray(dst) ? dst.slice() : [];
+  for (const f of extra || []) {
+    if (!f || !f.path) continue;
+    const i = out.findIndex((p) => p.path === f.path);
+    if (i >= 0) {
+      const cur = out[i];
+      out[i] = Object.assign({}, cur, {
+        mime: cur.mime || f.mime,
+        name: cur.name || f.name,
+        preview: cur.preview || f.preview,
+        rel: cur.rel || f.rel
+      });
+      continue;
+    }
+    out.push(f);
+  }
+  return out;
+}
+
+export function filesFromUploadTags(text) {
+  const out = [];
+  const src = String(text || "");
+  const re = /@!?(\/tmp\/\.ggok-uploads\/[^\s]+)/g;
+  for (const m of src.matchAll(re)) {
+    const path = m[1];
+    const name = path.split("/").pop() || path;
+    out.push({ path, name, mime: "", rel: path });
+  }
+  return out;
+}
+
+export function stripUploadTags(text) {
+  return String(text || "")
+    .replace(/(^|\s)@!?\/tmp\/\.ggok-uploads\/[^\s]+/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function normalizeUserBlock(block) {
+  if (!block || block.type !== "user") return block;
+  const fromText = filesFromUploadTags(block.text);
+  const text = stripUploadTags(block.text);
+  const files = mergePromptFiles(block.files, fromText);
+  return Object.assign({}, block, { text, files });
+}
+
 export function revokePreview(f) {
   if (f && f.preview && String(f.preview).startsWith("blob:")) {
     try {

@@ -520,8 +520,7 @@ fn session_occupancies(grok_home: &Path) -> Vec<(String, occupy::Occupancy)> {
         return Vec::new();
     };
     let s3 = occupy::cli_sessions(grok_home);
-    let leftover =
-        agent_pid_file().is_ok_and(|p| leftover_noleader_pid(&p).is_some());
+    let leftover = agent_pid_file().is_ok_and(|p| leftover_noleader_pid(&p).is_some());
     let can_attach = status_can_attach(leftover);
     let mut ids: Vec<_> = index.sessions.keys().cloned().collect();
     ids.sort();

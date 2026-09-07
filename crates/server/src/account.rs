@@ -4,24 +4,27 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
+use tokio::sync::watch;
 
 const CACHE_OK: Duration = Duration::from_secs(60);
-const CACHE_ERR: Duration = Duration::from_secs(15);
 const DEFAULT_PROXY: &str = "https://cli-chat-proxy.grok.com/v1";
 
 static CACHE: Mutex<Cache> = Mutex::new(Cache {
     at: None,
     view: None,
 });
-static REFRESHING: AtomicBool = AtomicBool::new(false);
+static INFLIGHT: Mutex<Inflight> = Mutex::new(Inflight { rx: None });
 
 struct Cache {
     at: Option<Instant>,
     view: Option<AccountView>,
+}
+
+struct Inflight {
+    rx: Option<watch::Receiver<Option<AccountView>>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -67,7 +70,7 @@ pub async fn snapshot(grok_home: &Path) -> AccountView {
             spawn_refresh(grok_home.to_path_buf());
             v
         }
-        Hit::Miss => load(grok_home).await,
+        Hit::Miss => load_shared(grok_home).await,
     }
 }
 
@@ -78,28 +81,71 @@ pub fn warm(grok_home: PathBuf) {
 }
 
 fn spawn_refresh(grok_home: PathBuf) {
-    if REFRESHING.swap(true, Ordering::SeqCst) {
-        return;
-    }
     tokio::spawn(async move {
-        let _ = load(&grok_home).await;
-        REFRESHING.store(false, Ordering::SeqCst);
+        let _ = load_shared(&grok_home).await;
     });
+}
+
+async fn wait_shared(mut rx: watch::Receiver<Option<AccountView>>) -> Option<AccountView> {
+    loop {
+        if let Some(view) = rx.borrow().clone() {
+            return Some(view);
+        }
+        if rx.changed().await.is_err() {
+            return None;
+        }
+    }
+}
+
+async fn load_shared(grok_home: &Path) -> AccountView {
+    loop {
+        let pending = INFLIGHT.lock().ok().and_then(|g| g.rx.clone());
+        if let Some(rx) = pending {
+            if let Some(view) = wait_shared(rx).await {
+                return view;
+            }
+            continue;
+        }
+
+        let (tx, rx) = watch::channel(None);
+        let existing = {
+            let Ok(mut g) = INFLIGHT.lock() else {
+                return load(grok_home).await;
+            };
+            if let Some(existing) = g.rx.clone() {
+                Some(existing)
+            } else {
+                g.rx = Some(rx);
+                None
+            }
+        };
+        if let Some(existing) = existing {
+            if let Some(view) = wait_shared(existing).await {
+                return view;
+            }
+            continue;
+        }
+
+        let view = load(grok_home).await;
+        let _ = tx.send(Some(view.clone()));
+        if let Ok(mut g) = INFLIGHT.lock() {
+            g.rx = None;
+        }
+        return view;
+    }
 }
 
 async fn load(grok_home: &Path) -> AccountView {
     match fetch(grok_home).await {
         Ok(view) => {
-            store(&view);
+            if view.ok {
+                store(&view);
+            }
             view
         }
         Err(e) => match cached() {
-            Hit::Fresh(v) | Hit::Stale(v) if v.ok => v,
-            _ => {
-                let view = failed_view(e);
-                store(&view);
-                view
-            }
+            Hit::Fresh(v) | Hit::Stale(v) => v,
+            Hit::Miss => failed_view(e),
         },
     }
 }
@@ -127,11 +173,13 @@ fn cached() -> Hit {
     let Some(view) = g.view.clone() else {
         return Hit::Miss;
     };
+    if !view.ok {
+        return Hit::Miss;
+    }
     let Some(at) = g.at else {
         return Hit::Stale(view);
     };
-    let ttl = if view.ok { CACHE_OK } else { CACHE_ERR };
-    if at.elapsed() <= ttl {
+    if at.elapsed() <= CACHE_OK {
         Hit::Fresh(view)
     } else {
         Hit::Stale(view)

@@ -1,5 +1,5 @@
 import { promptApi } from "../promptApi.js";
-import { t, setTip, fileNameOf, uploadUrl, fileViewSrc, isImageAttach, revokePreview, isSpectatingSource, occupyMessageKey } from "../lib/helpers.js";
+import { t, setTip, fileNameOf, uploadUrl, fileViewSrc, isImageAttach, revokePreview, isSpectatingSource, occupyMessageKey, normalizeUserBlock, mergePromptFiles } from "../lib/helpers.js";
 import { bindDraftSync } from "./draft-sync.js";
 import { placePopover } from "../lib/popover.js";
 import { svgUse } from "../lib/svg.js";
@@ -768,16 +768,13 @@ export function bindComposer(ctx) {
   }
 
   function armWorkWatch() {
-    stopWorkWatch();
+    if (ctx.workWatch) return;
     ctx.workWatch = setInterval(() => {
-      if (!ctx.running || !ctx.currentId) {
+      if (!(ctx.running || ctx.awaitingAgent) || !ctx.currentId) {
         stopWorkWatch();
         return;
       }
       pullSession(ctx.currentId).catch(() => {});
-      if (ctx.es && ctx.es.readyState === EventSource.CLOSED && ctx.connectEvents) {
-        ctx.connectEvents(ctx.currentId);
-      }
     }, 1600);
   }
 
@@ -847,17 +844,31 @@ export function bindComposer(ctx) {
     try {
       const detail = await api("/api/sessions/" + encodeURIComponent(id));
       if (id !== ctx.currentId) return;
+      if (Array.isArray(detail.blocks)) {
+        detail.blocks = detail.blocks.map((b) => (b.type === "user" ? normalizeUserBlock(b) : b));
+      }
       if (!ctx.current) ctx.current = detail;
       else {
         if (Array.isArray(detail.blocks)) {
           const localBlocks = ctx.current.blocks || [];
           const openStart = ctx.openTurnStart ? ctx.openTurnStart(localBlocks) : 0;
           const pendingUsers = [];
+          const serverBlocks = detail.blocks.map((b) => {
+            if (b.type !== "user") return b;
+            const next = normalizeUserBlock(b);
+            const local = localBlocks.find((lb) => {
+              if (lb.type !== "user") return false;
+              if (next.prompt_id && lb.prompt_id && next.prompt_id === lb.prompt_id) return true;
+              return String(lb.text || "") === String(next.text || "");
+            });
+            if (local) next.files = mergePromptFiles(local.files, next.files);
+            return next;
+          });
           for (let i = openStart; i < localBlocks.length; i++) {
             const b = localBlocks[i];
             if (b.type === "user" && String(b.prompt_id || "").startsWith("pending-")) {
-              const serverOpenStart = ctx.openTurnStart ? ctx.openTurnStart(detail.blocks) : 0;
-              const exists = detail.blocks.slice(serverOpenStart).some(
+              const serverOpenStart = ctx.openTurnStart ? ctx.openTurnStart(serverBlocks) : 0;
+              const exists = serverBlocks.slice(serverOpenStart).some(
                 (sb) => sb.type === "user" && String(sb.text || "") === String(b.text || "")
               );
               if (!exists) {
@@ -865,13 +876,15 @@ export function bindComposer(ctx) {
               }
             }
           }
-          ctx.current.blocks = detail.blocks.concat(pendingUsers);
+          ctx.current.blocks = serverBlocks.concat(pendingUsers);
           if (ctx.compactPendingUsers) ctx.compactPendingUsers();
         }
         if (detail.usage) ctx.current.usage = detail.usage;
         if (detail.work_started_ms) ctx.current.work_started_ms = detail.work_started_ms;
       }
       applyOccupancy(detail);
+      if (ctx.running || ctx.awaitingAgent) armWorkWatch();
+      else stopWorkWatch();
       applySessionModel(detail);
       if (ctx.applyQuestionsFromSession) ctx.applyQuestionsFromSession(detail.pending_questions);
       else if (ctx.applyQuestions) ctx.applyQuestions(detail.pending_questions || []);
@@ -894,6 +907,9 @@ export function bindComposer(ctx) {
     if (timeline) timeline.innerHTML = "";
     try {
       const detail = await api("/api/sessions/" + encodeURIComponent(id));
+      if (Array.isArray(detail.blocks)) {
+        detail.blocks = detail.blocks.map((b) => (b.type === "user" ? normalizeUserBlock(b) : b));
+      }
       ctx.current = detail;
       ctx.selectedCwd = detail.cwd || ctx.selectedCwd;
       if (ctx.syncDirLabel) ctx.syncDirLabel();
@@ -1252,7 +1268,7 @@ export function bindComposer(ctx) {
       if (key && key === lastPasteKey && now - lastPasteAt < 500) return;
       lastPasteKey = key;
       lastPasteAt = now;
-      if (!clipboardPlainText(e.clipboardData)) e.preventDefault();
+      e.preventDefault();
       uploadFiles(files);
     });
   }

@@ -499,10 +499,7 @@ fn questions_from_schema(schema: &Value) -> Vec<AskQuestion> {
                 question: json_str(prop, &["title", "description"]),
                 header: String::new(),
                 options,
-                multi_select: json_bool(
-                    prop,
-                    &["multi_select", "multiSelect", "allow_multiple"],
-                ),
+                multi_select: json_bool(prop, &["multi_select", "multiSelect", "allow_multiple"]),
             }
         };
         if q.question.is_empty() {
@@ -1163,7 +1160,10 @@ mod tests {
             }
         });
         assert!(looks_like_ask_user(&update));
-        assert!(is_mcp_ask_tool("ggok-ask__ask_user_question", "ask_user_question"));
+        assert!(is_mcp_ask_tool(
+            "ggok-ask__ask_user_question",
+            "ask_user_question"
+        ));
         assert!(!should_present_tool_call_as_ask(
             "ggok-ask__ask_user_question",
             "ask_user_question",

@@ -170,6 +170,27 @@ export function renderMdBlock(text) {
   return out;
 }
 
+export function dedentCode(code) {
+  const text = String(code == null ? "" : code).replace(/\r\n/g, "\n").replace(/\n$/, "");
+  const lines = text.split("\n");
+  let min = Infinity;
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    let n = 0;
+    while (n < line.length && (line[n] === " " || line[n] === "\t")) n += 1;
+    if (n < min) min = n;
+  }
+  if (!Number.isFinite(min) || min === 0) return text;
+  return lines
+    .map((line) => {
+      if (!line) return line;
+      let i = 0;
+      while (i < min && i < line.length && (line[i] === " " || line[i] === "\t")) i += 1;
+      return line.slice(i);
+    })
+    .join("\n");
+}
+
 export function codeCardHtml(label, code) {
   return (
     '<div class="code-card"><div class="code-head"><span>' +
@@ -177,7 +198,7 @@ export function codeCardHtml(label, code) {
     '</span><button type="button" class="copy-code" data-i18n="copyCode">' +
     escapeHtml(t("copyCode")) +
     "</button></div><pre><code>" +
-    escapeHtml(String(code == null ? "" : code).replace(/\n$/, "")) +
+    escapeHtml(dedentCode(code)) +
     "</code></pre></div>"
   );
 }

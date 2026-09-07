@@ -1,4 +1,4 @@
-import { t, setTip, setDynI18n, fileNameOf, fileViewSrc, isImageAttach, revokePreview, focusKeyThought, focusKeyTool } from "../lib/helpers.js";
+import { t, setTip, setDynI18n, fileNameOf, fileViewSrc, isImageAttach, revokePreview, focusKeyThought, focusKeyTool, normalizeUserBlock, mergePromptFiles } from "../lib/helpers.js";
 import { svgUse } from "../lib/svg.js";
 import { post } from "../lib/api.js";
 import { renderMarkdown } from "../lib/markdown.js";
@@ -42,8 +42,7 @@ export function bindTimeline(ctx) {
           const nextPend = isPendingPrompt(b.prompt_id);
           if (prevPend && !nextPend) {
             const idx = cur.user.indexOf(sameUser);
-            const files = b.files && b.files.length ? b.files : sameUser.files;
-            cur.user[idx] = Object.assign({}, sameUser, b, files ? { files } : {});
+            cur.user[idx] = Object.assign({}, sameUser, b, { files: mergePromptFiles(sameUser.files, b.files) });
           }
           cur.prompt_id = b.prompt_id && !isPendingPrompt(b.prompt_id) ? b.prompt_id : cur.prompt_id || b.prompt_id;
           if (b.cancelled) cur.cancelled = true;
@@ -108,6 +107,19 @@ export function bindTimeline(ctx) {
     if (!src) return;
     if (isImageAttach(f)) openFileLightbox(src, fileNameOf(f));
     else window.open(src, "_blank", "noopener");
+  }
+
+  function makeImagePreview(f) {
+    const src = fileViewSrc(f);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "user-preview";
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = fileNameOf(f);
+    btn.appendChild(img);
+    btn.addEventListener("click", () => openFileChip(f));
+    return btn;
   }
 
   function makeFileChip(f, removable) {
@@ -186,10 +198,19 @@ export function bindTimeline(ctx) {
     const row = document.createElement("div");
     row.className = "user-row";
     const files = Array.isArray(block.files) ? block.files : [];
-    if (files.length) {
+    row.dataset.fp = userFingerprint(block);
+    const images = files.filter((f) => isImageAttach(f) && fileViewSrc(f));
+    const others = files.filter((f) => !isImageAttach(f) || !fileViewSrc(f));
+    if (images.length) {
+      const strip = document.createElement("div");
+      strip.className = "user-previews";
+      for (const f of images) strip.appendChild(makeImagePreview(f));
+      row.appendChild(strip);
+    }
+    if (others.length) {
       const strip = document.createElement("div");
       strip.className = "user-files";
-      for (const f of files) strip.appendChild(makeFileChip(f, false));
+      for (const f of others) strip.appendChild(makeFileChip(f, false));
       row.appendChild(strip);
     }
     const text = String(block.text || "");
@@ -468,7 +489,6 @@ export function bindTimeline(ctx) {
           wrap.classList.add("open");
           chip.classList.add("open");
           ctx.traceOpen.add(key);
-          lines.scrollTop = live ? lines.scrollHeight : 0;
         }
       }
     });
@@ -607,33 +627,6 @@ export function bindTimeline(ctx) {
     }
   }
 
-  function captureTraceScroll() {
-    const map = {};
-    if (!timeline) return map;
-    for (const el of timeline.querySelectorAll(".turn-trace")) {
-      const id = el.dataset.seg || "";
-      const lines = el.querySelector(".trace-lines");
-      if (!id || !lines) continue;
-      const stick = lines.scrollHeight - lines.scrollTop - lines.clientHeight < 24;
-      map[id] = { top: lines.scrollTop, stick };
-    }
-    return map;
-  }
-
-  function restoreTraceScroll(map) {
-    if (!timeline) return;
-    for (const el of timeline.querySelectorAll(".turn-trace.open")) {
-      const id = el.dataset.seg || "";
-      const lines = el.querySelector(".trace-lines");
-      if (!id || !lines) continue;
-      const prev = map && map[id];
-      const live = el.classList.contains("live");
-      if (prev?.stick || (!prev && live)) lines.scrollTop = lines.scrollHeight;
-      else if (prev) lines.scrollTop = prev.top;
-      else lines.scrollTop = 0;
-    }
-  }
-
   function agentStructureKey(split) {
     return split.segs
       .map((s) => {
@@ -745,17 +738,19 @@ export function bindTimeline(ctx) {
     return true;
   }
 
+  function userFingerprint(u) {
+    const files = (u.files || []).map((f) => String((f && f.path) || "")).join("\0");
+    return String(u.text || "") + "\n" + files;
+  }
+
   function syncTurnUsers(row, turn, appear) {
     if (!row || !turn) return;
     if (turn.prompt_id) row.dataset.prompt = turn.prompt_id;
     const users = turn.user || [];
     const existing = [...row.querySelectorAll(":scope > .user-row")];
-    const have = existing.map((el) => {
-      const body = el.querySelector(".say .block-body");
-      return body ? body.textContent : "";
-    });
-    const texts = users.map((u) => String(u.text || ""));
-    if (existing.length === users.length && texts.every((text, i) => have[i] === text)) return;
+    const have = existing.map((el) => el.dataset.fp || "");
+    const next = users.map(userFingerprint);
+    if (existing.length === users.length && next.every((fp, i) => have[i] === fp)) return;
     const agent = row.querySelector(":scope > .col-agent");
     for (const el of existing) el.remove();
     for (const u of users) {
@@ -790,11 +785,13 @@ export function bindTimeline(ctx) {
   function renderBlocks(detail) {
     if (!timeline) return;
     const stick = nearBottom();
-    const tracePos = captureTraceScroll();
     if (!detail) {
       timeline.innerHTML = "";
       delete timeline.dataset.session;
       return;
+    }
+    if (Array.isArray(detail.blocks)) {
+      detail.blocks = detail.blocks.map((b) => (b.type === "user" ? normalizeUserBlock(b) : b));
     }
     if (actions) actions.hidden = false;
     if (app) app.classList.add("has-session");
@@ -852,7 +849,6 @@ export function bindTimeline(ctx) {
     timeline.dataset.session = sid;
     if (ctx.drawerMode === "process" && ctx.drawerPromptId && ctx.renderDrawer) ctx.renderDrawer();
     if (ctx.syncQuestionCards) ctx.syncQuestionCards();
-    restoreTraceScroll(tracePos);
     if (stick) timeline.scrollTop = timeline.scrollHeight;
   }
 
@@ -894,10 +890,10 @@ export function bindTimeline(ctx) {
           const prevPend = isPendingPrompt(prev.prompt_id);
           const nextPend = isPendingPrompt(b.prompt_id);
           if (prevPend && !nextPend) {
-            const files = b.files && b.files.length ? b.files : prev.files;
-            out[prevIdx] = Object.assign({}, prev, b, files ? { files } : {});
+            out[prevIdx] = Object.assign({}, prev, b, { files: mergePromptFiles(prev.files, b.files) });
             continue;
           }
+          out[prevIdx] = Object.assign({}, prev, { files: mergePromptFiles(prev.files, b.files) });
           continue;
         }
       }
@@ -911,6 +907,7 @@ export function bindTimeline(ctx) {
       ctx.current = { id: ctx.currentId, cwd: ctx.selectedCwd, title: ctx.currentId, blocks: [], usage: {} };
     }
     if (!ctx.current.blocks) ctx.current.blocks = [];
+    if (block.type === "user") block = normalizeUserBlock(block);
     if (block.type === "tool" && block.id) {
       const i = ctx.current.blocks.findIndex((b) => b.type === "tool" && b.id === block.id);
       if (i >= 0) ctx.current.blocks[i] = Object.assign({}, ctx.current.blocks[i], block);
@@ -928,9 +925,7 @@ export function bindTimeline(ctx) {
         if (sameId || pendingHit || sameText) {
           const prev = ctx.current.blocks[i];
           ctx.current.blocks[i] = Object.assign({}, prev, block);
-          if (!(block.files && block.files.length) && prev.files && prev.files.length) {
-            ctx.current.blocks[i].files = prev.files;
-          }
+          ctx.current.blocks[i].files = mergePromptFiles(prev.files, block.files);
           if (!isPendingPrompt(block.prompt_id) && isPendingPrompt(prev.prompt_id)) {
             ctx.current.blocks[i].prompt_id = block.prompt_id;
           }
@@ -952,15 +947,25 @@ export function bindTimeline(ctx) {
     }
     if (block.type === "thought" || block.type === "assistant") {
       ctx.awaitingAgent = false;
-      for (let i = ctx.current.blocks.length - 1; i >= 0; i--) {
-        const b = ctx.current.blocks[i];
-        if (b.type === block.type && (!block.prompt_id || b.prompt_id === block.prompt_id)) {
-          ctx.current.blocks[i] = block;
+      const list = ctx.current.blocks;
+      const openStart = openTurnStart(list);
+      const incoming = String(block.text || "");
+      const sameSeg = (b) =>
+        b.type === block.type && (!block.prompt_id || !b.prompt_id || b.prompt_id === block.prompt_id);
+      const last = list.length > openStart ? list[list.length - 1] : null;
+      if (last && sameSeg(last)) {
+        const prev = String(last.text || "");
+        if (incoming === prev || incoming.startsWith(prev) || prev.startsWith(incoming)) {
+          list[list.length - 1] = block;
           return;
         }
-        if (b.type === "turn_end" || b.type === "user") break;
       }
-      ctx.current.blocks.push(block);
+      for (let i = list.length - 1; i >= openStart; i--) {
+        const b = list[i];
+        if (b.type === "turn_end" || b.type === "user") break;
+        if (sameSeg(b) && String(b.text || "") === incoming) return;
+      }
+      list.push(block);
       return;
     }
     if (block.type === "tool") ctx.awaitingAgent = false;
@@ -1013,8 +1018,6 @@ export function bindTimeline(ctx) {
   ctx.openFileLightbox = openFileLightbox;
   ctx.closeFileLightbox = closeFileLightbox;
   ctx.onFileLightboxKey = onFileLightboxKey;
-  ctx.captureTraceScroll = captureTraceScroll;
-  ctx.restoreTraceScroll = restoreTraceScroll;
   ctx.cancelledByUser = cancelledByUser;
   ctx.isPendingPrompt = isPendingPrompt;
   ctx.openTurnStart = openTurnStart;
