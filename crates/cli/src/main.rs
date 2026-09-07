@@ -29,7 +29,7 @@ fn run() -> Result<i32> {
         Commands::Stop { all } => ctl::stop(all),
         Commands::Uninstall => Ok(ctl::uninstall()),
         Commands::Update => update::run(),
-        Commands::Status => ctl::status(),
+        Commands::Status { verbose } => ctl::status(verbose),
         Commands::Daemon(args) => {
             ctl::daemon(args)?;
             Ok(0)

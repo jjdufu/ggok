@@ -25,8 +25,11 @@ pub enum Commands {
         #[arg(long)]
         all: bool,
     },
-    #[command(about = "Show pid, listen address, leader, and session occupancy")]
-    Status,
+    #[command(about = "Show daemon, token, and leader; -v lists sessions")]
+    Status {
+        #[arg(short, long)]
+        verbose: bool,
+    },
     #[command(about = "Stop the web daemon; --all also stops an idle leader this process started")]
     Stop {
         #[arg(long)]

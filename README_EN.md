@@ -33,11 +33,14 @@ Open the printed address (default `http://127.0.0.1:9888`) and sign in with the 
 
 ```shell
 ggok status
+ggok status -v
 ggok update
 ggok stop
 ggok stop --all
 ggok restart
 ```
+
+`ggok status` prints running state, listen address, login token, leader, and idle/running session counts. `-v` lists each session.
 
 `stop` / `restart` stop Web only. `--all` also stops the leader if nothing is running and this ggok started it.
 

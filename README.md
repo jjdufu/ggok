@@ -33,11 +33,14 @@ ggok start
 
 ```shell
 ggok status
+ggok status -v
 ggok update
 ggok stop
 ggok stop --all
 ggok restart
 ```
+
+`ggok status` 打印是否在跑、监听地址、login token、leader，以及闲置/运行中会话计数。`-v` 再列出每个会话。
 
 `stop` / `restart` 只停 Web；加 `--all` 时，无进行中会话且 leader 由 ggok 拉起才会停 leader。
 

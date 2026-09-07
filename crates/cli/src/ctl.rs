@@ -57,8 +57,7 @@ pub fn stop(all: bool) -> Result<i32> {
         return Ok(0);
     }
     let grok_home = saved_grok_home()?;
-    let leftover_file = agent_pid_file().ok();
-    let running = running_session_ids(&grok_home, leftover_file.as_deref());
+    let running = running_session_ids(&grok_home);
     if !running.is_empty() {
         for id in running {
             println!("{id}");
@@ -237,7 +236,7 @@ fn is_ggok_leaf(path: &Path) -> bool {
     )
 }
 
-pub fn status() -> Result<i32> {
+pub fn status(verbose: bool) -> Result<i32> {
     let pid_path = pid_file()?;
     let saved = read_saved_state();
     let log = saved.as_ref().map_or(log_file()?, |s| s.log_file.clone());
@@ -247,14 +246,17 @@ pub fn status() -> Result<i32> {
     let grok_home = saved
         .as_ref()
         .map_or(config::default_grok_home()?, |s| s.grok_home.clone());
-    let code = if let Some(pid) = running_pid(&pid_path) {
-        print_report("running", Some(pid), &bind, &log, &grok_home);
-        0
-    } else {
-        print_report("not running", None, &bind, &log, &grok_home);
-        3
-    };
-    print_status_extra(&grok_home);
+    let web_pid = running_pid(&pid_path);
+    let code = if web_pid.is_some() { 0 } else { 3 };
+    match web_pid {
+        Some(pid) => println!("running pid={pid}"),
+        None => println!("not running"),
+    }
+    println!("listen {bind}");
+    println!("log {}", log.display());
+    println!("login token: {}", display_token());
+    print_leader_line();
+    print_session_summary(&grok_home, verbose);
     Ok(code)
 }
 
@@ -416,29 +418,12 @@ fn status_can_attach(leftover: bool) -> bool {
     pid_is_alive(rec.pid) && occupy::cmdline_matches_grok(&ggok_core::sys::pid_cmdline(rec.pid))
 }
 
-fn running_session_ids(grok_home: &Path, leftover_file: Option<&Path>) -> Vec<String> {
-    let Ok(index) = scan::scan(grok_home) else {
-        return Vec::new();
-    };
-    let s3 = occupy::cli_sessions(grok_home);
-    let leftover = leftover_file.is_some_and(|p| leftover_noleader_pid(p).is_some());
-    let mut ids = Vec::new();
-    for (id, meta) in &index.sessions {
-        let occ = occupy::classify(&ClassifyInput {
-            id,
-            live: None,
-            our_runtime_pid: None,
-            s3: &s3,
-            leftover_noleader_alive: leftover,
-            jsonl_running: occupy::jsonl_running(&meta.dir),
-            can_attach: status_can_attach(leftover),
-        });
-        if occ.running {
-            ids.push(id.clone());
-        }
-    }
-    ids.sort();
-    ids
+fn running_session_ids(grok_home: &Path) -> Vec<String> {
+    session_occupancies(grok_home)
+        .into_iter()
+        .filter(|(_, occ)| occ.running)
+        .map(|(id, _)| id)
+        .collect()
 }
 
 fn stop_owned_leader(grok_home: &Path) -> Result<()> {
@@ -498,51 +483,65 @@ fn warn_live_leader() {
     );
 }
 
-fn print_status_extra(grok_home: &Path) {
+fn print_leader_line() {
+    match leader_json_file().ok().and_then(|p| read_leader_record(&p)) {
+        Some(r) => println!("leader pid={} owned={}", r.pid, r.owned),
+        None => println!("leader pid=- owned=false"),
+    }
+}
+
+fn print_session_summary(grok_home: &Path, verbose: bool) {
+    let rows = session_occupancies(grok_home);
+    let running = rows.iter().filter(|(_, occ)| occ.running).count();
+    let idle = rows.len() - running;
+    println!("sessions {idle} idle, {running} running");
+    if !verbose {
+        return;
+    }
     println!("version {}", env!("CARGO_PKG_VERSION"));
     match std::env::current_exe() {
         Ok(p) => println!("binary {}", p.display()),
         Err(_) => println!("binary unknown"),
     }
-    let sock = grok_home.join("leader.sock");
-    println!("leader socket {}", sock.display());
-    let rec = leader_json_file().ok().and_then(|p| read_leader_record(&p));
-    if let Some(r) = rec {
-        println!("leader pid {}", r.pid);
-        println!("owned {}", r.owned);
-    } else {
-        println!("leader pid -");
-        println!("owned false");
+    println!("leader socket {}", grok_home.join("leader.sock").display());
+    println!("sessions dir {}", grok_home.display());
+    for (id, occ) in rows {
+        println!(
+            "session {id} source={} running={} writable={}",
+            occ.source.as_str(),
+            occ.running,
+            occ.writable
+        );
     }
-    let leftover_file = agent_pid_file().ok();
-    if let Ok(index) = scan::scan(grok_home) {
-        let s3 = occupy::cli_sessions(grok_home);
-        let leftover = leftover_file
-            .as_ref()
-            .is_some_and(|p| leftover_noleader_pid(p).is_some());
-        let mut ids: Vec<_> = index.sessions.keys().cloned().collect();
-        ids.sort();
-        for id in ids {
-            let Some(meta) = index.get(&id) else {
-                continue;
-            };
-            let occ = occupy::classify(&ClassifyInput {
-                id: &id,
-                live: None,
-                our_runtime_pid: None,
-                s3: &s3,
-                leftover_noleader_alive: leftover,
-                jsonl_running: occupy::jsonl_running(&meta.dir),
-                can_attach: status_can_attach(leftover),
-            });
-            println!(
-                "session {id} source={} running={} writable={}",
-                occ.source.as_str(),
-                occ.running,
-                occ.writable
-            );
-        }
+}
+
+fn session_occupancies(grok_home: &Path) -> Vec<(String, occupy::Occupancy)> {
+    let Ok(index) = scan::scan(grok_home) else {
+        return Vec::new();
+    };
+    let s3 = occupy::cli_sessions(grok_home);
+    let leftover =
+        agent_pid_file().is_ok_and(|p| leftover_noleader_pid(&p).is_some());
+    let can_attach = status_can_attach(leftover);
+    let mut ids: Vec<_> = index.sessions.keys().cloned().collect();
+    ids.sort();
+    let mut out = Vec::with_capacity(ids.len());
+    for id in ids {
+        let Some(meta) = index.get(&id) else {
+            continue;
+        };
+        let occ = occupy::classify(&ClassifyInput {
+            id: &id,
+            live: None,
+            our_runtime_pid: None,
+            s3: &s3,
+            leftover_noleader_alive: leftover,
+            jsonl_running: occupy::jsonl_running(&meta.dir),
+            can_attach,
+        });
+        out.push((id, occ));
     }
+    out
 }
 
 fn resolve_grok_bin() -> PathBuf {
