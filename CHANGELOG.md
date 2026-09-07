@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/jjdufu/ggok/compare/v0.1.11...v0.1.12) (2026-09-07)
+
+
+### Features
+
+* compact ggok status; list sessions only with -v ([5c0e490](https://github.com/jjdufu/ggok/commit/5c0e49003b73eb6e0fb4190501bff1ac36bf288a))
+
 ## [0.1.11](https://github.com/jjdufu/ggok/compare/v0.1.10...v0.1.11) (2026-09-06)
 
 
