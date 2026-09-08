@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.27](https://github.com/jjdufu/ggok/compare/v0.1.26...v0.1.27) (2026-09-08)
+
+
+### Bug Fixes
+
+* restore turn-map jump animation and apply mode on empty sessions ([77100ff](https://github.com/jjdufu/ggok/commit/77100ffba02e93b5c168dc37eda2c6d4e9d5bf50))
+
 ## [0.1.26](https://github.com/jjdufu/ggok/compare/v0.1.25...v0.1.26) (2026-09-08)
 
 
