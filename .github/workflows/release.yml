@@ -163,8 +163,6 @@ jobs:
           tag_name: v${{ needs.meta.outputs.version }}
           name: v${{ needs.meta.outputs.version }}
           target_commitish: ${{ github.sha }}
-          # RP opens a draft (release-please-config.json). Publishing here after
-          # archives exist is what moves /releases/latest.
           draft: false
           prerelease: ${{ contains(needs.meta.outputs.version, '-') }}
           generate_release_notes: false
