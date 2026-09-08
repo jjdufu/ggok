@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.25](https://github.com/jjdufu/ggok/compare/v0.1.24...v0.1.25) (2026-09-08)
+
+
+### Bug Fixes
+
+* space turn-map ticks from capsule rows ([894e181](https://github.com/jjdufu/ggok/commit/894e181752de859e1e5d2fa3b06299d5cda0cf8c))
+
 ## [0.1.24](https://github.com/jjdufu/ggok/compare/v0.1.23...v0.1.24) (2026-09-08)
 
 
