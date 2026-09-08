@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/jjdufu/ggok/compare/v0.1.15...v0.1.16) (2026-09-08)
+
+
+### Features
+
+* show subagents in the timeline and peek child sessions ([bcf52b0](https://github.com/jjdufu/ggok/commit/bcf52b085355fc47a598aab18b77789f4b5e272f))
+
 ## [0.1.15](https://github.com/jjdufu/ggok/compare/v0.1.14...v0.1.15) (2026-09-07)
 
 
