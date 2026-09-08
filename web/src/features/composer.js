@@ -929,6 +929,7 @@ export function bindComposer(ctx) {
     if (ctx.setFollowOutput) ctx.setFollowOutput(true);
     if (ctx.renderTodos) ctx.renderTodos([]);
     if (ctx.closeModeMenu) ctx.closeModeMenu();
+    ctx.mode = ctx.defaultMode ? ctx.defaultMode() : "ask";
     if (ctx.syncModeBtn) ctx.syncModeBtn();
   }
 
@@ -939,6 +940,8 @@ export function bindComposer(ctx) {
     if (detail.mode) {
       ctx.mode = detail.mode;
       if (ctx.current) ctx.current.mode = detail.mode;
+    } else if (!ctx.currentId) {
+      ctx.mode = ctx.defaultMode ? ctx.defaultMode() : "ask";
     }
     if (ctx.fillModels) ctx.fillModels();
     if (ctx.syncModeBtn) ctx.syncModeBtn();
@@ -1011,8 +1014,11 @@ export function bindComposer(ctx) {
       if (detail.mode) {
         ctx.mode = detail.mode;
         if (ctx.current) ctx.current.mode = detail.mode;
-        if (ctx.syncModeBtn) ctx.syncModeBtn();
+      } else if (ctx.current) {
+        ctx.current.mode = ctx.current.mode || (ctx.defaultMode ? ctx.defaultMode() : "ask");
+        ctx.mode = ctx.current.mode;
       }
+      if (ctx.syncModeBtn) ctx.syncModeBtn();
       if (ctx.renderTodos) ctx.renderTodos(Array.isArray(detail.todos) ? detail.todos : []);
       if (ctx.running || ctx.awaitingAgent) armWorkWatch();
       else stopWorkWatch();
@@ -1040,6 +1046,8 @@ export function bindComposer(ctx) {
     if (ctx.renderTodos) ctx.renderTodos([]);
     if (ctx.setCtxUsageOpen) ctx.setCtxUsageOpen(false);
     if (ctx.closeModeMenu) ctx.closeModeMenu();
+    ctx.mode = ctx.defaultMode ? ctx.defaultMode() : "ask";
+    if (ctx.syncModeBtn) ctx.syncModeBtn();
     if (ctx.resetQuestions) ctx.resetQuestions();
     if (ctx.closeDrawer) ctx.closeDrawer();
     if (ctx.renderTree) ctx.renderTree();
@@ -1050,6 +1058,7 @@ export function bindComposer(ctx) {
         detail.blocks = detail.blocks.map((b) => (b.type === "user" ? normalizeUserBlock(b) : b));
       }
       ctx.current = detail;
+      if (detail.mode) ctx.mode = detail.mode;
       ctx.selectedCwd = detail.cwd || ctx.selectedCwd;
       if (ctx.syncDirLabel) ctx.syncDirLabel();
       if (ctx.syncWsButton) ctx.syncWsButton();
@@ -1098,7 +1107,8 @@ export function bindComposer(ctx) {
     const s = await post("/api/sessions", {
       cwd: dir,
       model: ctx.selectedModel || undefined,
-      effort: ctx.selectedEffort || undefined
+      effort: ctx.selectedEffort || undefined,
+      mode: ctx.mode || undefined
     });
     ctx.selectedCwd = s.cwd || dir;
     if (ctx.syncDirLabel) ctx.syncDirLabel();
@@ -1111,6 +1121,7 @@ export function bindComposer(ctx) {
       title: s.id,
       model: s.model,
       effort: s.effort,
+      mode: s.mode || ctx.mode,
       blocks: existingBlocks,
       usage: {},
       writable: true,
@@ -1120,7 +1131,9 @@ export function bindComposer(ctx) {
     ctx.source = "attached";
     if (s.model) ctx.selectedModel = s.model;
     if (s.effort) ctx.selectedEffort = s.effort;
+    if (s.mode) ctx.mode = s.mode;
     if (ctx.fillModels) ctx.fillModels();
+    if (ctx.syncModeBtn) ctx.syncModeBtn();
     location.hash = s.id;
     if (app) app.classList.add("has-session");
     if (ctx.connectEvents) await ctx.connectEvents(s.id);

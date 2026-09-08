@@ -52,3 +52,50 @@ fn occupy_toast_is_not_used_on_switch_or_send() {
     );
     assert!(toast.contains("stale"));
 }
+
+#[test]
+fn empty_session_can_pick_mode_before_id() {
+    let js = web_file("src/features/mode.js");
+    assert!(js.contains("function defaultMode"));
+    assert!(js.contains("function applyLocalMode"));
+    assert!(
+        js.contains("if (!ctx.currentId)") && js.contains("applyLocalMode(mode)"),
+        "empty composer must keep Ask/Plan/Auto/Always locally:\n{js}"
+    );
+    assert!(
+        !js.contains("modeBtn.hidden = !ctx.currentId"),
+        "mode button must stay visible on an empty session:\n{js}"
+    );
+    assert!(
+        !js.contains("modeBtn.disabled = !ctx.currentId"),
+        "mode button must not disable just because there is no session id:\n{js}"
+    );
+    let toggle_at = js.find("function toggleModeMenu").expect("toggleModeMenu");
+    let toggle = js.get(toggle_at..toggle_at.saturating_add(500)).unwrap_or("");
+    assert!(
+        !toggle.contains("if (!ctx.currentId) return"),
+        "empty session must open the mode menu:\n{toggle}"
+    );
+
+    let css = web_file("src/styles/composer.css");
+    assert!(
+        css.contains("#mode-btn[hidden]"),
+        "hidden must actually hide #mode-btn under .composer-btn display"
+    );
+
+    let composer = web_file("src/features/composer.js");
+    assert!(
+        composer.contains("mode: ctx.mode || undefined"),
+        "ensureSession must send the empty-session mode into POST /api/sessions:\n{composer}"
+    );
+    assert!(
+        composer.contains("ctx.mode = ctx.defaultMode"),
+        "new chat must reset mode to the runtime default, not the last session:\n{composer}"
+    );
+
+    let engine = web_file("src/engine.js");
+    assert!(
+        engine.contains("permission_mode") || engine.contains("ctx.defaultMode"),
+        "boot must apply runtime permission_mode to an empty composer:\n{engine}"
+    );
+}

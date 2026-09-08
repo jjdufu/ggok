@@ -22,6 +22,10 @@ function modeDesc(mode) {
   return hit ? t(hit[2]) : "";
 }
 
+function knownMode(mode) {
+  return MODES.some(([id]) => id === mode) ? mode : "";
+}
+
 function todoMark(status) {
   if (status === "completed") return "✓";
   if (status === "in_progress") return "…";
@@ -60,7 +64,7 @@ export function bindMode(ctx) {
 
   function renderModeMenu() {
     if (!modeMenu) return;
-    const cur = (ctx.current && ctx.current.mode) || ctx.mode || "ask";
+    const cur = activeMode();
     modeMenu.replaceChildren();
     MODES.forEach(([id, key, descKey]) => {
       const b = document.createElement("button");
@@ -86,8 +90,26 @@ export function bindMode(ctx) {
     pinModeMenu();
   }
 
+  function defaultMode() {
+    return knownMode(ctx.runtime && ctx.runtime.permission_mode) || "ask";
+  }
+
+  function activeMode() {
+    return knownMode(ctx.current && ctx.current.mode) || knownMode(ctx.mode) || defaultMode();
+  }
+
+  function applyLocalMode(mode) {
+    const next = knownMode(mode) || defaultMode();
+    ctx.mode = next;
+    if (ctx.current) ctx.current.mode = next;
+    syncModeBtn();
+    if (modeMenu && !modeMenu.hidden) renderModeMenu();
+    return next;
+  }
+
   function toggleModeMenu() {
-    if (!ctx.currentId) return;
+    const spectating = isSpectatingSource(ctx.source);
+    if (spectating || ctx.writable !== true) return;
     if (modeMenu && !modeMenu.hidden) {
       closeModeMenu();
       return;
@@ -99,25 +121,24 @@ export function bindMode(ctx) {
 
   function syncModeBtn() {
     if (!modeBtn) return;
-    const mode = (ctx.current && ctx.current.mode) || ctx.mode || "ask";
+    const mode = activeMode();
     ctx.mode = mode;
     modeBtn.textContent = modeLabel(mode);
     setTip(modeBtn, modeDesc(mode) || t("modeTip"));
     const spectating = isSpectatingSource(ctx.source);
-    modeBtn.hidden = !ctx.currentId;
-    modeBtn.disabled = !ctx.currentId || spectating || ctx.writable !== true;
-    if (!ctx.currentId || modeBtn.disabled) closeModeMenu();
+    modeBtn.hidden = false;
+    modeBtn.disabled = spectating || ctx.writable !== true;
+    if (modeBtn.disabled) closeModeMenu();
   }
 
   async function setMode(mode) {
-    if (!ctx.currentId) return;
+    if (!ctx.currentId) {
+      applyLocalMode(mode);
+      return;
+    }
     try {
       const out = await post("/api/sessions/" + encodeURIComponent(ctx.currentId) + "/mode", { mode });
-      const next = (out && out.mode) || mode;
-      ctx.mode = next;
-      if (ctx.current) ctx.current.mode = next;
-      syncModeBtn();
-      if (modeMenu && !modeMenu.hidden) renderModeMenu();
+      const next = applyLocalMode((out && out.mode) || mode);
       if (next === "plan" && ctx.openPlan) ctx.openPlan();
     } catch (e) {
       toast(String(e.message || e));
@@ -277,10 +298,12 @@ export function bindMode(ctx) {
 
   ctx.syncModeBtn = syncModeBtn;
   ctx.setMode = setMode;
+  ctx.defaultMode = defaultMode;
   ctx.renderTodos = renderTodos;
   ctx.openPlan = openPlan;
   ctx.closePlan = closePlan;
   ctx.closeModeMenu = closeModeMenu;
   ctx.renderModeMenu = renderModeMenu;
   ctx.modeLabel = modeLabel;
+  syncModeBtn();
 }

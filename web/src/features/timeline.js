@@ -720,9 +720,11 @@ export function bindTimeline(ctx) {
   }
 
   const BOTTOM_EPS = 1;
+  const JUMP_MS = 160;
   let followOutput = true;
   let ignoreScroll = false;
   let lastUserTop = 0;
+  let jumpAnim = 0;
   const jumpBottomBtn = document.getElementById("jump-bottom");
   const turnMap = document.getElementById("turn-map");
   let turnMapTimer = 0;
@@ -818,11 +820,44 @@ export function bindTimeline(ctx) {
     else paintTurnMapActive();
   }
 
+  function cancelTimelineJump() {
+    if (!jumpAnim) return;
+    cancelAnimationFrame(jumpAnim);
+    jumpAnim = 0;
+  }
+
+  function animateTimelineJump(to) {
+    if (!timeline) return;
+    cancelTimelineJump();
+    const from = timeline.scrollTop;
+    const dist = to - from;
+    const reduce =
+      window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || Math.abs(dist) < 1) {
+      timeline.scrollTop = to;
+      lastUserTop = timeline.scrollTop;
+      return;
+    }
+    const start = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / JUMP_MS);
+      const ease = 1 - (1 - t) * (1 - t);
+      timeline.scrollTop = from + dist * ease;
+      lastUserTop = timeline.scrollTop;
+      if (t < 1) jumpAnim = requestAnimationFrame(step);
+      else {
+        jumpAnim = 0;
+        syncJumpBottom();
+      }
+    };
+    jumpAnim = requestAnimationFrame(step);
+  }
+
   function jumpToTurn(row) {
     if (!timeline || !row) return;
     followOutput = false;
     const pad = Number.parseFloat(getComputedStyle(timeline).paddingTop) || 52;
-    timeline.scrollTo({ top: Math.max(0, row.offsetTop - pad), behavior: "auto" });
+    animateTimelineJump(Math.max(0, row.offsetTop - pad));
     lastUserTop = timeline.scrollTop;
     syncJumpBottom();
     paintTurnMapActive();
@@ -836,6 +871,7 @@ export function bindTimeline(ctx) {
   }
 
   function hideTurnMap() {
+    cancelTimelineJump();
     if (!turnMap) return;
     turnMap.hidden = true;
     turnMap.replaceChildren();
@@ -979,6 +1015,7 @@ export function bindTimeline(ctx) {
 
   function noteTimelineWheel(dy) {
     if (!timeline || !dy) return;
+    cancelTimelineJump();
     if (dy < 0) followOutput = false;
     timeline.scrollBy({ top: dy });
     lastUserTop = timeline.scrollTop;
@@ -991,6 +1028,7 @@ export function bindTimeline(ctx) {
     timeline.addEventListener(
       "wheel",
       (e) => {
+        cancelTimelineJump();
         if (e.deltaY < 0) followOutput = false;
         else if (distanceFromBottom() - e.deltaY <= BOTTOM_EPS) followOutput = true;
         syncJumpBottom();

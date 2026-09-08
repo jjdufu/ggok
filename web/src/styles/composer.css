@@ -84,6 +84,8 @@
   padding: 0 14px 8px 10px;
 }
 
+#mode-btn[hidden] { display: none !important; }
+
 .composer-btn {
   display: inline-flex;
   align-items: center;

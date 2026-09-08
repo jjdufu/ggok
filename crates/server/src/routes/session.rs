@@ -76,6 +76,8 @@ pub(crate) struct CreateSession {
     pub model: Option<String>,
     pub effort: Option<String>,
     pub agent: Option<String>,
+    #[serde(default)]
+    pub mode: Option<String>,
 }
 
 pub(crate) async fn api_create_session(
@@ -93,6 +95,7 @@ pub(crate) async fn api_create_session(
             body.model.as_deref(),
             body.effort.as_deref(),
             body.agent.as_deref(),
+            body.mode.as_deref(),
         )
         .await
     {
@@ -110,7 +113,7 @@ pub(crate) async fn api_create_session(
                     }
                 })
                 .or(body.effort);
-            json_ok(&json!({ "id": s.id, "cwd": s.cwd, "model": s.model, "effort": effort }))
+            json_ok(&json!({ "id": s.id, "cwd": s.cwd, "model": s.model, "effort": effort, "mode": s.mode }))
         }
         Err(e) => super::map_agent_err(&e),
     }

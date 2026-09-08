@@ -59,3 +59,35 @@ fn next_prompt_carries_session_permission_meta() {
         "the following user turn should carry yolo/auto meta:\n{body}"
     );
 }
+
+#[test]
+fn session_new_applies_requested_mode() {
+    let src = crate_file("crates/agent/src/session.rs");
+    let body = fn_body(&src, "pub async fn session_new");
+    assert!(
+        body.contains("resolve_create_mode"),
+        "session/new must honor the UI mode, not only process config:\n{body}"
+    );
+    assert!(
+        body.contains("acp_session_meta(meta_mode)"),
+        "session/new meta must use the requested mode:\n{body}"
+    );
+    assert!(
+        !body.contains("acp_session_meta(&self.permission_mode)"),
+        "session/new must not ignore a caller-supplied mode:\n{body}"
+    );
+    assert!(
+        body.contains("set_plan_mode") && body.contains("requested == \"plan\""),
+        "plan on create must toggle plan mode after session/new:\n{body}"
+    );
+
+    let routes = crate_file("crates/server/src/routes/session.rs");
+    assert!(
+        routes.contains("pub mode: Option<String>"),
+        "POST /api/sessions must accept mode:\n{routes}"
+    );
+    assert!(
+        routes.contains("body.mode.as_deref()"),
+        "create session must pass mode into session_new:\n{routes}"
+    );
+}

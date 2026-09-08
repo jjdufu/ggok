@@ -197,8 +197,14 @@ fn turn_map_js_jumps_without_tooltips() {
     assert!(js.contains("function syncTurnMap"));
     assert!(js.contains("function jumpToTurn"));
     assert!(js.contains("followOutput = false"));
-    assert!(js.contains("behavior: \"auto\""));
+    assert!(js.contains("function animateTimelineJump"));
+    assert!(js.contains("JUMP_MS"));
+    assert!(js.contains("prefers-reduced-motion"));
     assert!(!js.contains("behavior: \"smooth\""));
+    assert!(
+        !js.contains("behavior: \"auto\""),
+        "turn-map jump must animate, not snap with behavior auto:\n{js}"
+    );
     assert!(js.contains("marks.length < 2"));
     assert!(
         js.contains("(mapH - used) / 2"),

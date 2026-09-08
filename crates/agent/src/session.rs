@@ -22,6 +22,7 @@ impl Agent {
         model: Option<&str>,
         effort: Option<&str>,
         agent: Option<&str>,
+        mode: Option<&str>,
     ) -> Result<NewSession> {
         self.ensure().await?;
         let last = ggok_core::config::config_dir()
@@ -31,12 +32,18 @@ impl Agent {
         let (model, effort) = ggok_core::prefs::resolve_choice(model, effort, &last);
         let model = model.as_deref();
         let effort = effort.as_deref();
+        let requested = self.resolve_create_mode(mode)?;
         let bind = Uuid::new_v4().to_string();
         {
             let mut g = self.inner.lock().await;
             g.ask_binds.insert(bind.clone(), String::new());
         }
-        let mut meta = crate::question::acp_session_meta(&self.permission_mode);
+        let meta_mode = if requested == "plan" {
+            "ask"
+        } else {
+            requested.as_str()
+        };
+        let mut meta = crate::question::acp_session_meta(meta_mode);
         if let Some(agent) = agent.map(str::trim).filter(|s| !s.is_empty())
             && let Some(obj) = meta.as_object_mut()
         {
@@ -60,6 +67,15 @@ impl Agent {
         self.yield_web_active(&id).await;
         self.apply_session_result(&id, cwd.to_string_lossy().as_ref(), &result)
             .await;
+        {
+            let mut g = self.inner.lock().await;
+            if let Some(sess) = g.sessions.get_mut(&id) {
+                sess.mode.clone_from(&requested);
+            }
+        }
+        if requested == "plan" {
+            let _ = self.set_plan_mode(&id, true).await;
+        }
         if model.as_ref().is_some_and(|s| !s.is_empty())
             || effort.as_ref().is_some_and(|s| !s.is_empty())
         {
@@ -87,7 +103,18 @@ impl Agent {
             id,
             cwd: cwd.to_string_lossy().into_owned(),
             model,
+            mode: requested,
         })
+    }
+
+    fn resolve_create_mode(&self, mode: Option<&str>) -> Result<String> {
+        match mode.map(str::trim).filter(|s| !s.is_empty()) {
+            Some(raw) => Ok(crate::session_control::normalize_mode(raw)?.to_string()),
+            None => Ok(match self.permission_mode.as_str() {
+                "always-approve" | "auto" => self.permission_mode.clone(),
+                _ => "ask".to_string(),
+            }),
+        }
     }
 
     /// # Errors

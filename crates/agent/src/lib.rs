@@ -56,6 +56,7 @@ pub struct NewSession {
     pub id: String,
     pub cwd: String,
     pub model: String,
+    pub mode: String,
 }
 
 #[derive(Serialize)]

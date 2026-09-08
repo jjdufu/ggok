@@ -435,7 +435,7 @@ impl Agent {
             .map(|p| p.preview)
     }
 
-    async fn set_plan_mode(&self, id: &str, enabled: bool) -> bool {
+    pub(crate) async fn set_plan_mode(&self, id: &str, enabled: bool) -> bool {
         self.call(
             TOGGLE_PLAN,
             json!({ "sessionId": id, "enabled": enabled, "value": enabled }),
@@ -444,7 +444,7 @@ impl Agent {
         .is_ok()
     }
 
-    async fn set_permission_mode(&self, id: &str, mode: &str) -> bool {
+    pub(crate) async fn set_permission_mode(&self, id: &str, mode: &str) -> bool {
         let yolo = ["always-approve", "yolo"];
         let one = [mode];
         let ids: &[&str] = if mode == "always-approve" {
@@ -473,7 +473,7 @@ impl Agent {
     }
 }
 
-fn normalize_mode(mode: &str) -> Result<&'static str> {
+pub(crate) fn normalize_mode(mode: &str) -> Result<&'static str> {
     match mode.trim().to_ascii_lowercase().as_str() {
         "ask" => Ok("ask"),
         "auto" => Ok("auto"),

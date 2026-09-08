@@ -327,6 +327,10 @@ export function boot() {
         ctx.setPageTitle();
       }
       if (ctx.applyRuntimeLastModel) ctx.applyRuntimeLastModel(ctx.runtime);
+      if (!ctx.currentId) {
+        ctx.mode = ctx.defaultMode ? ctx.defaultMode() : (ctx.runtime.permission_mode || "ask");
+        if (ctx.syncModeBtn) ctx.syncModeBtn();
+      }
       if (ctx.fillModels) ctx.fillModels();
       ctx.selectedCwd = "";
       if (ctx.syncDirLabel) ctx.syncDirLabel();
