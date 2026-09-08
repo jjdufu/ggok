@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/jjdufu/ggok/compare/v0.1.17...v0.1.18) (2026-09-08)
+
+
+### Bug Fixes
+
+* strip echoed image captions and keep timeline scroll ([a75a8dc](https://github.com/jjdufu/ggok/commit/a75a8dc73f6d64064c176ea35aad5527367c7143))
+
 ## [0.1.17](https://github.com/jjdufu/ggok/compare/v0.1.16...v0.1.17) (2026-09-08)
 
 
