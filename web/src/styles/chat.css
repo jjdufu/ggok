@@ -28,7 +28,7 @@
   position: absolute;
   top: 56px;
   bottom: 10px;
-  left: min(calc(50% + 370px), calc(100% - 44px));
+  left: min(calc(50% + 352px + clamp(24px, 3.2vw, 44px)), calc(100% - 36px));
   width: 22px;
   z-index: 6;
   overflow: visible;
@@ -66,7 +66,6 @@
 .turn-map-tick:hover::after,
 .turn-map-tick:focus-visible::after,
 .turn-map-tick.on::after {
-  width: 18px;
   background: var(--fg);
   opacity: 1;
 }

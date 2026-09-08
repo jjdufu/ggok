@@ -247,44 +247,14 @@ impl Agent {
         self.session_load_inner(id, cwd).await?;
         self.cancel_if_running(id).await?;
         tracing::info!(session_id = %id, mode, "set session mode");
-        let mut applied = false;
-        if mode == "plan" || mode == "ask" {
-            let enabled = mode == "plan";
-            if self
-                .call(
-                    TOGGLE_PLAN,
-                    json!({ "sessionId": id, "enabled": enabled, "value": enabled }),
-                )
-                .await
-                .is_ok()
-            {
-                applied = true;
-            }
-        }
+        let applied = if mode == "plan" {
+            self.set_plan_mode(id, true).await
+        } else {
+            let _ = self.set_plan_mode(id, false).await;
+            self.set_permission_mode(id, mode).await || mode == "ask"
+        };
         if !applied {
-            let slash = match mode {
-                "auto" => "/auto",
-                "always-approve" => "/always-approve",
-                _ => "/plan",
-            };
-            let text = if mode == "ask" {
-                "/plan".to_string()
-            } else {
-                slash.to_string()
-            };
-            if self
-                .call(
-                    "session/prompt",
-                    json!({
-                        "sessionId": id,
-                        "prompt": [{ "type": "text", "text": text }]
-                    }),
-                )
-                .await
-                .is_err()
-            {
-                tracing::warn!(session_id = %id, mode, "mode slash fallback failed");
-            }
+            tracing::warn!(session_id = %id, mode, "mode apply via acp failed");
         }
         {
             let mut g = self.inner.lock().await;
@@ -463,6 +433,43 @@ impl Agent {
             .into_iter()
             .find(|p| p.prompt_index == prompt_index)
             .map(|p| p.preview)
+    }
+
+    async fn set_plan_mode(&self, id: &str, enabled: bool) -> bool {
+        self.call(
+            TOGGLE_PLAN,
+            json!({ "sessionId": id, "enabled": enabled, "value": enabled }),
+        )
+        .await
+        .is_ok()
+    }
+
+    async fn set_permission_mode(&self, id: &str, mode: &str) -> bool {
+        let yolo = ["always-approve", "yolo"];
+        let one = [mode];
+        let ids: &[&str] = if mode == "always-approve" {
+            &yolo
+        } else {
+            &one
+        };
+        for config_id in ids {
+            if self
+                .call(
+                    "session/set_config_option",
+                    json!({ "sessionId": id, "configId": *config_id, "value": true }),
+                )
+                .await
+                .is_ok()
+            {
+                return true;
+            }
+        }
+        self.call(
+            "x.ai/set_permission_mode",
+            json!({ "sessionId": id, "mode": mode }),
+        )
+        .await
+        .is_ok()
     }
 }
 

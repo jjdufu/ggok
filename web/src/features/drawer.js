@@ -1,4 +1,4 @@
-import { t, fmtNum, fmtDur, fmtCost, fmtBytes, setPressed, oneLinePreview, focusKeyThought, focusKeyTool } from "../lib/helpers.js";
+import { t, fmtNum, fmtDur, fmtCost, fmtBytes, setPressed, oneLinePreview, focusKeyThought, focusKeyTool, modelNameById } from "../lib/helpers.js";
 import { emptyEl, kv } from "../lib/dom.js";
 import { placePopover } from "../lib/popover.js";
 import { svgUse } from "../lib/svg.js";
@@ -339,8 +339,15 @@ export function bindDrawer(ctx) {
     if (!models.length) return;
     const box = document.createElement("div");
     box.className = "usage-models";
+    const catalog = (ctx.runtime && ctx.runtime.models) || [];
     for (const m of models) {
-      usageCells(box, m.model || t("model"), t("inOut", { inn: fmtNum(m.input_tokens), out: fmtNum(m.output_tokens) }));
+      const k = document.createElement("span");
+      k.className = "usage-k";
+      k.textContent = modelNameById(catalog, m.model) || t("model");
+      const n = document.createElement("span");
+      n.className = "usage-num";
+      n.textContent = t("inOut", { inn: fmtNum(m.input_tokens), out: fmtNum(m.output_tokens) });
+      box.append(k, n);
     }
     usageBody.appendChild(box);
   }

@@ -70,6 +70,12 @@ function syncSendOrb(text) {
 }
 
 let composerFocusViaKeyboard = false;
+let blockOptionText = false;
+
+function isOptionShortcut(event) {
+  return !!(event.altKey && !event.metaKey && !event.ctrlKey && event.key !== "Enter");
+}
+
 if (typeof document !== "undefined" && !window.__ggokKbFocusBound) {
   window.__ggokKbFocusBound = true;
   document.addEventListener("keydown", () => {
@@ -178,15 +184,32 @@ export function PromptEditor() {
     const dom = editor.view && editor.view.dom;
     const onCompStart = () => promptApi.emitCompositionStart();
     const onCompEnd = () => promptApi.emitCompositionEnd();
+    const onOptionKeyDownCapture = (event) => {
+      if (!isOptionShortcut(event)) {
+        blockOptionText = false;
+        return;
+      }
+      blockOptionText = true;
+      event.stopImmediatePropagation();
+    };
+    const onOptionBeforeInput = (event) => {
+      if (!blockOptionText) return;
+      blockOptionText = false;
+      event.preventDefault();
+    };
     if (dom) {
       dom.addEventListener("compositionstart", onCompStart);
       dom.addEventListener("compositionend", onCompEnd);
+      dom.addEventListener("keydown", onOptionKeyDownCapture, true);
+      dom.addEventListener("beforeinput", onOptionBeforeInput);
     }
     syncSendOrb(textOf(editor));
     return () => {
       if (dom) {
         dom.removeEventListener("compositionstart", onCompStart);
         dom.removeEventListener("compositionend", onCompEnd);
+        dom.removeEventListener("keydown", onOptionKeyDownCapture, true);
+        dom.removeEventListener("beforeinput", onOptionBeforeInput);
       }
       promptApi.unbind(api);
     };

@@ -70,12 +70,54 @@ fn turn_map_ticks_are_quiet_and_preview_matches_say() {
         "map must sit inboard of the window edge:\n{map}"
     );
     assert!(map.contains("50%"), "map should track the centered transcript:\n{map}");
+    assert!(
+        map.contains("352px") && map.contains("clamp(24px, 3.2vw, 44px)"),
+        "map gutter should track the 704px column with a flexible inset:\n{map}"
+    );
+    assert!(
+        !map.contains("370px"),
+        "old 370px offset glued the ticks to the transcript:\n{map}"
+    );
+    assert!(
+        map.contains("352px") && map.contains("clamp(24px, 3.2vw, 44px)"),
+        "map gutter must track the 704px column with a responsive inset:\n{map}"
+    );
+    assert!(
+        !map.contains("370px"),
+        "map must not sit 18px off the transcript:\n{map}"
+    );
 
     let tick = css_block(&css, ".turn-map-tick {");
     assert!(tick.contains("pointer-events: auto"), "{tick}");
     assert!(
         !tick.contains("var(--hover)"),
         "ticks must not use transparent hover fill:\n{tick}"
+    );
+
+    let mark = css_block(&css, ".turn-map-tick::after {");
+    assert!(
+        mark.contains("width: 14px"),
+        "default tick width must stay 14px:\n{mark}"
+    );
+    let active = css_block(&css, ".turn-map-tick:hover::after,");
+    assert!(
+        active.contains("background: var(--fg)"),
+        "current tick must invert color:\n{active}"
+    );
+    assert!(
+        !active.contains("width:"),
+        "current tick must not grow longer than the rest:\n{active}"
+    );
+    let mark = css_block(&css, ".turn-map-tick::after {");
+    assert!(mark.contains("width: 14px"), "default tick width:\n{mark}");
+    let active = css_block(&css, ".turn-map-tick:hover::after,");
+    assert!(
+        active.contains("background: var(--fg)"),
+        "current tick must invert color:\n{active}"
+    );
+    assert!(
+        !active.contains("width:"),
+        "current tick must not grow longer than the rest:\n{active}"
     );
 
     let preview = css_block(&css, ".turn-map-preview {");

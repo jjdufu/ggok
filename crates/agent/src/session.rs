@@ -479,7 +479,7 @@ impl Agent {
         if item.files.iter().any(prompt_file_is_image) {
             self.wait_image_capability().await;
         }
-        let (cwd, image_ok, queue, user_text, user_files) = {
+        let (cwd, image_ok, queue, user_text, user_files, mode) = {
             let mut g = self.inner.lock().await;
             let image_ok = g.image_ok;
             let sess = live_entry(&mut g, id, "");
@@ -491,12 +491,14 @@ impl Agent {
                 ggok_core::parse::normalize_user_payload(&item.text, item.files.clone());
             sess.parser
                 .seed_user(item.id.clone(), &visible, files.clone());
+            let mode = sess.mode.clone();
             (
                 sess.cwd.clone(),
                 image_ok,
                 sess.queue.iter().cloned().collect::<Vec<_>>(),
                 visible,
                 files,
+                mode,
             )
         };
         self.emit(id, "queue", &queue);
@@ -511,10 +513,15 @@ impl Agent {
             },
         );
         let prompt = build_prompt(&item.text, &item.files, &cwd, image_ok);
+        let meta_mode = if mode == "plan" { "ask" } else { mode.as_str() };
         let rpc_id = self
             .send(
                 "session/prompt",
-                json!({ "sessionId": id, "prompt": prompt }),
+                json!({
+                    "sessionId": id,
+                    "prompt": prompt,
+                    "_meta": crate::question::acp_session_meta(meta_mode)
+                }),
             )
             .await?;
         self.inner

@@ -1,5 +1,6 @@
 #![cfg(test)]
 
+mod agent_session_mode;
 mod agent_slash;
 mod core_occupy;
 mod core_parse;
@@ -18,5 +19,7 @@ mod server_account;
 mod server_auth;
 mod server_version;
 mod web_ext_quiet;
+mod web_mode;
+mod web_prompt_editor;
 mod web_todos_overlay;
 mod web_turn_map;

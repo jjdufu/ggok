@@ -11,8 +11,7 @@
   margin: 2px 0 12px;
 }
 
-.usage-body,
-.usage-models {
+.usage-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content max-content;
   column-gap: 10px;
@@ -44,10 +43,20 @@
 }
 
 .usage-models {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 7px;
+  align-items: baseline;
   margin-top: 6px;
   padding-top: 10px;
   border-top: 1px solid var(--border);
   grid-column: 1 / -1;
+}
+
+.usage-models .usage-k {
+  overflow: visible;
+  text-overflow: unset;
 }
 
 .usage-empty {

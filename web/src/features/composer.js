@@ -3,7 +3,7 @@ import { t, setTip, fileNameOf, uploadUrl, fileViewSrc, isImageAttach, revokePre
 import { bindDraftSync } from "./draft-sync.js";
 import { placePopover } from "../lib/popover.js";
 import { svgUse } from "../lib/svg.js";
-import { api, post } from "../lib/api.js";
+import { api, post, discardInflight } from "../lib/api.js";
 import { escapeHtml } from "../lib/markdown.js";
 import { toast } from "../lib/clipboard.js";
 import { slashKind } from "../lib/slash.js";
@@ -1025,6 +1025,7 @@ export function bindComposer(ctx) {
   }
 
   async function openSession(id) {
+    discardInflight();
     drafts.flush();
     clearAttachments();
     renderChips();
@@ -1073,6 +1074,7 @@ export function bindComposer(ctx) {
         applyQueue([]);
       }
     } catch (e) {
+      if (e && e.stale) return;
       if (app) app.classList.add("has-session");
       if (actions) actions.hidden = true;
       if (timeline) {
@@ -1130,7 +1132,6 @@ export function bindComposer(ctx) {
 
   async function submitPrompt() {
     if (isSpectating() || ctx.writable !== true) {
-      toast(t(occupyMessageKey(ctx.source) || "sessionBusy"));
       return;
     }
     const text = applyActiveSkill(promptApi.getText());

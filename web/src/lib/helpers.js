@@ -1,5 +1,18 @@
 export const t = (key, vars) => (window.I18n && window.I18n.t ? window.I18n.t(key, vars) : key);
 
+export function modelDisplayName(m) {
+  if (!m) return "";
+  return m.name || m.id || "";
+}
+
+export function modelNameById(models, id) {
+  const raw = String(id || "").trim();
+  if (!raw) return "";
+  const list = Array.isArray(models) ? models : [];
+  const hit = list.find((m) => m && String(m.id) === raw);
+  return modelDisplayName(hit) || raw;
+}
+
 export function isSpectatingSource(src) {
   return src === "observe" || src === "foreign" || src === "tui";
 }

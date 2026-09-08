@@ -1,9 +1,12 @@
 import { t, formatError } from "./helpers.js";
 
 export function toast(msg) {
+  if (msg && typeof msg === "object" && (msg.stale || msg.code === "session_busy")) return;
+  const s = formatError(msg);
+  if (!s || s === "stale" || s === t("sessionBusy")) return;
   const n = document.createElement("div");
   n.className = "toast";
-  n.textContent = formatError(msg);
+  n.textContent = s;
   document.body.appendChild(n);
   setTimeout(() => n.remove(), 2800);
 }

@@ -1,7 +1,21 @@
 const t = (key, vars) => (window.I18n && window.I18n.t ? window.I18n.t(key, vars) : key);
 
+let apiEpoch = 0;
+
+export function discardInflight() {
+  apiEpoch += 1;
+}
+
+function staleError() {
+  const err = new Error("stale");
+  err.stale = true;
+  return err;
+}
+
 export async function api(path, opts) {
+  const mine = apiEpoch;
   const res = await fetch(path, Object.assign({ credentials: "same-origin" }, opts || {}));
+  if (mine !== apiEpoch) throw staleError();
   if (res.status === 401) {
     location.href = "/login";
     throw new Error("unauthorized");
@@ -9,7 +23,9 @@ export async function api(path, opts) {
   if (!res.ok) {
     const body = await res.text();
     if (res.status === 409 && body.includes("session_busy")) {
-      throw new Error(t("sessionBusy"));
+      const err = new Error(t("sessionBusy"));
+      err.code = "session_busy";
+      throw err;
     }
     throw new Error(body || path + " " + res.status);
   }

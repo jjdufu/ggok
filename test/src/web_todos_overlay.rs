@@ -236,6 +236,7 @@ fn ctx_chip_click_opens_session_usage_popover() {
     assert_decl(&pop, "position:", "absolute");
     assert_decl(&pop, "display:", "none");
     assert_decl(&pop, "bottom:", "calc(100% + 8px)");
+    assert_decl(&pop, "min-width:", "320px");
     let open = css_block(&css, ".composer-ctx-bar.open .ctx-usage {");
     assert_decl(&open, "display:", "flex");
 
@@ -245,5 +246,47 @@ fn ctx_chip_click_opens_session_usage_popover() {
     assert!(
         !js.contains("setTip(ctxBar") && !js.contains("setTip(ctxTrack"),
         "ctx usage popover must not use the button tooltip layer"
+    );
+}
+
+#[test]
+fn ctx_usage_models_use_picker_names_and_own_rows() {
+    let js = web_file("src/features/drawer.js");
+    assert!(
+        js.contains("modelNameById"),
+        "usage rows must resolve picker display names, not raw ids"
+    );
+    assert!(
+        !js.contains("usageCells(box, m.model"),
+        "model rows must not dump the raw model id into usageCells:\n{js}"
+    );
+    assert!(
+        js.contains("box.className = \"usage-models\""),
+        "each recorded model still gets its own row in usage-models"
+    );
+
+    let helpers = web_file("src/lib/helpers.js");
+    assert!(helpers.contains("export function modelDisplayName"));
+    assert!(helpers.contains("export function modelNameById"));
+    assert!(
+        helpers.contains("m.name || m.id"),
+        "picker and usage must share the short name"
+    );
+
+    let menu = web_file("src/features/model-menu.js");
+    assert!(
+        menu.contains("modelDisplayName") && !menu.contains("function modelDisplayName"),
+        "model menu must reuse helpers.modelDisplayName"
+    );
+
+    let css = web_file("src/styles/drawer.css");
+    let models = css_block(&css, ".usage-models {");
+    assert!(
+        models.contains("max-content minmax(0, 1fr)"),
+        "model rows need two columns so the short name is not ellipsized:\n{models}"
+    );
+    assert!(
+        !models.contains("max-content max-content"),
+        "model rows must not keep the three-column usage grid:\n{models}"
     );
 }

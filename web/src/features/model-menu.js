@@ -1,4 +1,4 @@
-import { t, isSpectatingSource } from "../lib/helpers.js";
+import { t, isSpectatingSource, modelDisplayName } from "../lib/helpers.js";
 import { placePopover } from "../lib/popover.js";
 import { svgUse } from "../lib/svg.js";
 import { post } from "../lib/api.js";
@@ -39,11 +39,6 @@ export function bindModelMenu(ctx) {
       if (tr !== keys.desc) return tr;
     }
     return e.description || "";
-  }
-
-  function modelDisplayName(m) {
-    if (!m) return "";
-    return m.name || m.id || "";
   }
 
   function modelDescText(m) {

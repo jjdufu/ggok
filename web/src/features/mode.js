@@ -6,15 +6,20 @@ import { placePopover } from "../lib/popover.js";
 import { renderMarkdown } from "../lib/markdown.js";
 
 const MODES = [
-  ["ask", "modeAsk"],
-  ["plan", "modePlan"],
-  ["auto", "modeAuto"],
-  ["always-approve", "modeAlways"]
+  ["ask", "modeAsk", "modeAskDesc"],
+  ["plan", "modePlan", "modePlanDesc"],
+  ["auto", "modeAuto", "modeAutoDesc"],
+  ["always-approve", "modeAlways", "modeAlwaysDesc"]
 ];
 
 function modeLabel(mode) {
   const hit = MODES.find(([id]) => id === mode);
   return hit ? t(hit[1]) : mode || t("modeAsk");
+}
+
+function modeDesc(mode) {
+  const hit = MODES.find(([id]) => id === mode);
+  return hit ? t(hit[2]) : "";
 }
 
 function todoMark(status) {
@@ -47,7 +52,7 @@ export function bindMode(ctx) {
       gap: 8,
       pad: 12,
       minH: 80,
-      width: 168,
+      width: 240,
       align: "right",
       zIndex: 40
     });
@@ -57,12 +62,18 @@ export function bindMode(ctx) {
     if (!modeMenu) return;
     const cur = (ctx.current && ctx.current.mode) || ctx.mode || "ask";
     modeMenu.replaceChildren();
-    MODES.forEach(([id, key]) => {
+    MODES.forEach(([id, key, descKey]) => {
       const b = document.createElement("button");
       b.type = "button";
       b.setAttribute("role", "menuitem");
       b.className = "menu-item" + (cur === id ? " on" : "");
-      b.textContent = t(key);
+      const name = document.createElement("span");
+      name.className = "mode-item-name";
+      name.textContent = t(key);
+      const desc = document.createElement("span");
+      desc.className = "mode-item-desc";
+      desc.textContent = t(descKey);
+      b.append(name, desc);
       b.addEventListener("click", (e) => {
         e.stopPropagation();
         closeModeMenu();
@@ -91,7 +102,7 @@ export function bindMode(ctx) {
     const mode = (ctx.current && ctx.current.mode) || ctx.mode || "ask";
     ctx.mode = mode;
     modeBtn.textContent = modeLabel(mode);
-    setTip(modeBtn, t("modeTip"));
+    setTip(modeBtn, modeDesc(mode) || t("modeTip"));
     const spectating = isSpectatingSource(ctx.source);
     modeBtn.hidden = !ctx.currentId;
     modeBtn.disabled = !ctx.currentId || spectating || ctx.writable !== true;
