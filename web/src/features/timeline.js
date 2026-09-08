@@ -724,6 +724,172 @@ export function bindTimeline(ctx) {
   let ignoreScroll = false;
   let lastUserTop = 0;
   const jumpBottomBtn = document.getElementById("jump-bottom");
+  const turnMap = document.getElementById("turn-map");
+  const turnMapPreview = document.getElementById("turn-map-preview");
+  let turnMapTimer = 0;
+
+  function turnMapEnabled() {
+    return window.matchMedia("(min-width: 901px)").matches;
+  }
+
+  function hideTurnMapPreview() {
+    if (turnMapPreview) turnMapPreview.hidden = true;
+  }
+
+  function turnPreviewText(row) {
+    const body = row.querySelector(":scope > .user-row .block-body");
+    const text = body ? String(body.textContent || "").replace(/\s+/g, " ").trim() : "";
+    if (text) return text;
+    if (row.querySelector(":scope > .user-row .user-previews")) return t("turnMapImage");
+    if (row.querySelector(":scope > .user-row .user-files")) return t("turnMapFile");
+    return "";
+  }
+
+  function collectTurnMarks() {
+    if (!timeline) return [];
+    const rows = [...timeline.querySelectorAll(":scope > article.turn")];
+    const out = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const text = turnPreviewText(row);
+      if (!text) continue;
+      out.push({
+        row,
+        key: row.dataset.prompt || "i-" + i,
+        text: text.slice(0, 200),
+        top: row.offsetTop
+      });
+    }
+    return out;
+  }
+
+  function layoutTurnMarks(marks, mapH) {
+    const span = Math.max((timeline && timeline.scrollHeight) || 1, 1);
+    const gap = 6;
+    const placed = marks.map((m) => ({
+      key: m.key,
+      text: m.text,
+      row: m.row,
+      y: (m.top / span) * Math.max(mapH - 3, 1)
+    }));
+    for (let i = 1; i < placed.length; i++) {
+      if (placed[i].y < placed[i - 1].y + gap) placed[i].y = placed[i - 1].y + gap;
+    }
+    const last = placed[placed.length - 1];
+    if (last && last.y > mapH - 4 && last.y > 0) {
+      const scale = (mapH - 4) / last.y;
+      for (const p of placed) p.y *= scale;
+    }
+    return placed;
+  }
+
+  function activeTurnKey(marks) {
+    if (!timeline || !marks.length) return "";
+    const y = timeline.scrollTop + 72;
+    let cur = marks[0].key;
+    for (const m of marks) {
+      if (m.top <= y) cur = m.key;
+      else break;
+    }
+    return cur;
+  }
+
+  function paintTurnMapActive() {
+    if (!turnMap || turnMap.hidden) return;
+    const marks = collectTurnMarks();
+    const cur = activeTurnKey(marks);
+    for (const tick of turnMap.querySelectorAll(".turn-map-tick")) {
+      tick.classList.toggle("on", tick.dataset.key === cur);
+    }
+  }
+
+  function placeTurnMapPreview(tick) {
+    if (!turnMap || !turnMapPreview || !tick) return;
+    turnMapPreview.textContent = tick.dataset.preview || "";
+    turnMapPreview.hidden = false;
+    const mapH = turnMap.clientHeight;
+    const ph = turnMapPreview.offsetHeight || 32;
+    const mid = tick.offsetTop + tick.offsetHeight / 2;
+    const top = Math.max(0, Math.min(mid - ph / 2, mapH - ph));
+    turnMapPreview.style.top = top + "px";
+  }
+
+  function jumpToTurn(row) {
+    if (!timeline || !row) return;
+    followOutput = false;
+    const pad = Number.parseFloat(getComputedStyle(timeline).paddingTop) || 52;
+    timeline.scrollTo({ top: Math.max(0, row.offsetTop - pad), behavior: "smooth" });
+    lastUserTop = timeline.scrollTop;
+    syncJumpBottom();
+    paintTurnMapActive();
+  }
+
+  function bindTurnMapTick(tick) {
+    tick.addEventListener("mouseenter", () => placeTurnMapPreview(tick));
+    tick.addEventListener("focus", () => placeTurnMapPreview(tick));
+    tick.addEventListener("mouseleave", hideTurnMapPreview);
+    tick.addEventListener("blur", hideTurnMapPreview);
+    tick.addEventListener("click", (e) => {
+      e.preventDefault();
+      hideTurnMapPreview();
+      const key = tick.dataset.key;
+      const hit = collectTurnMarks().find((m) => m.key === key);
+      if (hit) jumpToTurn(hit.row);
+    });
+  }
+
+  function hideTurnMap() {
+    if (!turnMap) return;
+    hideTurnMapPreview();
+    turnMap.hidden = true;
+    const ticks = turnMap.querySelectorAll(".turn-map-tick");
+    for (const tick of ticks) tick.remove();
+  }
+
+  function syncTurnMap() {
+    if (!turnMap) return;
+    const has = !!(app && app.classList.contains("has-session"));
+    const overflow = !!(timeline && timeline.scrollHeight > timeline.clientHeight + 8);
+    const marks = collectTurnMarks();
+    if (!has || !overflow || marks.length < 2 || !turnMapEnabled()) {
+      hideTurnMap();
+      return;
+    }
+    turnMap.hidden = false;
+    const placed = layoutTurnMarks(marks, turnMap.clientHeight || 1);
+    const ticks = [...turnMap.querySelectorAll(".turn-map-tick")];
+    const same =
+      ticks.length === placed.length && ticks.every((el, i) => el.dataset.key === placed[i].key);
+    if (!same) {
+      hideTurnMapPreview();
+      for (const el of ticks) el.remove();
+      for (const mark of placed) {
+        const tick = document.createElement("button");
+        tick.type = "button";
+        tick.className = "turn-map-tick";
+        tick.dataset.key = mark.key;
+        tick.dataset.preview = mark.text;
+        tick.style.top = Math.round(mark.y) + "px";
+        tick.setAttribute("aria-label", t("turnMapAria"));
+        bindTurnMapTick(tick);
+        turnMap.appendChild(tick);
+      }
+    } else {
+      ticks.forEach((el, i) => {
+        el.dataset.preview = placed[i].text;
+        el.style.top = Math.round(placed[i].y) + "px";
+      });
+    }
+    paintTurnMapActive();
+  }
+
+  function scheduleTurnMap() {
+    if (turnMapTimer) return;
+    turnMapTimer = requestAnimationFrame(() => {
+      turnMapTimer = 0;
+      syncTurnMap();
+    });
+  }
 
   function distanceFromBottom() {
     if (!timeline) return 0;
@@ -739,9 +905,10 @@ export function bindTimeline(ctx) {
     const has = !!(app && app.classList.contains("has-session"));
     const overflow = !!(timeline && timeline.scrollHeight > timeline.clientHeight + 8);
     jumpBottomBtn.hidden = !has || followOutput || !overflow;
-    const label = t("jumpBottom");
-    jumpBottomBtn.setAttribute("aria-label", label);
-    setTip(jumpBottomBtn, label);
+    jumpBottomBtn.setAttribute("aria-label", t("jumpBottom"));
+    jumpBottomBtn.removeAttribute("data-tip");
+    jumpBottomBtn.removeAttribute("data-i18n-title");
+    jumpBottomBtn.removeAttribute("title");
   }
 
   function withIgnoredScroll(fn) {
@@ -803,13 +970,16 @@ export function bindTimeline(ctx) {
       () => {
         if (ignoreScroll) {
           lastUserTop = timeline.scrollTop;
+          paintTurnMapActive();
           return;
         }
         const top = timeline.scrollTop;
         if (top < lastUserTop - 1) followOutput = false;
         else if (atBottom()) followOutput = true;
         lastUserTop = top;
+        hideTurnMapPreview();
         syncJumpBottom();
+        paintTurnMapActive();
       },
       { passive: true }
     );
@@ -820,7 +990,10 @@ export function bindTimeline(ctx) {
       setFollowOutput(true);
     });
   }
-  window.addEventListener("resize", syncJumpBottom);
+  window.addEventListener("resize", () => {
+    syncJumpBottom();
+    scheduleTurnMap();
+  });
 
   function turnHasProcess(turn) {
     return (turn && turn.agent || []).some((b) => b.type === "thought" || b.type === "tool");
@@ -1020,6 +1193,7 @@ export function bindTimeline(ctx) {
       timeline.innerHTML = "";
       delete timeline.dataset.session;
       syncJumpBottom();
+      syncTurnMap();
       return;
     }
     if (Array.isArray(detail.blocks)) {
@@ -1083,6 +1257,7 @@ export function bindTimeline(ctx) {
     if (ctx.syncQuestionCards) ctx.syncQuestionCards();
     if (wasFollow) stickIfFollowing();
     else keepScrollTop(savedTop);
+    scheduleTurnMap();
   }
 
   function scheduleRender() {

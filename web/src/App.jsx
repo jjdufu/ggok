@@ -136,7 +136,12 @@ export default function App() {
         <div id="empty-state">
           <h2>GGOK</h2>
         </div>
-        <div id="timeline"></div>
+        <div className="timeline-shell">
+          <div id="timeline"></div>
+          <div id="turn-map" className="turn-map" hidden={true}>
+            <div id="turn-map-preview" className="turn-map-preview" hidden={true}></div>
+          </div>
+        </div>
         <footer id="composer">
           <div className="composer-fade" aria-hidden="true"></div>
           <div className="composer-wrap">
@@ -148,7 +153,10 @@ export default function App() {
             <div id="ctx-bar" className="ctx-bar composer-ctx-bar" hidden={true}>
               <div className="ctx-track">
                 <div id="ctx-fill" className="ctx-fill"></div>
-                <span id="ctx-label" className="ctx-label"></span>
+                <span id="ctx-label" className="ctx-label">
+                  <span className="ctx-pct"></span>
+                  <span className="ctx-detail"></span>
+                </span>
               </div>
             </div>
             <div className="composer-inner">
@@ -194,7 +202,7 @@ export default function App() {
                 </button>
               </div>
             </div>
-            <button type="button" id="jump-bottom" className="jump-bottom" hidden={true} data-i18n-title="jumpBottom" data-i18n-aria="jumpBottom">
+            <button type="button" id="jump-bottom" className="jump-bottom" hidden={true} data-i18n-aria="jumpBottom">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M6 9l6 6 6-6" strokeLinecap="square"/>
               </svg>

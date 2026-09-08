@@ -338,10 +338,16 @@ export function bindSidebar(ctx) {
       const ctxTip = pct + "% · " + usedK + "/" + winK + "K";
       ctxBar.removeAttribute("data-tip");
       ctxBar.removeAttribute("data-i18n-title");
+      ctxBar.removeAttribute("title");
       ctxBar.setAttribute("aria-label", ctxTip);
       ctxBar.style.removeProperty("--ctx-pct");
       const label = document.getElementById("ctx-label");
-      if (label) label.textContent = ctxTip;
+      if (label && !label.dataset.compact) {
+        const pctEl = label.querySelector(".ctx-pct");
+        const detailEl = label.querySelector(".ctx-detail");
+        if (pctEl) pctEl.textContent = pct + "%";
+        if (detailEl) detailEl.textContent = " · " + usedK + "/" + winK + "K";
+      }
     }
     if (ctxFill) {
       ctxFill.style.width = pct + "%";
@@ -364,9 +370,12 @@ export function bindSidebar(ctx) {
   function syncCompact(ev) {
     const label = document.getElementById("ctx-label");
     if (!label) return;
+    const pctEl = label.querySelector(".ctx-pct");
+    const detailEl = label.querySelector(".ctx-detail");
     if (ev && ev.phase === "start") {
       label.dataset.compact = "1";
-      label.textContent = t("compacting");
+      if (pctEl) pctEl.textContent = t("compacting");
+      if (detailEl) detailEl.textContent = "";
     } else if (label.dataset.compact) {
       delete label.dataset.compact;
     }

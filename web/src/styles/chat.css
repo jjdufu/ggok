@@ -1,7 +1,21 @@
 #app:not(.has-session) #timeline { display: none; }
 
+.timeline-shell {
+  display: none;
+  min-height: 0;
+  position: relative;
+}
+
+#app.has-session .timeline-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 #timeline {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   overscroll-behavior-y: contain;
   padding: 52px 24px 24px;
@@ -9,6 +23,77 @@
 }
 
 #app.has-session #timeline { padding-bottom: 8px; }
+
+.turn-map {
+  position: absolute;
+  top: 56px;
+  right: 6px;
+  bottom: 10px;
+  width: 22px;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.turn-map[hidden] { display: none !important; }
+
+.turn-map-tick {
+  position: absolute;
+  right: 0;
+  width: 16px;
+  height: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.turn-map-tick::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 14px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--faint);
+  opacity: 0.7;
+  transform: translateY(-50%);
+}
+
+.turn-map-tick:hover::after,
+.turn-map-tick:focus-visible::after,
+.turn-map-tick.on::after {
+  width: 18px;
+  background: var(--fg);
+  opacity: 1;
+}
+
+.turn-map-preview {
+  position: absolute;
+  right: 22px;
+  max-width: min(280px, 42vw);
+  padding: 8px 14px;
+  border-radius: 16px;
+  background: var(--bubble);
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  box-shadow: var(--shadow);
+  z-index: 2;
+}
+
+.turn-map-preview[hidden] { display: none !important; }
+
+@media (max-width: 900px) {
+  .turn-map { display: none !important; }
+}
 
 .turn {
   width: min(704px, 100%);

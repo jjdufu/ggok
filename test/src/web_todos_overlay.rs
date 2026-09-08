@@ -113,3 +113,75 @@ fn todos_preview_is_always_in_dom_for_css_hover() {
     assert!(js.contains("preview.className = \"todos-preview\""));
     assert!(js.contains("e.stopPropagation()"));
 }
+
+#[test]
+fn jump_bottom_has_no_tooltip_and_hover_border_only() {
+    let app = web_file("src/App.jsx");
+    let btn = app
+        .split("id=\"jump-bottom\"")
+        .nth(1)
+        .and_then(|rest| rest.split('>').next())
+        .expect("jump-bottom tag");
+    assert!(
+        !btn.contains("data-i18n-title"),
+        "jump-bottom must not install a hover tip: {btn}"
+    );
+    assert!(
+        !btn.contains("data-tip"),
+        "jump-bottom must not ship data-tip: {btn}"
+    );
+
+    let js = web_file("src/features/timeline.js");
+    assert!(
+        !js.contains("setTip(jumpBottomBtn"),
+        "jump-bottom must not call setTip"
+    );
+
+    let css = web_file("src/styles/composer.css");
+    let base = css_block(&css, ".jump-bottom {");
+    assert_decl(&base, "border:", "transparent");
+    assert!(
+        !base.contains("box-shadow: var(--shadow)"),
+        "default jump-bottom should not use the raised shadow"
+    );
+
+    let hover = css_block(&css, ".jump-bottom:hover,");
+    assert_decl(&hover, "border-color:", "var(--composer-border)");
+    assert!(
+        !hover.contains("var(--hover)"),
+        "jump-bottom hover must not use transparent --hover fill:\n{hover}"
+    );
+}
+
+#[test]
+fn ctx_chip_shows_percent_by_default_and_detail_on_hover() {
+    let css = web_file("src/styles/composer.css");
+    let label = css_block(&css, ".composer-ctx-bar .ctx-label {");
+    assert!(
+        !label.contains("opacity: 0"),
+        "percent label must stay visible when collapsed:\n{label}"
+    );
+
+    let detail = css_block(&css, ".composer-ctx-bar .ctx-detail {");
+    assert_decl(&detail, "max-width:", "0");
+    assert_decl(&detail, "opacity:", "0");
+
+    let hover = css_block(&css, ".composer-ctx-bar:hover .ctx-detail,");
+    assert_decl(&hover, "max-width:", "160px");
+    assert_decl(&hover, "opacity:", "1");
+
+    let track = css_block(&css, ".composer-ctx-bar .ctx-track {");
+    assert!(
+        !track.contains("height: 4px"),
+        "collapsed ctx chip must not be a 4px unlabeled track:\n{track}"
+    );
+
+    let js = web_file("src/features/sidebar.js");
+    assert!(js.contains("querySelector(\".ctx-pct\")"));
+    assert!(js.contains("querySelector(\".ctx-detail\")"));
+    assert!(js.contains("pct + \"%\""));
+
+    let app = web_file("src/App.jsx");
+    assert!(app.contains("className=\"ctx-pct\""));
+    assert!(app.contains("className=\"ctx-detail\""));
+}
