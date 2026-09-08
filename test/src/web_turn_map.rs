@@ -125,8 +125,19 @@ fn turn_map_ticks_are_quiet_and_preview_matches_say() {
     );
 
     let panel = css_block(&css, ".turn-map-panel {");
-    assert!(panel.contains("border: 1px solid"), "{panel}");
-    assert!(panel.contains("gap: 4px"), "{panel}");
+    assert!(
+        panel.contains("border: 0") && !panel.contains("border: 1px"),
+        "panel must not draw a wrapping rectangle:\n{panel}"
+    );
+    assert!(
+        panel.contains("background: transparent"),
+        "panel chrome must be gone:\n{panel}"
+    );
+    assert!(
+        panel.contains("padding: 0 20px 0 0"),
+        "ticks and list must have a hover-safe gap:\n{panel}"
+    );
+    assert!(panel.contains("gap: 8px"), "{panel}");
     assert!(
         panel.contains("max-height: 100%"),
         "panel height must follow the page/rail, not a fixed inward box:\n{panel}"
@@ -137,8 +148,8 @@ fn turn_map_ticks_are_quiet_and_preview_matches_say() {
     );
     let out = css_block(&css, ".turn-map[data-side=\"out\"] .turn-map-panel {");
     assert!(
-        out.contains("left: 22px") && out.contains("right: auto"),
-        "wide pages must open the list outward:\n{out}"
+        out.contains("left: 22px") && out.contains("right: auto") && out.contains("padding: 0 0 0 20px"),
+        "wide pages must open the list outward with the same tick gap:\n{out}"
     );
     assert!(
         !css.contains(".turn-map:hover .turn-map-preview"),
@@ -152,6 +163,10 @@ fn turn_map_ticks_are_quiet_and_preview_matches_say() {
         "conversation rows must not draw a border:\n{row}"
     );
     assert!(row.contains("border: 0"), "{row}");
+    assert!(
+        row.contains("border-radius: 999px"),
+        "each row must be a capsule, not a rounded rect:\n{row}"
+    );
     assert!(row.contains("text-overflow: ellipsis"), "{row}");
     let row_on = css_block(&css, ".turn-map-row:hover,");
     assert!(

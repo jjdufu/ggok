@@ -85,16 +85,15 @@
   transform: translateY(-50%);
   display: none;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
   min-width: 160px;
   max-width: min(320px, 42vw);
   max-height: 100%;
   overflow: auto;
-  padding: 6px;
-  border: 1px solid var(--border-strong);
-  border-radius: 14px;
-  background: var(--menu);
-  box-shadow: var(--shadow);
+  padding: 0 20px 0 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   pointer-events: auto;
   z-index: 2;
 }
@@ -102,6 +101,7 @@
 .turn-map[data-side="out"] .turn-map-panel {
   left: 22px;
   right: auto;
+  padding: 0 0 0 20px;
 }
 
 .turn-map:has(.turn-map-tick:hover) .turn-map-panel,
@@ -115,9 +115,9 @@
   display: block;
   width: 100%;
   margin: 0;
-  padding: 8px 12px;
+  padding: 8px 14px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--bubble);
   color: var(--fg);
   font-size: 13px;
