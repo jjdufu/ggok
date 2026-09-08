@@ -726,6 +726,8 @@ export function bindTimeline(ctx) {
   const jumpBottomBtn = document.getElementById("jump-bottom");
   const turnMap = document.getElementById("turn-map");
   let turnMapTimer = 0;
+  let turnMapPickedKey = "";
+  let turnMapSession = "";
 
   function turnMapEnabled() {
     return window.matchMedia("(min-width: 901px)").matches;
@@ -772,24 +774,34 @@ export function bindTimeline(ctx) {
     }));
   }
 
-  function activeTurnKey(marks) {
-    if (!timeline || !marks.length) return "";
-    const y = timeline.scrollTop + 72;
-    let cur = marks[0].key;
-    for (const m of marks) {
-      if (m.top <= y) cur = m.key;
-      else break;
-    }
-    return cur;
-  }
-
   function paintTurnMapActive() {
     if (!turnMap || turnMap.hidden) return;
-    const marks = collectTurnMarks();
-    const cur = activeTurnKey(marks);
-    for (const el of turnMap.querySelectorAll(".turn-map-tick, .turn-map-row")) {
-      el.classList.toggle("on", el.dataset.key === cur);
+    const ticks = [...turnMap.querySelectorAll(".turn-map-tick")];
+    const lastKey = ticks.length ? ticks[ticks.length - 1].dataset.key : "";
+    if (turnMapPickedKey && !ticks.some((el) => el.dataset.key === turnMapPickedKey)) {
+      turnMapPickedKey = "";
     }
+    const onKey = turnMapPickedKey;
+    for (const el of turnMap.querySelectorAll(".turn-map-tick, .turn-map-row")) {
+      const key = el.dataset.key || "";
+      el.classList.toggle("on", !!onKey && key === onKey);
+      el.classList.toggle("tail", !onKey && el.classList.contains("turn-map-tick") && key === lastKey);
+    }
+  }
+
+  function placeTurnMapPanel() {
+    if (!turnMap || turnMap.hidden) return;
+    const panel = turnMap.querySelector(".turn-map-panel");
+    if (!panel) return;
+    const map = turnMap.getBoundingClientRect();
+    const pad = 12;
+    const minW = 160;
+    const spaceRight = Math.max(0, window.innerWidth - map.right - pad);
+    const spaceLeft = Math.max(0, map.left - pad);
+    const side = spaceRight >= minW ? "out" : "in";
+    turnMap.dataset.side = side;
+    const avail = side === "out" ? spaceRight : spaceLeft;
+    panel.style.maxWidth = Math.round(Math.max(minW, Math.min(360, avail))) + "px";
   }
 
   function setTurnMapLit(key) {
@@ -800,8 +812,10 @@ export function bindTimeline(ctx) {
   }
 
   function jumpTurnByKey(key) {
+    turnMapPickedKey = key || "";
     const hit = collectTurnMarks().find((m) => m.key === key);
     if (hit) jumpToTurn(hit.row);
+    else paintTurnMapActive();
   }
 
   function jumpToTurn(row) {
@@ -825,11 +839,18 @@ export function bindTimeline(ctx) {
     if (!turnMap) return;
     turnMap.hidden = true;
     turnMap.replaceChildren();
+    turnMap.removeAttribute("data-side");
+    turnMapPickedKey = "";
     setTurnMapLit("");
   }
 
   function syncTurnMap() {
     if (!turnMap) return;
+    const sid = ctx.currentId || "";
+    if (sid !== turnMapSession) {
+      turnMapSession = sid;
+      turnMapPickedKey = "";
+    }
     const has = !!(app && app.classList.contains("has-session"));
     const overflow = !!(timeline && timeline.scrollHeight > timeline.clientHeight + 8);
     const marks = collectTurnMarks();
@@ -881,6 +902,7 @@ export function bindTimeline(ctx) {
         el.textContent = placed[i].text;
       });
     }
+    placeTurnMapPanel();
     paintTurnMapActive();
   }
 
@@ -991,6 +1013,7 @@ export function bindTimeline(ctx) {
     });
   }
   if (turnMap) {
+    turnMap.addEventListener("pointerenter", () => placeTurnMapPanel());
     turnMap.addEventListener("pointerover", (e) => {
       const hit = e.target.closest(".turn-map-tick, .turn-map-row");
       if (hit && turnMap.contains(hit)) setTurnMapLit(hit.dataset.key || "");

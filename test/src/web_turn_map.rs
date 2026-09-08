@@ -118,9 +118,28 @@ fn turn_map_ticks_are_quiet_and_preview_matches_say() {
         "hovered conversation must light the matching tick:\n{active}"
     );
 
+    let tail = css_block(&css, ".turn-map-tick.tail::after {");
+    assert!(
+        tail.contains("opacity: 0.55"),
+        "idle last tick must be dimmer than the selected tick:\n{tail}"
+    );
+
     let panel = css_block(&css, ".turn-map-panel {");
     assert!(panel.contains("border: 1px solid"), "{panel}");
     assert!(panel.contains("gap: 4px"), "{panel}");
+    assert!(
+        panel.contains("max-height: 100%"),
+        "panel height must follow the page/rail, not a fixed inward box:\n{panel}"
+    );
+    assert!(
+        !panel.contains("56vh") && !panel.contains("420px"),
+        "panel must not cap to a small inward max-height:\n{panel}"
+    );
+    let out = css_block(&css, ".turn-map[data-side=\"out\"] .turn-map-panel {");
+    assert!(
+        out.contains("left: 22px") && out.contains("right: auto"),
+        "wide pages must open the list outward:\n{out}"
+    );
     assert!(
         !css.contains(".turn-map:hover .turn-map-preview"),
         "hovering empty map space must not open the list"
@@ -128,8 +147,17 @@ fn turn_map_ticks_are_quiet_and_preview_matches_say() {
     let open = css_block(&css, ".turn-map:has(.turn-map-tick:hover) .turn-map-panel,");
     assert!(open.contains("display: flex"), "{open}");
     let row = css_block(&css, ".turn-map-row {");
-    assert!(row.contains("border: 1px solid"), "{row}");
+    assert!(
+        !row.contains("border: 1px solid"),
+        "conversation rows must not draw a border:\n{row}"
+    );
+    assert!(row.contains("border: 0"), "{row}");
     assert!(row.contains("text-overflow: ellipsis"), "{row}");
+    let row_on = css_block(&css, ".turn-map-row:hover,");
+    assert!(
+        !row_on.contains("border-color"),
+        "selected/hover rows must not grow a bright outline:\n{row_on}"
+    );
 
     assert!(
         css.contains("@media (max-width: 900px)"),
@@ -163,6 +191,11 @@ fn turn_map_js_jumps_without_tooltips() {
     assert!(js.contains("turn-map-panel"));
     assert!(js.contains("turn-map-row"));
     assert!(js.contains("function setTurnMapLit"));
+    assert!(js.contains("function placeTurnMapPanel"));
+    assert!(js.contains("turnMapPickedKey"));
+    assert!(js.contains("dataset.side"));
+    assert!(js.contains("spaceRight"));
+    assert!(js.contains("\"tail\""));
     assert!(
         !js.contains("turn-map-preview"),
         "previews moved off the ticks into the shared panel"
