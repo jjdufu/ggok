@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.22](https://github.com/jjdufu/ggok/compare/v0.1.21...v0.1.22) (2026-09-08)
+
+
+### Features
+
+* polish overlays and apply session mode via ACP ([acfbf17](https://github.com/jjdufu/ggok/commit/acfbf1739aacd19ee7195d5df1d2634eab95df4b))
+
 ## [0.1.21](https://github.com/jjdufu/ggok/compare/v0.1.20...v0.1.21) (2026-09-08)
 
 
