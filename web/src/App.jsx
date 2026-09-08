@@ -235,6 +235,16 @@ export default function App() {
     </section>
   </div>
 
+  <div id="peek-scrim" className="ui-scrim" hidden={true}></div>
+  <div id="peek-panel" className="ui-dialog peek-panel" hidden={true} role="dialog" aria-modal="true" aria-labelledby="peek-title">
+    <header className="drawer-head">
+      <div className="drawer-title" id="peek-title" data-i18n="peekTitle">子代理</div>
+      <button type="button" id="peek-close" className="icon-btn drawer-x" data-i18n-title="close">
+        <svg viewBox="0 0 24 24"><use href="#i-x"/></svg>
+      </button>
+    </header>
+    <div id="peek-timeline" className="peek-timeline"></div>
+  </div>
   <div id="rewind-scrim" className="ui-scrim" hidden={true}></div>
   <div id="rewind-panel" className="ui-dialog rewind-panel" hidden={true} role="dialog" aria-modal="true">
     <header className="drawer-head">

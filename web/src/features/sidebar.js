@@ -236,18 +236,6 @@ export function bindSidebar(ctx) {
       name.className = "name";
       name.textContent = label;
       b.appendChild(name);
-      if (s.last_turn_summary) {
-        const recap = document.createElement("span");
-        recap.className = "sess-recap";
-        recap.textContent = s.last_turn_summary;
-        b.appendChild(recap);
-      }
-      if (s.parent_id) {
-        const fork = document.createElement("span");
-        fork.className = "sess-fork";
-        fork.textContent = t("forkedFrom");
-        b.appendChild(fork);
-      }
       if (s.source === "tui") {
         const tag = document.createElement("span");
         tag.className = "sess-tui";
@@ -298,10 +286,7 @@ export function bindSidebar(ctx) {
     };
     const pinned = ctx.sessions.filter((s) => s.pinned);
     addGroup(t("pinnedGroup"), "", pinned, "pinnedGroup");
-    const live = ctx.sessions.filter((s) => !s.pinned && (s.source === "attached" || s.source === "tui"));
-    const liveWrap = addGroup(t("liveGroup"), "", live, "liveGroup");
-    if (liveWrap) liveWrap.id = "live-group";
-    const rest = ctx.sessions.filter((s) => !s.pinned && s.source !== "attached" && s.source !== "tui");
+    const rest = ctx.sessions.filter((s) => !s.pinned);
     const grouped = groupTree(rest);
     for (const g of grouped) addGroup(shortCwd(g.cwd), g.cwd, g.sessions);
     if (!pinned.length && !grouped.length) {
@@ -371,10 +356,9 @@ export function bindSidebar(ctx) {
   }
 
   function focusLiveGroup() {
-    const el = document.getElementById("live-group");
+    const el = tree && tree.querySelector(".sess.running");
     if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
-    const tog = el && el.querySelector(".proj-toggle");
-    if (tog) tog.focus();
+    if (el && el.focus) el.focus();
   }
 
   function syncCompact(ev) {

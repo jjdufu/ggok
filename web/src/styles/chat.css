@@ -102,6 +102,70 @@
   padding: 16px;
 }
 
+#peek-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 42;
+}
+
+#peek-panel {
+  position: fixed;
+  z-index: 43;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  width: min(760px, calc(100vw - 32px));
+  height: min(80vh, 840px);
+  max-height: calc(100dvh - 48px);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+#peek-scrim[hidden],
+#peek-panel[hidden] { display: none !important; }
+
+.peek-panel .drawer-head {
+  flex-shrink: 0;
+  padding: 10px 12px 10px 16px;
+}
+
+.peek-timeline {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 20px 24px;
+}
+
+.peek-timeline .turn { width: 100%; }
+
+.subagent-row {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--hover);
+  color: var(--fg);
+  align-items: center;
+}
+
+.subagent-row:hover { background: var(--active); color: var(--fg); }
+
+.subagent-row:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.subagent-status {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .rewind-note, .rewind-meta { color: var(--muted); font-size: 13px; }
 
 .rewind-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
@@ -130,15 +194,6 @@
 .task-row { display: flex; gap: 8px; align-items: center; padding: 6px 0; }
 
 .task-title { flex: 1; }
-
-.sess-recap, .sess-fork {
-  display: block;
-  font-size: 11px;
-  color: var(--faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .seg-foot .msg-actions { margin-top: 6px; }
 

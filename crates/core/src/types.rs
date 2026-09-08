@@ -41,6 +41,7 @@ pub struct SessionMeta {
     pub agent_name: String,
     pub num_messages: u64,
     pub parent_id: Option<String>,
+    pub subagent_of: Option<String>,
     pub empty: bool,
     pub dir: PathBuf,
     pub last_turn_summary: Option<String>,
@@ -95,6 +96,22 @@ pub enum Block {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         result_count: Option<u64>,
     },
+    Subagent {
+        prompt_id: String,
+        id: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        child_session_id: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        description: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        subagent_type: String,
+        #[serde(default)]
+        status: String,
+        #[serde(default)]
+        duration_ms: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
     TurnEnd {
         prompt_id: String,
         #[serde(default)]
@@ -112,6 +129,7 @@ impl Block {
             | Self::Thought { prompt_id, .. }
             | Self::Assistant { prompt_id, .. }
             | Self::Tool { prompt_id, .. }
+            | Self::Subagent { prompt_id, .. }
             | Self::TurnEnd { prompt_id, .. } => prompt_id,
         }
     }

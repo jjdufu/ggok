@@ -17,6 +17,7 @@ import { bindComposer } from "./features/composer.js";
 import { bindRewind } from "./features/rewind.js";
 import { bindMode } from "./features/mode.js";
 import { bindTasks } from "./features/tasks.js";
+import { bindPeek } from "./features/peek.js";
 import { api } from "./lib/api.js";
 import { relocalizeDyn, hideTip, formatError } from "./lib/helpers.js";
 
@@ -152,6 +153,7 @@ export function boot() {
   bindExtModal(ctx);
   bindSse(ctx);
   bindTimeline(ctx);
+  bindPeek(ctx);
   bindQuestion(ctx);
   bindComposer(ctx);
   bindRewind(ctx);
@@ -232,6 +234,10 @@ export function boot() {
       if (ctx.closeModeMenu) ctx.closeModeMenu();
       else if (modeMenu) modeMenu.hidden = true;
       hideTip(false);
+      if (ctx.peekId && ctx.closePeek) {
+        ctx.closePeek();
+        return;
+      }
       if (ctx.dirModalOpen && ctx.dirModalOpen()) {
         if (ctx.closeDirModal) ctx.closeDirModal();
         return;

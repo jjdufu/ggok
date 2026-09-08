@@ -665,33 +665,7 @@ impl Agent {
             let before_ctx = sess.parser.context_tokens();
             sess.parser.note_meta(meta);
             let skip_user = sess.user_emitted;
-            let block = match ingest {
-                Ingest::Text => {
-                    let open = sess.parser.open_text();
-                    if skip_user && matches!(open, Some(Block::User { .. })) {
-                        None
-                    } else {
-                        open
-                    }
-                }
-                Ingest::Tool => {
-                    let id = update
-                        .get("toolCallId")
-                        .and_then(Value::as_str)
-                        .unwrap_or("")
-                        .to_string();
-                    if !id.is_empty() {
-                        sess.last_tool_id.clone_from(&id);
-                    }
-                    sess.parser.tool(&sess.last_tool_id)
-                }
-                Ingest::TurnEnd => sess.parser.last_block(),
-                Ingest::Plan => {
-                    sess.todos = sess.parser.todos();
-                    None
-                }
-                Ingest::Usage | Ingest::None => None,
-            };
+            let block = block_from_ingest(sess, ingest, &update, skip_user);
             let emit_usage = matches!(ingest, Ingest::TurnEnd | Ingest::Usage);
             if emit_usage {
                 sess.usage = sess.parser.usage_snapshot();
@@ -811,6 +785,47 @@ impl Agent {
                 &json!({ "used": parsed.context_tokens, "window": window }),
             );
         }
+    }
+}
+
+fn block_from_ingest(
+    sess: &mut crate::Live,
+    ingest: Ingest,
+    update: &Value,
+    skip_user: bool,
+) -> Option<Block> {
+    match ingest {
+        Ingest::Text => {
+            let open = sess.parser.open_text();
+            if skip_user && matches!(open, Some(Block::User { .. })) {
+                None
+            } else {
+                open
+            }
+        }
+        Ingest::Tool => {
+            let id = update
+                .get("toolCallId")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            if !id.is_empty() {
+                sess.last_tool_id.clone_from(&id);
+            }
+            sess.parser.tool(&sess.last_tool_id)
+        }
+        Ingest::TurnEnd => sess.parser.last_block(),
+        Ingest::Subagent => {
+            let id = ggok_core::parse::subagent_id_of(update);
+            sess.parser
+                .subagent(&id)
+                .or_else(|| sess.parser.last_block())
+        }
+        Ingest::Plan => {
+            sess.todos = sess.parser.todos();
+            None
+        }
+        Ingest::Usage | Ingest::None => None,
     }
 }
 

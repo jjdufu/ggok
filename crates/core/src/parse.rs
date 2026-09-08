@@ -36,6 +36,7 @@ pub struct Parser {
     blocks: Vec<Block>,
     buf: Option<TextBuf>,
     tools: HashMap<String, usize>,
+    subagents: HashMap<String, usize>,
     usage: TokenUsage,
     models: BTreeMap<String, ModelUsageRow>,
     context_tokens: u64,
@@ -58,6 +59,7 @@ impl Parser {
             blocks: Vec::new(),
             buf: None,
             tools: HashMap::new(),
+            subagents: HashMap::new(),
             usage: TokenUsage::default(),
             models: BTreeMap::new(),
             context_tokens: 0,
@@ -410,6 +412,12 @@ impl Parser {
     }
 
     #[must_use]
+    pub fn subagent(&self, id: &str) -> Option<Block> {
+        let idx = *self.subagents.get(id)?;
+        self.blocks.get(idx).cloned()
+    }
+
+    #[must_use]
     pub fn usage_snapshot(&self) -> TokenUsage {
         let mut usage = self.usage.clone();
         usage.models = self.models.values().cloned().collect();
@@ -462,6 +470,7 @@ pub enum Ingest {
     TurnEnd,
     Usage,
     Plan,
+    Subagent,
 }
 
 fn ingest_update(
@@ -499,6 +508,9 @@ fn ingest_update(
         "tool_call_update" => ingest_tool_update(parser, update, ts_ms),
         "turn_completed" => ingest_turn_completed(parser, prompt_id, update, ts_ms),
         "plan" => ingest_plan(parser, update, ts_ms),
+        "subagent_spawned" | "subagent_finished" => {
+            ingest_subagent(parser, kind, update, &prompt_id, ts_ms)
+        }
         _ => ingest_usage_field(parser, update),
     }
 }
@@ -517,6 +529,103 @@ fn ingest_plan(parser: &mut Parser, update: &Value, ts_ms: Option<u64>) -> Inges
     parser.todos = entries.iter().filter_map(todo_from_value).collect();
     let _ = ingest_usage_field(parser, update);
     Ingest::Plan
+}
+
+/// Id used to upsert a subagent block from a spawn/finish update.
+#[must_use]
+pub fn subagent_id_of(update: &Value) -> String {
+    json_str(update, &["subagent_id", "child_session_id", "id"])
+}
+
+fn ingest_subagent(
+    parser: &mut Parser,
+    kind: &str,
+    update: &Value,
+    prompt_id: &str,
+    ts_ms: Option<u64>,
+) -> Ingest {
+    parser.note_time(ts_ms);
+    let id = subagent_id_of(update);
+    if id.is_empty() {
+        return Ingest::None;
+    }
+    let child = json_str(update, &["child_session_id"]);
+    let description = json_str(update, &["description"]);
+    let subagent_type = json_str(update, &["subagent_type"]);
+    let finished = kind == "subagent_finished";
+    let mut status = json_str(update, &["status"]);
+    if status.is_empty() {
+        status = if finished {
+            "completed".to_string()
+        } else {
+            "running".to_string()
+        };
+    }
+    let duration_ms = json_u64(update, &["duration_ms"]);
+    let err = json_str(update, &["error"]);
+    let error = if err.is_empty() { None } else { Some(err) };
+    let mut pid = json_str(update, &["parent_prompt_id", "prompt_id"]);
+    if pid.is_empty() {
+        pid = if prompt_id.is_empty() {
+            parser.current_prompt_id.clone()
+        } else {
+            prompt_id.to_string()
+        };
+    }
+    if let Some(&idx) = parser.subagents.get(&id)
+        && let Some(Block::Subagent {
+            status: st,
+            duration_ms: dur,
+            error: err_slot,
+            description: desc,
+            subagent_type: ty,
+            prompt_id: existing_pid,
+            child_session_id: child_slot,
+            ..
+        }) = parser.blocks.get_mut(idx)
+    {
+        *st = status;
+        if duration_ms > 0 {
+            *dur = duration_ms;
+        }
+        if error.is_some() {
+            *err_slot = error;
+        }
+        if !description.is_empty() {
+            *desc = description;
+        }
+        if !subagent_type.is_empty() {
+            *ty = subagent_type;
+        }
+        if existing_pid.is_empty() && !pid.is_empty() {
+            *existing_pid = pid;
+        }
+        if child_slot.is_empty() && !child.is_empty() {
+            *child_slot = child;
+        }
+        return Ingest::Subagent;
+    }
+    parser.flush_text();
+    if !pid.is_empty() {
+        parser.current_prompt_id.clone_from(&pid);
+    }
+    let idx = parser.blocks.len();
+    parser.subagents.insert(id.clone(), idx);
+    parser.blocks.push(Block::Subagent {
+        prompt_id: pid,
+        child_session_id: if child.is_empty() {
+            id.clone()
+        } else {
+            child
+        },
+        id,
+        description,
+        subagent_type,
+        status,
+        duration_ms,
+        error,
+    });
+    Ingest::Subagent
 }
 
 fn todo_from_value(v: &Value) -> Option<TodoItem> {
@@ -647,6 +756,18 @@ fn ingest_usage_field(parser: &mut Parser, update: &Value) -> Ingest {
     };
     parser.add_usage(usage);
     Ingest::Usage
+}
+
+fn json_str(v: &Value, keys: &[&str]) -> String {
+    for key in keys {
+        if let Some(s) = v.get(*key).and_then(Value::as_str) {
+            let trimmed = s.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+    }
+    String::new()
 }
 
 fn json_u64(v: &Value, keys: &[&str]) -> u64 {
@@ -1371,6 +1492,21 @@ pub fn blocks_to_markdown(blocks: &[Block]) -> String {
                 out.push_str("`: ");
                 out.push_str(input_preview);
                 out.push('\n');
+            }
+            Block::Subagent {
+                description,
+                status,
+                ..
+            } => {
+                tools_open = false;
+                out.push_str("## Subagent\n");
+                out.push_str(description);
+                if !status.is_empty() {
+                    out.push_str(" (");
+                    out.push_str(status);
+                    out.push(')');
+                }
+                out.push_str("\n\n");
             }
             Block::TurnEnd { .. } => {
                 tools_open = false;

@@ -1,4 +1,4 @@
-import { t, setTip, setDynI18n, fileNameOf, fileViewSrc, isImageAttach, revokePreview, focusKeyThought, focusKeyTool, normalizeUserBlock, mergePromptFiles } from "../lib/helpers.js";
+import { t, setTip, setDynI18n, fileNameOf, fileViewSrc, isImageAttach, revokePreview, focusKeyThought, focusKeyTool, normalizeUserBlock, mergePromptFiles, fmtDur } from "../lib/helpers.js";
 import { svgUse } from "../lib/svg.js";
 import { post } from "../lib/api.js";
 import { renderMarkdown } from "../lib/markdown.js";
@@ -194,7 +194,7 @@ export function bindTimeline(ctx) {
     return b;
   }
 
-  function renderUser(block, appear) {
+  function renderUser(block, appear, readonly) {
     const row = document.createElement("div");
     row.className = "user-row";
     const files = Array.isArray(block.files) ? block.files : [];
@@ -225,6 +225,7 @@ export function bindTimeline(ctx) {
       wrap.appendChild(body);
       row.appendChild(wrap);
     }
+    if (readonly) return row;
     const actionsEl = document.createElement("div");
     actionsEl.className = "user-actions";
     actionsEl.append(
@@ -251,6 +252,21 @@ export function bindTimeline(ctx) {
   function isToolDone(tr) {
     const s = String((tr && tr.status) || "").toLowerCase();
     return s === "completed" || s === "failed" || s === "cancelled" || s === "success" || s === "done";
+  }
+
+  function isSpawnSubagentTool(tr, subDescs) {
+    const name = String(shortToolName(tr) || "").toLowerCase();
+    const title = String((tr && tr.title) || "").trim();
+    if (name === "spawn_subagent" || title.toLowerCase() === "spawn_subagent") return true;
+    return !!(title && subDescs && subDescs.has(title));
+  }
+
+  function subagentStatusKey(status) {
+    const s = String(status || "").toLowerCase();
+    if (s === "running" || s === "in_progress" || s === "started") return "subagentRunning";
+    if (s === "cancelled" || s === "canceled") return "subagentCancelled";
+    if (s === "failed" || s === "error") return "subagentFailed";
+    return "subagentCompleted";
   }
 
   function splitTrace(agentBlocks, live) {
@@ -294,13 +310,25 @@ export function bindTimeline(ctx) {
       segThought = 0;
       segTool = 0;
     };
+    const subDescs = new Set();
+    for (const b of agentBlocks || []) {
+      if (b.type === "subagent") subDescs.add(String(b.description || "").trim());
+    }
     for (const b of agentBlocks || []) {
       if (b.type === "thought") {
         flushTools();
         nThought += 1;
         segThought += 1;
         items.push({ kind: "thought", block: b, live: false, idx: nThought - 1 });
+      } else if (b.type === "subagent") {
+        flushTools();
+        items.push({
+          kind: "subagent",
+          block: b,
+          running: String(b.status || "").toLowerCase() === "running"
+        });
       } else if (b.type === "tool") {
+        if (isSpawnSubagentTool(b, subDescs)) continue;
         nTool += 1;
         segTool += 1;
         toolGroup.push(b);
@@ -357,7 +385,7 @@ export function bindTimeline(ctx) {
     return lines.slice(0, 3);
   }
 
-  function renderTraceThought(item, promptId) {
+  function renderTraceThought(item, promptId, readonly) {
     const row = document.createElement("button");
     row.type = "button";
     row.className = "trace-row" + (item.live ? " thought-live" : "");
@@ -371,9 +399,11 @@ export function bindTimeline(ctx) {
     inner.textContent = thoughtPreviewLines(item.block.text, item.live).join("\n");
     text.appendChild(inner);
     row.appendChild(text);
-    row.addEventListener("click", () => {
-      if (ctx.openDrawer) ctx.openDrawer(promptId, focusKeyThought(promptId, item.idx));
-    });
+    if (!readonly) {
+      row.addEventListener("click", () => {
+        if (ctx.openDrawer) ctx.openDrawer(promptId, focusKeyThought(promptId, item.idx));
+      });
+    }
     return row;
   }
 
@@ -385,7 +415,7 @@ export function bindTimeline(ctx) {
     return s;
   }
 
-  function renderTraceTool(item, promptId) {
+  function renderTraceTool(item, promptId, readonly) {
     const wrap = document.createElement("div");
     const row = document.createElement("button");
     row.type = "button";
@@ -416,11 +446,45 @@ export function bindTimeline(ctx) {
       row.appendChild(c);
     }
     const focus = focusKeyTool(first.id || "");
-    row.addEventListener("click", () => {
-      if (ctx.openDrawer) ctx.openDrawer(promptId, focus);
-    });
+    if (!readonly) {
+      row.addEventListener("click", () => {
+        if (ctx.openDrawer) ctx.openDrawer(promptId, focus);
+      });
+    }
     wrap.appendChild(row);
     return wrap;
+  }
+
+  function renderTraceSubagent(item, readonly) {
+    const b = (item && item.block) || {};
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "trace-row subagent-row" + (item.running ? " tool-live" : "");
+    row.appendChild(svgUse("i-spark"));
+    const ico = row.querySelector("svg");
+    if (ico) ico.classList.add("trace-ico");
+    const text = document.createElement("span");
+    text.className = "trace-text" + (item.running ? " shimmer-text" : "");
+    text.textContent = String(b.description || b.subagent_type || b.id || t("peekTitle"));
+    row.appendChild(text);
+    const meta = document.createElement("span");
+    meta.className = "trace-count subagent-status";
+    const stKey = subagentStatusKey(b.status);
+    if (Number(b.duration_ms) > 0) {
+      meta.textContent = t(stKey) + " · " + fmtDur(b.duration_ms);
+    } else {
+      setDynI18n(meta, stKey);
+    }
+    row.appendChild(meta);
+    const peekId = b.child_session_id || b.id;
+    if (!readonly && peekId) {
+      row.addEventListener("click", () => {
+        if (ctx.openPeek) ctx.openPeek(peekId, b.description || "");
+      });
+    } else {
+      row.disabled = true;
+    }
+    return row;
   }
 
   function accordionChevron(dir) {
@@ -475,7 +539,7 @@ export function bindTimeline(ctx) {
     return chip;
   }
 
-  function renderProcessSeg(seg, promptId, idx, turnLive, appearChip) {
+  function renderProcessSeg(seg, promptId, idx, turnLive, appearChip, readonly) {
     const key = (promptId || "") + ":" + idx;
     const live = !!(seg.live && turnLive);
     const wrap = document.createElement("div");
@@ -505,15 +569,20 @@ export function bindTimeline(ctx) {
     });
     if (chip) wrap.appendChild(chip);
     for (const item of seg.items) {
-      if (item.kind !== "tool") continue;
-      for (const tr of item.tools) {
-        const perm = ctx.pendingPerms && ctx.pendingPerms[tr.id];
-        if (perm) wrap.appendChild(renderPerm(perm));
+      if (item.kind === "subagent") wrap.appendChild(renderTraceSubagent(item, readonly));
+    }
+    if (!readonly) {
+      for (const item of seg.items) {
+        if (item.kind !== "tool") continue;
+        for (const tr of item.tools) {
+          const perm = ctx.pendingPerms && ctx.pendingPerms[tr.id];
+          if (perm) wrap.appendChild(renderPerm(perm));
+        }
       }
     }
     for (const item of seg.items) {
-      if (item.kind === "thought") lines.appendChild(renderTraceThought(item, promptId));
-      else if (item.kind === "tool") lines.appendChild(renderTraceTool(item, promptId));
+      if (item.kind === "thought") lines.appendChild(renderTraceThought(item, promptId, readonly));
+      else if (item.kind === "tool") lines.appendChild(renderTraceTool(item, promptId, readonly));
     }
     wrap.appendChild(lines);
     return wrap;
@@ -687,6 +756,7 @@ export function bindTimeline(ctx) {
           s.items
             .map((it) => {
               if (it.kind === "thought") return it.live ? "T" : "t";
+              if (it.kind === "subagent") return "S" + String((it.block && it.block.status) || "");
               return (it.running ? "R" : "r") + String((it.tools && it.tools.length) || 0);
             })
             .join(",")
@@ -708,14 +778,15 @@ export function bindTimeline(ctx) {
           turn.prompt_id,
           -1,
           true,
-          opts.appearChip
+          opts.appearChip,
+          opts.readonly
         )
       );
     }
     for (let i = 0; i < split.segs.length; i++) {
       const seg = split.segs[i];
       if (seg.kind === "process") {
-        right.appendChild(renderProcessSeg(seg, turn.prompt_id, segIdx, isLive, opts.appearChip));
+        right.appendChild(renderProcessSeg(seg, turn.prompt_id, segIdx, isLive, opts.appearChip, opts.readonly));
         segIdx += 1;
       } else if (seg.kind === "asst") {
         right.appendChild(renderAssistantBody(seg.text));
@@ -745,7 +816,7 @@ export function bindTimeline(ctx) {
     row.className = "turn";
     row.dataset.prompt = turn.prompt_id || "";
     row.dataset.kind = "turn";
-    for (const u of turn.user) row.appendChild(renderUser(u, opts.appearUser));
+    for (const u of turn.user) row.appendChild(renderUser(u, opts.appearUser, opts.readonly));
     const right = document.createElement("div");
     right.className = "col col-agent";
     const split = fillAgentCol(right, turn, isLive, opts);
@@ -958,6 +1029,12 @@ export function bindTimeline(ctx) {
     if (block.type === "user") block = normalizeUserBlock(block);
     if (block.type === "tool" && block.id) {
       const i = ctx.current.blocks.findIndex((b) => b.type === "tool" && b.id === block.id);
+      if (i >= 0) ctx.current.blocks[i] = Object.assign({}, ctx.current.blocks[i], block);
+      else ctx.current.blocks.push(block);
+      return;
+    }
+    if (block.type === "subagent" && block.id) {
+      const i = ctx.current.blocks.findIndex((b) => b.type === "subagent" && b.id === block.id);
       if (i >= 0) ctx.current.blocks[i] = Object.assign({}, ctx.current.blocks[i], block);
       else ctx.current.blocks.push(block);
       return;

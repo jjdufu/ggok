@@ -364,3 +364,108 @@ fn jsonl_user_chunk_recovers_upload_file() {
         parsed.blocks
     );
 }
+
+#[test]
+fn ingest_subagent_spawned_then_finished_upserts() {
+    let mut p = Parser::new();
+    p.ingest_at(&chunk("user_message_chunk", "design"), "p1", Some(10));
+    assert_eq!(
+        p.ingest_at(
+            &json!({
+                "sessionUpdate": "subagent_spawned",
+                "subagent_id": "child-1",
+                "child_session_id": "child-1",
+                "parent_prompt_id": "p1",
+                "subagent_type": "general-purpose",
+                "description": "[writer] Write design doc"
+            }),
+            "p1",
+            Some(20)
+        ),
+        Ingest::Subagent
+    );
+    let blocks = p.snapshot_blocks();
+    assert!(
+        matches!(
+            &blocks[1],
+            Block::Subagent {
+                id,
+                status,
+                description,
+                prompt_id,
+                ..
+            } if id == "child-1"
+                && status == "running"
+                && description.contains("writer")
+                && prompt_id == "p1"
+        ),
+        "{blocks:?}"
+    );
+    assert_eq!(
+        p.ingest_at(
+            &json!({
+                "sessionUpdate": "subagent_finished",
+                "subagent_id": "child-1",
+                "child_session_id": "child-1",
+                "status": "cancelled",
+                "error": "Subagent was cancelled",
+                "duration_ms": 1200
+            }),
+            "p1",
+            Some(30)
+        ),
+        Ingest::Subagent
+    );
+    let blocks = p.snapshot_blocks();
+    let subs: Vec<_> = blocks
+        .iter()
+        .filter(|b| matches!(b, Block::Subagent { .. }))
+        .collect();
+    assert_eq!(subs.len(), 1, "{blocks:?}");
+    assert!(
+        matches!(
+            subs[0],
+            Block::Subagent {
+                status,
+                duration_ms,
+                error: Some(err),
+                ..
+            } if status == "cancelled" && *duration_ms == 1200 && err.contains("cancelled")
+        ),
+        "{subs:?}"
+    );
+    let md = blocks_to_markdown(&blocks);
+    assert!(md.contains("## Subagent"), "{md}");
+    assert!(md.contains("cancelled"), "{md}");
+}
+
+#[test]
+fn apply_event_reads_xai_subagent_update() {
+    let mut p = Parser::new();
+    apply_event(
+        &mut p,
+        &json!({
+            "timestamp": 1_700_000_000,
+            "method": "_x.ai/session/update",
+            "params": {
+                "sessionId": "parent",
+                "update": {
+                    "sessionUpdate": "subagent_spawned",
+                    "subagent_id": "sa-1",
+                    "child_session_id": "sa-1",
+                    "parent_prompt_id": "turn-1",
+                    "description": "explore"
+                }
+            }
+        }),
+    );
+    let blocks = p.snapshot_blocks();
+    assert!(
+        matches!(
+            &blocks[0],
+            Block::Subagent { id, prompt_id, status, .. }
+                if id == "sa-1" && prompt_id == "turn-1" && status == "running"
+        ),
+        "{blocks:?}"
+    );
+}

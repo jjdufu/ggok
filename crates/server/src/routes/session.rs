@@ -399,6 +399,7 @@ pub(crate) fn insert_stub(state: &AppState, id: &str, cwd: &str, model: &str) {
         agent_name: String::new(),
         num_messages: 0,
         parent_id: None,
+        subagent_of: None,
         last_turn_summary: None,
         empty: true,
         dir: state

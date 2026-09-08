@@ -14,6 +14,17 @@ fn block_prompt_id() {
         cancelled: false,
     };
     assert_eq!(end.prompt_id(), "abc");
+    let sub = Block::Subagent {
+        prompt_id: "p".into(),
+        id: "s".into(),
+        child_session_id: "s".into(),
+        description: "d".into(),
+        subagent_type: "general-purpose".into(),
+        status: "running".into(),
+        duration_ms: 0,
+        error: None,
+    };
+    assert_eq!(sub.prompt_id(), "p");
 }
 
 #[test]
@@ -30,6 +41,7 @@ fn session_meta_to_row_is_disk_idle() {
         agent_name: "a".into(),
         num_messages: 3,
         parent_id: None,
+        subagent_of: None,
         last_turn_summary: None,
         empty: false,
         dir: PathBuf::from("/tmp"),

@@ -17,6 +17,9 @@ impl SessionIndex {
     pub fn projects(&self) -> Vec<ProjectRow> {
         let mut by_cwd: HashMap<String, (usize, i64, String)> = HashMap::new();
         for s in self.sessions.values() {
+            if s.subagent_of.is_some() {
+                continue;
+            }
             let entry = by_cwd.entry(s.cwd.clone()).or_insert((0, 0, String::new()));
             entry.0 += 1;
             if s.updated_sort >= entry.1 {
@@ -49,6 +52,7 @@ impl SessionIndex {
             .sessions
             .values()
             .filter(|s| cwd.is_none_or(|c| s.cwd == c))
+            .filter(|s| s.subagent_of.is_none())
             .filter(|s| empty || !s.empty)
             .filter(|s| {
                 let Some(q) = q_lower.as_deref() else {
@@ -109,10 +113,8 @@ pub fn scan(grok_home: &Path) -> Result<SessionIndex> {
         }
     }
     for (child, parent) in child_to_parent {
-        if let Some(meta) = index.sessions.get_mut(&child)
-            && meta.parent_id.is_none()
-        {
-            meta.parent_id = Some(parent);
+        if let Some(meta) = index.sessions.get_mut(&child) {
+            meta.subagent_of = Some(parent);
         }
     }
     Ok(index)
@@ -199,6 +201,7 @@ fn load_session_meta(sess_path: &Path, dir_id: &str, fallback_cwd: &str) -> Opti
         agent_name: summary.agent_name.unwrap_or_default(),
         num_messages: summary.num_messages,
         parent_id,
+        subagent_of: None,
         empty,
         dir: sess_path.to_path_buf(),
         last_turn_summary,

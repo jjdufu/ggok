@@ -170,6 +170,13 @@ async fn emit_line(
         Ingest::Plan => {
             let _ = send_event(tx, "todos", &parser.todos()).await;
         }
+        Ingest::Subagent => {
+            let update = obj.pointer("/params/update").unwrap_or(&Value::Null);
+            let id = parse::subagent_id_of(update);
+            if let Some(block) = parser.subagent(&id).or_else(|| parser.last_block()) {
+                let _ = send_event(tx, "block", &block).await;
+            }
+        }
         Ingest::None => {
             let _ = before;
         }
@@ -187,6 +194,7 @@ fn classify_update(obj: &Value) -> Ingest {
         "turn_completed" => Ingest::TurnEnd,
         "usage_update" => Ingest::Usage,
         "plan" => Ingest::Plan,
+        "subagent_spawned" | "subagent_finished" => Ingest::Subagent,
         _ => Ingest::None,
     }
 }
