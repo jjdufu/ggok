@@ -96,7 +96,6 @@ export function bindExtModal(ctx) {
       ctx.mcpData = await api("/api/mcp" + qs);
       if (!ctx.mcpData || !Array.isArray(ctx.mcpData.servers)) ctx.mcpData = { servers: [], sources: [] };
     } catch (e) {
-      toast(String(e.message || e));
       if (!ctx.mcpData) ctx.mcpData = { servers: [], sources: [] };
     }
     ctx.mcpBusy = false;
@@ -232,7 +231,6 @@ export function bindExtModal(ctx) {
         : (data && (data.hooks || data.items || data.entries)) || [];
     } catch (e) {
       ctx.hookRows = [];
-      toast(String(e.message || e));
     }
     if (extModalOpen()) renderExtModal();
   }
@@ -247,7 +245,6 @@ export function bindExtModal(ctx) {
         : (data && (data.workflows || data.items)) || [];
     } catch (e) {
       ctx.workflowRows = [];
-      toast(String(e.message || e));
     }
     if (extModalOpen()) renderExtModal();
   }
@@ -260,7 +257,6 @@ export function bindExtModal(ctx) {
       ctx.agentRows = Array.isArray(data) ? data : (data && (data.agents || data.items)) || [];
     } catch (e) {
       ctx.agentRows = [];
-      toast(String(e.message || e));
     }
     if (extModalOpen()) renderExtModal();
   }
@@ -291,7 +287,6 @@ export function bindExtModal(ctx) {
         ctx.pluginData = { plugins: [], sources: [] };
       }
     } catch (e) {
-      toast(String(e.message || e));
       if (!ctx.pluginData) ctx.pluginData = { plugins: [], sources: [] };
     }
     ctx.pluginBusy = false;
@@ -974,7 +969,7 @@ export function bindExtModal(ctx) {
               fillExtDetail();
             }
           })
-          .catch((e) => toast(e))
+          .catch(() => {})
           .finally(() => {
             if (ctx.skillDetailLoading === skillKey) ctx.skillDetailLoading = "";
           });
