@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.20](https://github.com/jjdufu/ggok/compare/v0.1.19...v0.1.20) (2026-09-08)
+
+
+### Features
+
+* add user-turn minimap and show context percent by default ([ed6dd5e](https://github.com/jjdufu/ggok/commit/ed6dd5efbf6e2f96382eb82f524fe1835475bcef))
+
 ## [0.1.19](https://github.com/jjdufu/ggok/compare/v0.1.18...v0.1.19) (2026-09-08)
 
 
