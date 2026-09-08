@@ -1,5 +1,5 @@
 import { promptApi } from "../promptApi.js";
-import { t, setTip, fileNameOf, uploadUrl, fileViewSrc, isImageAttach, revokePreview, isSpectatingSource, occupyMessageKey, normalizeUserBlock, mergePromptFiles } from "../lib/helpers.js";
+import { t, setTip, fileNameOf, uploadUrl, fileViewSrc, isImageAttach, revokePreview, isSpectatingSource, occupyMessageKey, normalizeUserBlock, mergePromptFiles, collapseEchoedUserText } from "../lib/helpers.js";
 import { bindDraftSync } from "./draft-sync.js";
 import { placePopover } from "../lib/popover.js";
 import { svgUse } from "../lib/svg.js";
@@ -983,7 +983,7 @@ export function bindComposer(ctx) {
             const local = localBlocks.find((lb) => {
               if (lb.type !== "user") return false;
               if (next.prompt_id && lb.prompt_id && next.prompt_id === lb.prompt_id) return true;
-              return String(lb.text || "") === String(next.text || "");
+              return collapseEchoedUserText(lb.text) === collapseEchoedUserText(next.text);
             });
             if (local) next.files = mergePromptFiles(local.files, next.files);
             return next;
@@ -993,7 +993,7 @@ export function bindComposer(ctx) {
             if (b.type === "user" && String(b.prompt_id || "").startsWith("pending-")) {
               const serverOpenStart = ctx.openTurnStart ? ctx.openTurnStart(serverBlocks) : 0;
               const exists = serverBlocks.slice(serverOpenStart).some(
-                (sb) => sb.type === "user" && String(sb.text || "") === String(b.text || "")
+                (sb) => sb.type === "user" && collapseEchoedUserText(sb.text) === collapseEchoedUserText(b.text)
               );
               if (!exists) {
                 pendingUsers.push(b);

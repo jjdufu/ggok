@@ -1,4 +1,4 @@
-import { t, setTip, setDynI18n, fileNameOf, fileViewSrc, isImageAttach, revokePreview, focusKeyThought, focusKeyTool, normalizeUserBlock, mergePromptFiles, fmtDur } from "../lib/helpers.js";
+import { t, setTip, setDynI18n, fileNameOf, fileViewSrc, isImageAttach, revokePreview, focusKeyThought, focusKeyTool, normalizeUserBlock, mergePromptFiles, collapseEchoedUserText, fmtDur } from "../lib/helpers.js";
 import { svgUse } from "../lib/svg.js";
 import { post } from "../lib/api.js";
 import { renderMarkdown } from "../lib/markdown.js";
@@ -36,7 +36,9 @@ export function bindTimeline(ctx) {
         continue;
       }
       if (b.type === "user") {
-        const sameUser = cur.user.find((u) => String(u.text || "") === String(b.text || ""));
+        const sameUser = cur.user.find(
+          (u) => collapseEchoedUserText(u.text) === collapseEchoedUserText(b.text)
+        );
         if (sameUser) {
           const prevPend = isPendingPrompt(sameUser.prompt_id);
           const nextPend = isPendingPrompt(b.prompt_id);
@@ -720,6 +722,7 @@ export function bindTimeline(ctx) {
   const BOTTOM_EPS = 1;
   let followOutput = true;
   let ignoreScroll = false;
+  let lastUserTop = 0;
   const jumpBottomBtn = document.getElementById("jump-bottom");
 
   function distanceFromBottom() {
@@ -741,24 +744,32 @@ export function bindTimeline(ctx) {
     setTip(jumpBottomBtn, label);
   }
 
-  function stickIfFollowing() {
-    if (!followOutput || !timeline) return;
+  function withIgnoredScroll(fn) {
+    if (!timeline) return;
     ignoreScroll = true;
-    timeline.scrollTop = timeline.scrollHeight;
+    fn();
+    lastUserTop = timeline.scrollTop;
     requestAnimationFrame(() => {
-      ignoreScroll = false;
+      requestAnimationFrame(() => {
+        ignoreScroll = false;
+        if (timeline) lastUserTop = timeline.scrollTop;
+      });
     });
     syncJumpBottom();
   }
 
-  function restoreFromBottom(fromBottom) {
-    if (!timeline) return;
-    ignoreScroll = true;
-    timeline.scrollTop = Math.max(0, timeline.scrollHeight - fromBottom);
-    requestAnimationFrame(() => {
-      ignoreScroll = false;
+  function stickIfFollowing() {
+    if (!followOutput || !timeline) return;
+    withIgnoredScroll(() => {
+      timeline.scrollTop = timeline.scrollHeight;
     });
-    syncJumpBottom();
+  }
+
+  function keepScrollTop(top) {
+    if (!timeline) return;
+    withIgnoredScroll(() => {
+      timeline.scrollTop = Math.max(0, top);
+    });
   }
 
   function setFollowOutput(on) {
@@ -771,11 +782,13 @@ export function bindTimeline(ctx) {
     if (!timeline || !dy) return;
     if (dy < 0) followOutput = false;
     timeline.scrollBy({ top: dy });
+    lastUserTop = timeline.scrollTop;
     if (dy > 0 && atBottom()) followOutput = true;
     syncJumpBottom();
   }
 
   if (timeline) {
+    lastUserTop = timeline.scrollTop;
     timeline.addEventListener(
       "wheel",
       (e) => {
@@ -788,8 +801,14 @@ export function bindTimeline(ctx) {
     timeline.addEventListener(
       "scroll",
       () => {
-        if (ignoreScroll) return;
-        followOutput = atBottom();
+        if (ignoreScroll) {
+          lastUserTop = timeline.scrollTop;
+          return;
+        }
+        const top = timeline.scrollTop;
+        if (top < lastUserTop - 1) followOutput = false;
+        else if (atBottom()) followOutput = true;
+        lastUserTop = top;
         syncJumpBottom();
       },
       { passive: true }
@@ -951,7 +970,7 @@ export function bindTimeline(ctx) {
 
   function userFingerprint(u) {
     const files = (u.files || []).map((f) => String((f && f.path) || "")).join("\0");
-    return String(u.text || "") + "\n" + files;
+    return collapseEchoedUserText(u.text) + "\n" + files;
   }
 
   function syncTurnUsers(row, turn, appear) {
@@ -995,7 +1014,7 @@ export function bindTimeline(ctx) {
 
   function renderBlocks(detail) {
     if (!timeline) return;
-    const fromBottom = distanceFromBottom();
+    const savedTop = timeline.scrollTop;
     const wasFollow = followOutput;
     if (!detail) {
       timeline.innerHTML = "";
@@ -1063,7 +1082,7 @@ export function bindTimeline(ctx) {
     if (ctx.drawerMode === "process" && ctx.drawerPromptId && ctx.renderDrawer) ctx.renderDrawer();
     if (ctx.syncQuestionCards) ctx.syncQuestionCards();
     if (wasFollow) stickIfFollowing();
-    else restoreFromBottom(fromBottom);
+    else keepScrollTop(savedTop);
   }
 
   function scheduleRender() {
@@ -1099,7 +1118,7 @@ export function bindTimeline(ctx) {
             break;
           }
         }
-        if (prevIdx >= 0 && String(out[prevIdx].text || "") === String(b.text || "")) {
+        if (prevIdx >= 0 && collapseEchoedUserText(out[prevIdx].text) === collapseEchoedUserText(b.text)) {
           const prev = out[prevIdx];
           const prevPend = isPendingPrompt(prev.prompt_id);
           const nextPend = isPendingPrompt(b.prompt_id);

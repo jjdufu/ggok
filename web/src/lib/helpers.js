@@ -173,10 +173,33 @@ export function stripUploadTags(text) {
     .trim();
 }
 
+const CAPTION_LINE = /^\[Image #\d+\](?:\s*图\s*\d+)?\s*(?:\n|$)/;
+
+export function stripImageCaptions(text) {
+  let s = String(text || "").replace(/^\s+/, "");
+  for (;;) {
+    const m = CAPTION_LINE.exec(s);
+    if (!m) break;
+    s = s.slice(m[0].length).replace(/^\s+/, "");
+  }
+  return s;
+}
+
+export function collapseEchoedUserText(text) {
+  let s = stripImageCaptions(stripUploadTags(text));
+  const idx = s.indexOf("[Image #");
+  if (idx > 0) {
+    const left = s.slice(0, idx).replace(/\s+$/, "");
+    const right = stripImageCaptions(s.slice(idx)).replace(/^\s+/, "");
+    if (left && (right === left || right.startsWith(left))) return left;
+  }
+  return s.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function normalizeUserBlock(block) {
   if (!block || block.type !== "user") return block;
   const fromText = filesFromUploadTags(block.text);
-  const text = stripUploadTags(block.text);
+  const text = collapseEchoedUserText(block.text);
   const files = mergePromptFiles(block.files, fromText);
   return Object.assign({}, block, { text, files });
 }

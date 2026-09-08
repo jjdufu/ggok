@@ -113,7 +113,7 @@ impl Parser {
 
     fn push_text(&mut self, kind: TextKind, prompt_id: String, raw: &str) {
         let (text, files) = if kind == TextKind::User {
-            split_upload_refs(raw)
+            visible_user_payload(raw)
         } else {
             (raw.to_string(), Vec::new())
         };
@@ -162,7 +162,7 @@ impl Parser {
 
     /// Seed the open user block so live snapshots keep attachment metadata.
     pub fn seed_user(&mut self, prompt_id: String, text: &str, files: Vec<PromptFile>) {
-        let (text, extracted) = split_upload_refs(text);
+        let (text, extracted) = visible_user_payload(text);
         let mut all = files;
         merge_prompt_files(&mut all, extracted);
         self.flush_text();
@@ -201,11 +201,10 @@ impl Parser {
     }
 
     fn open_turn_has_user(&self, text: &str) -> bool {
-        if self
-            .buf
-            .as_ref()
-            .is_some_and(|buf| buf.kind == TextKind::User && buf.text == text)
-        {
+        let want = collapse_user_visible(text);
+        if self.buf.as_ref().is_some_and(|buf| {
+            buf.kind == TextKind::User && collapse_user_visible(&buf.text) == want
+        }) {
             return true;
         }
         let start = self
@@ -215,7 +214,7 @@ impl Parser {
             .map_or(0, |i| i + 1);
         self.blocks[start..]
             .iter()
-            .any(|b| matches!(b, Block::User { text: t, .. } if t == text))
+            .any(|b| matches!(b, Block::User { text: t, .. } if collapse_user_visible(t) == want))
     }
 
     fn open_turn_has_any_user(&self) -> bool {
@@ -1240,14 +1239,21 @@ fn normalize_tool_json(v: &mut Value) {
 }
 
 fn merge_user_buf_text(buf: &mut TextBuf, incoming: &str) {
-    if incoming.is_empty() || buf.text == incoming || buf.text.starts_with(incoming) {
+    let cur = collapse_user_visible(&buf.text);
+    let next = collapse_user_visible(incoming);
+    if next.is_empty() || cur == next || cur.starts_with(&next) || cur.contains(&next) {
+        buf.text = cur;
         return;
     }
-    if incoming.starts_with(&buf.text) {
-        buf.text = incoming.to_string();
+    if cur.is_empty() || next.starts_with(&cur) {
+        buf.text = next;
         return;
     }
-    buf.text.push_str(incoming);
+    if next.contains(&cur) {
+        buf.text = cur;
+        return;
+    }
+    buf.text.push_str(&next);
 }
 
 fn merge_prompt_files(dst: &mut Vec<PromptFile>, extra: Vec<PromptFile>) {
@@ -1368,12 +1374,81 @@ pub fn split_upload_refs(text: &str) -> (String, Vec<PromptFile>) {
 /// Strip upload tags from visible text and merge them into `files`.
 #[must_use]
 pub fn normalize_user_payload(text: &str, files: Vec<PromptFile>) -> (String, Vec<PromptFile>) {
-    let (visible, extracted) = split_upload_refs(text);
+    let (visible, extracted) = visible_user_payload(text);
     let mut all = files;
     merge_prompt_files(&mut all, extracted);
     (visible, all)
 }
 
+fn visible_user_payload(text: &str) -> (String, Vec<PromptFile>) {
+    let (visible, files) = split_upload_refs(text);
+    (collapse_user_visible(&visible), files)
+}
+
+/// Strip model-only image captions and echoed duplicates from user-visible text.
+#[must_use]
+pub fn collapse_user_visible(text: &str) -> String {
+    let (no_tags, _) = split_upload_refs(text);
+    collapse_echoed_user_text(&strip_leading_captions(&no_tags))
+}
+
+fn is_image_caption_line(line: &str) -> bool {
+    let t = line.trim();
+    let Some(rest) = t.strip_prefix("[Image #") else {
+        return false;
+    };
+    let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+    if digits == 0 {
+        return false;
+    }
+    let rest = rest.get(digits..).unwrap_or("");
+    let Some(rest) = rest.strip_prefix(']') else {
+        return false;
+    };
+    let rest = rest.trim_start();
+    if rest.is_empty() {
+        return true;
+    }
+    rest.strip_prefix('图').is_some_and(|n| {
+        let n = n.trim();
+        !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit())
+    })
+}
+
+fn caption_prefix_len(s: &str) -> Option<usize> {
+    let (line, has_nl) = match s.find('\n') {
+        Some(i) => (&s[..i], true),
+        None => (s, false),
+    };
+    if !is_image_caption_line(line.trim()) {
+        return None;
+    }
+    Some(if has_nl { line.len() + 1 } else { s.len() })
+}
+
+fn strip_leading_captions(text: &str) -> String {
+    let mut rest = text.trim_start();
+    while let Some(n) = caption_prefix_len(rest) {
+        rest = rest.get(n..).unwrap_or("").trim_start();
+    }
+    collapse_trim(rest)
+}
+
+fn collapse_echoed_user_text(text: &str) -> String {
+    let t = strip_leading_captions(text);
+    let Some(idx) = t.find("[Image #") else {
+        return t;
+    };
+    let left = t[..idx].trim_end();
+    if left.is_empty() {
+        return strip_leading_captions(&t[idx..]);
+    }
+    let right = strip_leading_captions(&t[idx..]);
+    if right == left || right.starts_with(left) {
+        return left.to_string();
+    }
+    t
+}
 /// True when `file` is an image by MIME type or path extension.
 #[must_use]
 pub fn prompt_file_is_image(file: &PromptFile) -> bool {
@@ -1510,13 +1585,17 @@ fn compact_duplicate_open_users(blocks: &mut Vec<Block>) {
                 files,
                 prompt_id,
             } => {
-                if seen_user.as_deref() == Some(text.as_str()) {
+                if seen_user
+                    .as_deref()
+                    .is_some_and(|prev| collapse_user_visible(prev) == collapse_user_visible(&text))
+                {
                     if let Some(Block::User {
+                        text: prev_text,
                         files: prev,
                         prompt_id: pid,
-                        ..
                     }) = out.last_mut()
                     {
+                        *prev_text = collapse_user_visible(prev_text);
                         merge_prompt_files(prev, files);
                         if pid.is_empty() && !prompt_id.is_empty() {
                             pid.clone_from(&prompt_id);
@@ -1524,6 +1603,7 @@ fn compact_duplicate_open_users(blocks: &mut Vec<Block>) {
                     }
                     continue;
                 }
+                let text = collapse_user_visible(&text);
                 seen_user = Some(text.clone());
                 out.push(Block::User {
                     text,
