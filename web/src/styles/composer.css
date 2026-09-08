@@ -356,6 +356,110 @@
   opacity: 1;
 }
 
+.todos-bar {
+  position: absolute;
+  left: 14px;
+  bottom: calc(100% + 6px);
+  z-index: 5;
+  width: max-content;
+  max-width: min(280px, calc(50% - 88px));
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 550;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  user-select: none;
+  pointer-events: auto;
+}
+
+.todos-bar[hidden] { display: none !important; }
+
+.todos-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: auto;
+  max-width: 100%;
+  height: 18px;
+  margin: 0;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--fg) 10%, var(--composer));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fg) 12%, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1), padding 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.todos-bar:hover .todos-toggle,
+.todos-bar:focus-within .todos-toggle,
+.todos-bar.open .todos-toggle {
+  height: 22px;
+}
+
+.todos-title {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.todos-preview {
+  min-width: 0;
+  max-width: 0;
+  margin-left: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+  opacity: 0;
+  pointer-events: none;
+  transition: max-width 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.16s ease, margin-left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.todos-bar:hover .todos-preview,
+.todos-bar:focus-within .todos-preview,
+.todos-bar.open .todos-preview {
+  max-width: 180px;
+  margin-left: 6px;
+  opacity: 1;
+}
+
+.todos-list {
+  position: absolute;
+  left: 0;
+  right: auto;
+  bottom: calc(100% + 8px);
+  top: auto;
+  z-index: 26;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 240px;
+  width: max(100%, 240px);
+  max-width: min(360px, calc(100vw - 48px));
+  max-height: min(40vh, 320px);
+  margin: 0;
+  padding: 8px 10px;
+  list-style: none;
+  overflow: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--menu);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.4;
+}
+
+.todos-bar.open .todos-list { display: flex; }
+
 .menu-name { font-weight: 500; font-size: 13px; }
 
 .menu-desc {

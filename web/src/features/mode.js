@@ -134,17 +134,20 @@ export function bindMode(ctx) {
     const toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "todos-toggle";
+    toggle.setAttribute("aria-expanded", ctx.todosOpen ? "true" : "false");
+    toggle.setAttribute("aria-haspopup", "true");
     const title = document.createElement("span");
     title.className = "todos-title";
     title.textContent = t("todosProgress", { done, total: items.length });
     toggle.appendChild(title);
-    if (!ctx.todosOpen && current && current.content) {
+    if (current && current.content) {
       const preview = document.createElement("span");
       preview.className = "todos-preview";
       preview.textContent = current.content;
       toggle.appendChild(preview);
     }
-    toggle.addEventListener("click", () => {
+    toggle.addEventListener("click", (e) => {
+      e.stopPropagation();
       ctx.todosOpen = !ctx.todosOpen;
       renderTodos(ctx.todos);
     });
@@ -226,10 +229,21 @@ export function bindMode(ctx) {
       toggleModeMenu();
     });
   }
+  function closeTodos() {
+    if (!ctx.todosOpen) return;
+    ctx.todosOpen = false;
+    renderTodos(ctx.todos);
+  }
+
   document.addEventListener("click", (e) => {
     if (modeMenu && !modeMenu.hidden && !modeMenu.contains(e.target) && (!modeBtn || !modeBtn.contains(e.target))) {
       closeModeMenu();
     }
+    const bar = document.getElementById("todos-bar");
+    if (ctx.todosOpen && bar && !bar.contains(e.target)) closeTodos();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeTodos();
   });
   window.addEventListener("resize", pinModeMenu);
   window.addEventListener("scroll", pinModeMenu, true);
