@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.17](https://github.com/jjdufu/ggok/compare/v0.1.16...v0.1.17) (2026-09-08)
+
+
+### Features
+
+* caption prompt images in composer and timeline ([2064986](https://github.com/jjdufu/ggok/commit/2064986fb08580e914878a2a4e50a2dd712ed3c3))
+
 ## [0.1.16](https://github.com/jjdufu/ggok/compare/v0.1.15...v0.1.16) (2026-09-08)
 
 
