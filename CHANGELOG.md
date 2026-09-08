@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.24](https://github.com/jjdufu/ggok/compare/v0.1.23...v0.1.24) (2026-09-08)
+
+
+### Bug Fixes
+
+* adapt turn-map panel to the page and dim the last tick ([5fd219a](https://github.com/jjdufu/ggok/commit/5fd219aa19849a0ca03cf5943dabdbe3a447b8aa))
+
 ## [0.1.23](https://github.com/jjdufu/ggok/compare/v0.1.22...v0.1.23) (2026-09-08)
 
 
