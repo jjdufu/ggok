@@ -8,8 +8,6 @@ import { escapeHtml } from "../lib/markdown.js";
 import { toast } from "../lib/clipboard.js";
 import { slashKind } from "../lib/slash.js";
 
-const STASH_KEY = "ggok-stash";
-
 export function bindComposer(ctx) {
   const app = document.getElementById("app");
   const actions = document.getElementById("actions");
@@ -178,8 +176,14 @@ export function bindComposer(ctx) {
     const files = ctx.attachments || [];
     chipsEl.hidden = !skillChip && !files.length;
     if (skillChip) chipsEl.appendChild(skillChip);
+    let imageN = 0;
     for (const f of files) {
-      if (ctx.makeFileChip) chipsEl.appendChild(ctx.makeFileChip(f, true));
+      const opts = {};
+      if (isImageAttach(f) && !f.processing) {
+        imageN += 1;
+        opts.imageIndex = imageN;
+      }
+      if (ctx.makeFileChip) chipsEl.appendChild(ctx.makeFileChip(f, true, opts));
     }
   }
 
@@ -224,7 +228,22 @@ export function bindComposer(ctx) {
     }
   }
 
-  async function uploadFiles(fileList) {
+  function genericPasteName(name) {
+    const n = String(name || "").trim().toLowerCase();
+    return !n || n === "image.png" || n === "image.jpg" || n === "image.jpeg" || n === "image.gif" || n === "image.webp" || n === "untitled.png" || n === "blob";
+  }
+
+  function pasteFileName(file, n) {
+    const raw = String((file && file.name) || "");
+    const fromName = /\.([a-z0-9]+)$/i.exec(raw);
+    const fromMime = String((file && file.type) || "").split("/")[1];
+    let ext = (fromName && fromName[1]) || fromMime || "png";
+    ext = ext.toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+    if (ext === "jpeg") ext = "jpg";
+    return "paste-" + n + "." + ext;
+  }
+
+  async function uploadFiles(fileList, opts) {
     const dir = ctx.selectedCwd || (ctx.current && ctx.current.cwd);
     if (!dir) {
       ctx.dirPath = "";
@@ -233,14 +252,22 @@ export function bindComposer(ctx) {
       return;
     }
     if (!ctx.attachments) ctx.attachments = [];
+    const pasted = !!(opts && opts.pasted);
+    let imageN = (ctx.attachments || []).filter((a) => isImageAttach(a)).length;
     for (const file of fileList) {
-      const pending = { name: file.name, mime: file.type, processing: true };
+      let uploadName = file.name || "file";
+      const asImage = String(file.type || "").toLowerCase().startsWith("image/") || isImageAttach({ name: file.name, mime: file.type });
+      if (pasted && asImage && genericPasteName(file.name)) {
+        imageN += 1;
+        uploadName = pasteFileName(file, imageN);
+      }
+      const pending = { name: uploadName, mime: file.type, processing: true };
       ctx.attachments.push(pending);
       renderChips();
       try {
         const fd = new FormData();
         fd.append("cwd", dir);
-        fd.append("file", file, file.name);
+        fd.append("file", file, uploadName);
         const res = await fetch("/api/uploads", { method: "POST", body: fd, credentials: "same-origin" });
         if (res.status === 401) {
           location.href = "/login";
@@ -248,8 +275,9 @@ export function bindComposer(ctx) {
         }
         if (!res.ok) throw new Error(await res.text());
         const row = await res.json();
+        row.name = row.name || uploadName;
         row.url = uploadUrl(row);
-        if (isImageAttach({ mime: row.mime || file.type, name: row.name || file.name })) {
+        if (isImageAttach({ mime: row.mime || file.type, name: row.name || uploadName })) {
           row.preview = row.url;
         }
         const i = ctx.attachments.indexOf(pending);
@@ -260,6 +288,7 @@ export function bindComposer(ctx) {
         toast(String(e.message || e));
       }
       renderChips();
+      drafts.publish();
     }
   }
 
@@ -286,7 +315,10 @@ export function bindComposer(ctx) {
         rel: f.path
       });
     }
-    if (files.length) renderChips();
+    if (files.length) {
+      renderChips();
+      drafts.publish();
+    }
   }
 
   function isGoneQueueErr(err) {
@@ -891,7 +923,9 @@ export function bindComposer(ctx) {
     if (ctx.syncWsButton) ctx.syncWsButton();
     promptApi.setText("");
     ctx.activeSkill = null;
+    clearAttachments();
     renderChips();
+    if (ctx.setFollowOutput) ctx.setFollowOutput(true);
     if (ctx.renderTodos) ctx.renderTodos([]);
     if (ctx.closeModeMenu) ctx.closeModeMenu();
     if (ctx.syncModeBtn) ctx.syncModeBtn();
@@ -991,6 +1025,9 @@ export function bindComposer(ctx) {
 
   async function openSession(id) {
     drafts.flush();
+    clearAttachments();
+    renderChips();
+    if (ctx.setFollowOutput) ctx.setFollowOutput(true);
     if (ctx.closeDirModal) ctx.closeDirModal();
     if (ctx.syncWorkTimer) ctx.syncWorkTimer(false);
     ctx.currentId = id;
@@ -1108,6 +1145,7 @@ export function bindComposer(ctx) {
       drafts.clear();
       clearAttachments();
       renderChips();
+      if (ctx.setFollowOutput) ctx.setFollowOutput(true);
       try {
         await post("/api/sessions/" + encodeURIComponent(ctx.currentId) + "/retry", {
           prompt_index: pending.prompt_index,
@@ -1147,6 +1185,7 @@ export function bindComposer(ctx) {
     drafts.clear();
     clearAttachments();
     renderChips();
+    if (ctx.setFollowOutput) ctx.setFollowOutput(true);
     if (slashMenu) slashMenu.hidden = true;
 
     if (!ctx.current) {
@@ -1304,6 +1343,7 @@ export function bindComposer(ctx) {
     drafts.clear();
     clearAttachments();
     renderChips();
+    if (ctx.setFollowOutput) ctx.setFollowOutput(true);
     try {
       await post("/api/sessions/" + encodeURIComponent(ctx.currentId) + "/interject", { text, files });
     } catch (err) {
@@ -1344,47 +1384,6 @@ export function bindComposer(ctx) {
       submitPrompt();
     });
   }
-
-  function stashDraft() {
-    const text = promptApi.getText();
-    const files = (ctx.attachments || [])
-      .filter((a) => a.path)
-      .map((a) => ({ path: a.path, mime: a.mime, name: a.name || a.rel || fileNameOf(a) }));
-    if (String(text || "").trim() || files.length) {
-      try {
-        sessionStorage.setItem(STASH_KEY, JSON.stringify({ text, files }));
-      } catch (err) {
-        toast(t("stashFailed"));
-        return;
-      }
-      promptApi.setText("");
-      drafts.clear();
-      clearAttachments();
-      renderChips();
-      toast(t("stashSaved"));
-      return;
-    }
-    let raw = "";
-    try {
-      raw = sessionStorage.getItem(STASH_KEY) || "";
-    } catch (err) {
-      raw = "";
-    }
-    if (!raw) {
-      toast(t("stashEmpty"));
-      return;
-    }
-    try {
-      const v = JSON.parse(raw);
-      promptApi.setText(String((v && v.text) || ""));
-      toast(t("stashRestored"));
-    } catch (err) {
-      toast(t("stashEmpty"));
-    }
-  }
-
-  const stashBtn = document.getElementById("stash-btn");
-  if (stashBtn) stashBtn.addEventListener("click", stashDraft);
 
   const attachBtn = document.getElementById("attach-btn");
   if (attachBtn && fileInput) {
@@ -1462,8 +1461,39 @@ export function bindComposer(ctx) {
       lastPasteKey = key;
       lastPasteAt = now;
       e.preventDefault();
-      uploadFiles(files);
+      uploadFiles(files, { pasted: true });
     });
+  }
+
+  function wheelDeltaY(e) {
+    if (e.deltaMode === 1) return e.deltaY * 16;
+    if (e.deltaMode === 2) return e.deltaY * (timeline ? timeline.clientHeight : 0);
+    return e.deltaY;
+  }
+
+  function canScroll(el, dy) {
+    if (!el) return false;
+    if (el.scrollHeight <= el.clientHeight + 1) return false;
+    if (dy < 0) return el.scrollTop > 0;
+    return el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+  }
+
+  if (composer && timeline) {
+    composer.addEventListener(
+      "wheel",
+      (e) => {
+        const dy = wheelDeltaY(e);
+        if (!dy) return;
+        const nested = e.target && e.target.closest
+          ? e.target.closest("#slash-menu, #at-menu, #queue textarea, .prompt-editor")
+          : null;
+        if (nested && canScroll(nested, dy)) return;
+        e.preventDefault();
+        if (ctx.noteTimelineWheel) ctx.noteTimelineWheel(dy);
+        else timeline.scrollBy({ top: dy });
+      },
+      { passive: false }
+    );
   }
 
   if (slashMenu) slashMenu.addEventListener("click", (e) => e.stopPropagation());
@@ -1496,6 +1526,7 @@ export function bindComposer(ctx) {
   ctx.uploadFiles = uploadFiles;
   ctx.clearAttachments = clearAttachments;
   ctx.renderChips = renderChips;
+  ctx.publishDraft = () => drafts.publish();
   ctx.filesFromDataTransfer = filesFromDataTransfer;
   ctx.clipboardPlainText = clipboardPlainText;
   ctx.hasFileDrag = hasFileDrag;

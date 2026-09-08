@@ -84,7 +84,6 @@ export function boot() {
     tasks: [],
     retryPending: null,
     compactPhase: "",
-    stash: null,
 
     drawerPromptId: "",
     drawerFocusKey: "",
@@ -291,6 +290,7 @@ export function boot() {
     if (ctx.paintPromptPh) ctx.paintPromptPh(false);
     if (ctx.renderSlash) ctx.renderSlash();
     if (ctx.renderChips) ctx.renderChips();
+    if (ctx.syncJumpBottom) ctx.syncJumpBottom();
     if (ctx.syncSearchTip) ctx.syncSearchTip();
     if (ctx.syncFinderKeys) ctx.syncFinderKeys();
     if (ctx.syncFinderPreview) ctx.syncFinderPreview();

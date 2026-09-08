@@ -259,6 +259,7 @@ html[data-theme="light"] .composer-inner:has(:focus-visible) {
   min-height: 42px;
   max-height: 200px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 14px 8px 0;
   font-size: 16px;
   line-height: 28px;

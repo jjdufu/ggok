@@ -6,6 +6,34 @@
   width: 100%;
 }
 
+.jump-bottom {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 12px);
+  transform: translateX(-50%);
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--composer-border);
+  border-radius: 999px;
+  background: var(--composer);
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.jump-bottom[hidden] { display: none !important; }
+
+.jump-bottom:hover { background: var(--hover); }
+
+.jump-bottom svg { width: 14px; height: 14px; display: block; }
+
 .composer-fade {
   position: absolute;
   left: 0;

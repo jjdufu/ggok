@@ -80,6 +80,13 @@ pub(crate) async fn api_upload_get(Query(q): Query<UploadGetQuery>) -> Response 
     }
 }
 
+pub(crate) async fn api_upload_head(Query(q): Query<UploadGetQuery>) -> Response {
+    match paths::open_upload(&q.path) {
+        Ok(_) => StatusCode::OK.into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
 pub(crate) async fn api_uploads(
     State(state): State<Arc<AppState>>,
     mut form: Multipart,

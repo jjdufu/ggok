@@ -74,7 +74,9 @@ pub(crate) fn router(upload_max: usize) -> Router<Arc<AppState>> {
         .route("/api/skills/upload", post(ext::api_skills_upload))
         .route(
             "/api/uploads",
-            get(fs::api_upload_get).post(fs::api_uploads),
+            get(fs::api_upload_get)
+                .head(fs::api_upload_head)
+                .post(fs::api_uploads),
         )
         .route(
             "/api/sessions",

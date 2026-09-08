@@ -168,9 +168,6 @@ export default function App() {
                   <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-folder"/></svg>
                   <span id="dir-label" hidden={true}><span className="dir-path-text"></span></span>
                 </button>
-                <button type="button" id="stash-btn" className="icon-btn" data-tip="暂存" data-i18n-title="stash">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-stash"/></svg>
-                </button>
                 <span className="composer-spacer"></span>
                 <div className="mode-wrap">
                   <button type="button" id="mode-btn" className="composer-btn" hidden={true} data-i18n-title="modeTip" aria-haspopup="menu" aria-expanded="false">Ask</button>
@@ -197,6 +194,12 @@ export default function App() {
                 </button>
               </div>
             </div>
+            <button type="button" id="jump-bottom" className="jump-bottom" hidden={true} data-i18n-title="jumpBottom" data-i18n-aria="jumpBottom">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M6 9l6 6 6-6" strokeLinecap="square"/>
+              </svg>
+              <span data-i18n="jumpBottom">回到底部</span>
+            </button>
           </div>
         </footer>
       </div>

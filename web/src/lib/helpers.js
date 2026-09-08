@@ -72,8 +72,7 @@ export function shortCwd(cwd) {
   const parts = String(cwd || "").replace(/\/+$/, "").split("/").filter(Boolean);
   if (!parts.length) return cwd || "";
   const tail = parts.length <= 2 ? parts : parts.slice(-2);
-  const label = tail.join("/");
-  return label.charAt(0).toUpperCase() + label.slice(1);
+  return tail.join("/");
 }
 
 export function parentOf(path) {

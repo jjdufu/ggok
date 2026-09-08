@@ -23,8 +23,9 @@ pub use occupy::{
     stdio_holds_leader, tui_held, web_active_path, write_leader_record, write_web_active,
 };
 pub use parse::{
-    ParsedSession, Parser, blocks_to_markdown, context_window, extract_tool, merge_live_over_disk,
-    models_from_cache, normalize_user_payload, parse_updates_file, split_upload_refs,
+    ParsedSession, Parser, blocks_to_markdown, context_window, extract_tool, image_caption_lines,
+    merge_live_over_disk, models_from_cache, normalize_user_payload, parse_updates_file,
+    prompt_body_with_files, prompt_file_is_image, split_upload_refs, with_image_captions,
 };
 pub use paths::{
     DirEntry, FsEntry, compress_upload, cwd_allowed, fs_complete, is_under, list_dirs, open_upload,

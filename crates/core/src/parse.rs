@@ -613,11 +613,7 @@ fn ingest_subagent(
     parser.subagents.insert(id.clone(), idx);
     parser.blocks.push(Block::Subagent {
         prompt_id: pid,
-        child_session_id: if child.is_empty() {
-            id.clone()
-        } else {
-            child
-        },
+        child_session_id: if child.is_empty() { id.clone() } else { child },
         id,
         description,
         subagent_type,
@@ -1376,6 +1372,93 @@ pub fn normalize_user_payload(text: &str, files: Vec<PromptFile>) -> (String, Ve
     let mut all = files;
     merge_prompt_files(&mut all, extracted);
     (visible, all)
+}
+
+/// True when `file` is an image by MIME type or path extension.
+#[must_use]
+pub fn prompt_file_is_image(file: &PromptFile) -> bool {
+    if file
+        .mime
+        .as_deref()
+        .is_some_and(|mime| mime.to_ascii_lowercase().starts_with("image/"))
+    {
+        return true;
+    }
+    Path::new(&file.path)
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| {
+            matches!(
+                ext.to_ascii_lowercase().as_str(),
+                "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "svg"
+            )
+        })
+}
+
+/// Caption lines for images in `files` order, 1-based: `[Image #1] 图 1`.
+#[must_use]
+pub fn image_caption_lines(files: &[PromptFile]) -> Vec<String> {
+    files
+        .iter()
+        .filter(|file| prompt_file_is_image(file))
+        .enumerate()
+        .map(|(i, _)| {
+            let n = i + 1;
+            format!("[Image #{n}] 图 {n}")
+        })
+        .collect()
+}
+
+/// Prepend image captions so the model can resolve 图 N / `[Image #N]`.
+///
+/// Captions follow `files` order, not filename sort. Already-prefixed text is left alone.
+#[must_use]
+pub fn with_image_captions(text: &str, files: &[PromptFile]) -> String {
+    let lines = image_caption_lines(files);
+    if lines.is_empty() {
+        return text.to_string();
+    }
+    let head = lines.join("\n");
+    if has_caption_prefix(text, &head) {
+        return text.to_string();
+    }
+    let body = text.trim_end();
+    if body.is_empty() {
+        head
+    } else {
+        format!("{head}\n\n{body}")
+    }
+}
+
+fn has_caption_prefix(text: &str, head: &str) -> bool {
+    let trimmed = text.trim_start();
+    trimmed == head
+        || (trimmed.starts_with(head)
+            && trimmed
+                .get(head.len()..)
+                .is_some_and(|rest| rest.starts_with('\n')))
+}
+
+/// User text plus image captions and `@path` tags, in attachment order.
+#[must_use]
+pub fn prompt_body_with_files(text: &str, files: &[PromptFile], cwd: &str) -> String {
+    let mut body = with_image_captions(text, files);
+    let cwd_path = Path::new(cwd);
+    for file in files {
+        let path = Path::new(&file.path);
+        let rel = path
+            .strip_prefix(cwd_path)
+            .map_or_else(|_| file.path.clone(), |p| p.to_string_lossy().into_owned());
+        let tag = format!("@{rel}");
+        if body.contains(&tag) {
+            continue;
+        }
+        if !body.is_empty() && !body.ends_with('\n') {
+            body.push('\n');
+        }
+        body.push_str(&tag);
+    }
+    body
 }
 
 #[must_use]

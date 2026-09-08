@@ -109,24 +109,31 @@ export function bindTimeline(ctx) {
     else window.open(src, "_blank", "noopener");
   }
 
-  function makeImagePreview(f) {
+  function makeImagePreview(f, imageIndex) {
     const src = fileViewSrc(f);
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "user-preview";
     const img = document.createElement("img");
     img.src = src;
-    img.alt = fileNameOf(f);
+    img.alt = imageIndex ? t("imageN", { n: imageIndex }) : fileNameOf(f);
     btn.appendChild(img);
+    if (imageIndex) {
+      const badge = document.createElement("span");
+      badge.className = "user-preview-n";
+      badge.textContent = t("imageN", { n: imageIndex });
+      btn.appendChild(badge);
+    }
     btn.addEventListener("click", () => openFileChip(f));
     return btn;
   }
 
-  function makeFileChip(f, removable) {
+  function makeFileChip(f, removable, opts) {
     const chip = document.createElement("span");
     const processing = !!(f && f.processing);
     const src = processing ? "" : fileViewSrc(f);
     const image = !processing && isImageAttach(f) && src;
+    const imageIndex = opts && opts.imageIndex;
     chip.className = "file-chip" + (image ? " has-thumb" : "") + (processing ? " processing" : "") + (!processing && src ? " clickable" : "");
     if (processing) {
       const spin = document.createElement("span");
@@ -135,7 +142,7 @@ export function bindTimeline(ctx) {
     } else if (image) {
       const img = document.createElement("img");
       img.src = src;
-      img.alt = fileNameOf(f);
+      img.alt = imageIndex ? t("imageN", { n: imageIndex }) : fileNameOf(f);
       chip.appendChild(img);
     } else {
       const ico = document.createElement("span");
@@ -148,6 +155,9 @@ export function bindTimeline(ctx) {
     if (processing) {
       label.setAttribute("data-i18n", "processing");
       label.textContent = t("processing");
+    } else if (imageIndex) {
+      label.textContent = t("imageN", { n: imageIndex });
+      setTip(chip, fileNameOf(f));
     } else {
       label.textContent = fileNameOf(f);
     }
@@ -161,6 +171,7 @@ export function bindTimeline(ctx) {
         ctx.attachments = (ctx.attachments || []).filter((a) => a !== f);
         revokePreview(f);
         if (ctx.renderChips) ctx.renderChips();
+        if (ctx.publishDraft) ctx.publishDraft();
       });
       chip.appendChild(x);
     }
@@ -204,7 +215,7 @@ export function bindTimeline(ctx) {
     if (images.length) {
       const strip = document.createElement("div");
       strip.className = "user-previews";
-      for (const f of images) strip.appendChild(makeImagePreview(f));
+      images.forEach((f, i) => strip.appendChild(makeImagePreview(f, i + 1)));
       row.appendChild(strip);
     }
     if (others.length) {
@@ -706,10 +717,91 @@ export function bindTimeline(ctx) {
     }
   }
 
-  function nearBottom() {
-    if (!timeline) return true;
-    return timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 80;
+  const BOTTOM_EPS = 1;
+  let followOutput = true;
+  let ignoreScroll = false;
+  const jumpBottomBtn = document.getElementById("jump-bottom");
+
+  function distanceFromBottom() {
+    if (!timeline) return 0;
+    return timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight;
   }
+
+  function atBottom() {
+    return distanceFromBottom() <= BOTTOM_EPS;
+  }
+
+  function syncJumpBottom() {
+    if (!jumpBottomBtn) return;
+    const has = !!(app && app.classList.contains("has-session"));
+    const overflow = !!(timeline && timeline.scrollHeight > timeline.clientHeight + 8);
+    jumpBottomBtn.hidden = !has || followOutput || !overflow;
+    const label = t("jumpBottom");
+    jumpBottomBtn.setAttribute("aria-label", label);
+    setTip(jumpBottomBtn, label);
+  }
+
+  function stickIfFollowing() {
+    if (!followOutput || !timeline) return;
+    ignoreScroll = true;
+    timeline.scrollTop = timeline.scrollHeight;
+    requestAnimationFrame(() => {
+      ignoreScroll = false;
+    });
+    syncJumpBottom();
+  }
+
+  function restoreFromBottom(fromBottom) {
+    if (!timeline) return;
+    ignoreScroll = true;
+    timeline.scrollTop = Math.max(0, timeline.scrollHeight - fromBottom);
+    requestAnimationFrame(() => {
+      ignoreScroll = false;
+    });
+    syncJumpBottom();
+  }
+
+  function setFollowOutput(on) {
+    followOutput = !!on;
+    if (followOutput) stickIfFollowing();
+    else syncJumpBottom();
+  }
+
+  function noteTimelineWheel(dy) {
+    if (!timeline || !dy) return;
+    if (dy < 0) followOutput = false;
+    timeline.scrollBy({ top: dy });
+    if (dy > 0 && atBottom()) followOutput = true;
+    syncJumpBottom();
+  }
+
+  if (timeline) {
+    timeline.addEventListener(
+      "wheel",
+      (e) => {
+        if (e.deltaY < 0) followOutput = false;
+        else if (distanceFromBottom() - e.deltaY <= BOTTOM_EPS) followOutput = true;
+        syncJumpBottom();
+      },
+      { passive: true }
+    );
+    timeline.addEventListener(
+      "scroll",
+      () => {
+        if (ignoreScroll) return;
+        followOutput = atBottom();
+        syncJumpBottom();
+      },
+      { passive: true }
+    );
+  }
+  if (jumpBottomBtn) {
+    jumpBottomBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      setFollowOutput(true);
+    });
+  }
+  window.addEventListener("resize", syncJumpBottom);
 
   function turnHasProcess(turn) {
     return (turn && turn.agent || []).some((b) => b.type === "thought" || b.type === "tool");
@@ -903,10 +995,12 @@ export function bindTimeline(ctx) {
 
   function renderBlocks(detail) {
     if (!timeline) return;
-    const stick = nearBottom();
+    const fromBottom = distanceFromBottom();
+    const wasFollow = followOutput;
     if (!detail) {
       timeline.innerHTML = "";
       delete timeline.dataset.session;
+      syncJumpBottom();
       return;
     }
     if (Array.isArray(detail.blocks)) {
@@ -968,7 +1062,8 @@ export function bindTimeline(ctx) {
     timeline.dataset.session = sid;
     if (ctx.drawerMode === "process" && ctx.drawerPromptId && ctx.renderDrawer) ctx.renderDrawer();
     if (ctx.syncQuestionCards) ctx.syncQuestionCards();
-    if (stick) timeline.scrollTop = timeline.scrollHeight;
+    if (wasFollow) stickIfFollowing();
+    else restoreFromBottom(fromBottom);
   }
 
   function scheduleRender() {
@@ -1138,7 +1233,10 @@ export function bindTimeline(ctx) {
   ctx.applyWorkStartedMs = applyWorkStartedMs;
   ctx.turnSeconds = turnSeconds;
   ctx.thoughtPreviewLines = thoughtPreviewLines;
-  ctx.nearBottom = nearBottom;
+  ctx.nearBottom = atBottom;
+  ctx.setFollowOutput = setFollowOutput;
+  ctx.noteTimelineWheel = noteTimelineWheel;
+  ctx.syncJumpBottom = syncJumpBottom;
   ctx.userActionBtn = userActionBtn;
   ctx.makeFileChip = makeFileChip;
   ctx.openFileChip = openFileChip;

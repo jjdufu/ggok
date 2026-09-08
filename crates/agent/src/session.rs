@@ -6,7 +6,7 @@ use anyhow::{Result, bail};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use ggok_core::occupy::{SESSION_BUSY, Source};
-use ggok_core::parse::Ingest;
+use ggok_core::parse::{Ingest, prompt_body_with_files, prompt_file_is_image};
 use ggok_core::types::{Block, EffortInfo, ModelInfo, PromptFile, QueueItem, SlashCommand};
 use serde_json::{Value, json};
 use std::fs;
@@ -135,11 +135,9 @@ impl Agent {
     }
 
     fn ask_mcp_servers(&self, session_id: Option<&str>, bind: &str) -> Value {
-        self.ask_bridge
-            .as_ref()
-            .map_or(json!([]), |bridge| {
-                crate::question::mcp_ask_servers(bridge, session_id, bind)
-            })
+        self.ask_bridge.as_ref().map_or(json!([]), |bridge| {
+            crate::question::mcp_ask_servers(bridge, session_id, bind)
+        })
     }
 
     /// # Errors
@@ -392,7 +390,10 @@ impl Agent {
     pub async fn answer_permission(&self, id: &str, req: &str, allow: bool) -> Result<()> {
         let option_id = {
             let g = self.inner.lock().await;
-            let sess = g.sessions.get(id).ok_or_else(|| anyhow::anyhow!("session not loaded"))?;
+            let sess = g
+                .sessions
+                .get(id)
+                .ok_or_else(|| anyhow::anyhow!("session not loaded"))?;
             let pending = sess
                 .perms
                 .get(req)
@@ -405,7 +406,12 @@ impl Agent {
 
     /// # Errors
     /// Returns an error if the session or permission request is missing, or stdin write fails.
-    pub async fn answer_permission_option(&self, id: &str, req: &str, option_id: &str) -> Result<()> {
+    pub async fn answer_permission_option(
+        &self,
+        id: &str,
+        req: &str,
+        option_id: &str,
+    ) -> Result<()> {
         self.require_attached(id).await?;
         let mut g = self.inner.lock().await;
         let Some(sess) = g.sessions.get_mut(id) else {
@@ -470,7 +476,7 @@ impl Agent {
     }
 
     pub(crate) async fn start_prompt(&self, id: &str, item: QueueItem) -> Result<()> {
-        if item.files.iter().any(file_is_image) {
+        if item.files.iter().any(prompt_file_is_image) {
             self.wait_image_capability().await;
         }
         let (cwd, image_ok, queue, user_text, user_files) = {
@@ -674,7 +680,9 @@ impl Agent {
             let model_id = sess.model.clone();
             let usage = sess.usage.clone();
             let todos = matches!(ingest, Ingest::Plan).then(|| sess.todos.clone());
-            (block, usage, emit_usage, before_ctx, ctx_used, model_id, todos)
+            (
+                block, usage, emit_usage, before_ctx, ctx_used, model_id, todos,
+            )
         };
         let context = self.context_payload(ctx_used, before_ctx, &model_id).await;
         if let Some(todos) = todos {
@@ -973,24 +981,6 @@ pub(crate) fn parse_commands(v: &Value) -> Vec<SlashCommand> {
         .unwrap_or_default()
 }
 
-fn file_is_image(f: &PromptFile) -> bool {
-    if f.mime
-        .as_deref()
-        .is_some_and(|mime| mime.starts_with("image/"))
-    {
-        return true;
-    }
-    Path::new(&f.path)
-        .extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|ext| {
-            matches!(
-                ext.to_ascii_lowercase().as_str(),
-                "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "svg"
-            )
-        })
-}
-
 fn image_mime(f: &PromptFile) -> &str {
     match f.mime.as_deref() {
         Some(mime) if mime.starts_with("image/") => mime,
@@ -1000,13 +990,10 @@ fn image_mime(f: &PromptFile) -> &str {
 
 fn build_prompt(text: &str, files: &[PromptFile], cwd: &str, image_ok: bool) -> Value {
     let mut parts = Vec::new();
-    let mut body = text.to_string();
-    let cwd_path = Path::new(cwd);
     for f in files {
-        let path = Path::new(&f.path);
         if image_ok
-            && file_is_image(f)
-            && let Ok(bytes) = fs::read(path)
+            && prompt_file_is_image(f)
+            && let Ok(bytes) = fs::read(&f.path)
         {
             parts.push(json!({
                 "type": "image",
@@ -1014,17 +1001,8 @@ fn build_prompt(text: &str, files: &[PromptFile], cwd: &str, image_ok: bool) -> 
                 "data": STANDARD.encode(bytes)
             }));
         }
-        let rel = path
-            .strip_prefix(cwd_path)
-            .map_or_else(|_| f.path.clone(), |p| p.to_string_lossy().into_owned());
-        let tag = format!("@{rel}");
-        if !body.contains(&tag) {
-            if !body.is_empty() && !body.ends_with('\n') {
-                body.push('\n');
-            }
-            body.push_str(&tag);
-        }
     }
+    let body = prompt_body_with_files(text, files, cwd);
     let mut out = vec![json!({ "type": "text", "text": body })];
     out.append(&mut parts);
     Value::Array(out)

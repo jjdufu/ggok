@@ -3,6 +3,7 @@
 #timeline {
   flex: 1;
   overflow: auto;
+  overscroll-behavior-y: contain;
   padding: 52px 24px 24px;
   transition: opacity 0.22s cubic-bezier(0.2, 0, 0, 1);
 }

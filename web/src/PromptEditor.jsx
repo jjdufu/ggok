@@ -9,6 +9,22 @@ function textOf(editor) {
   return editor.getText({ blockSeparator: "\n" });
 }
 
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function htmlFromPlain(text) {
+  const src = String(text ?? "");
+  if (!src) return "";
+  return src
+    .split("\n")
+    .map((line) => `<p>${escapeHtml(line) || "<br>"}</p>`)
+    .join("");
+}
+
 function posFromOffset(editor, offset) {
   const doc = editor.state.doc;
   const maxOff = textOf(editor).length;
@@ -128,7 +144,7 @@ export function PromptEditor() {
           syncSendOrb(next);
           return;
         }
-        editor.commands.setContent(next, { emitUpdate: false });
+        editor.commands.setContent(htmlFromPlain(next), { emitUpdate: false });
         syncSendOrb(next);
       },
       getCaret: () => offsetFromEditor(editor),

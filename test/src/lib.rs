@@ -5,6 +5,7 @@ mod core_occupy;
 mod core_parse;
 mod core_paths;
 mod core_prefs;
+mod core_prompt_images;
 mod core_release;
 mod core_scan;
 mod core_search;
