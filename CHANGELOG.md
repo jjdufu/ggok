@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.21](https://github.com/jjdufu/ggok/compare/v0.1.20...v0.1.21) (2026-09-08)
+
+
+### Features
+
+* open session usage from the context chip ([0e06e72](https://github.com/jjdufu/ggok/commit/0e06e72e039e88509a45ca0899b05cdec1fb4d2b))
+
+
+### Bug Fixes
+
+* stop toasting cwd errors when opening extensions ([95cba18](https://github.com/jjdufu/ggok/commit/95cba18becc3704669d46e5945ea39133b559c77))
+
 ## [0.1.20](https://github.com/jjdufu/ggok/compare/v0.1.19...v0.1.20) (2026-09-08)
 
 
