@@ -14,6 +14,20 @@ export function bindSidebar(ctx) {
   const sessMenu = document.getElementById("sess-menu");
   const ctxBar = document.getElementById("ctx-bar");
   const ctxFill = document.getElementById("ctx-fill");
+  const ctxTrack = document.getElementById("ctx-track");
+  const ctxUsage = document.getElementById("ctx-usage");
+
+  function setCtxUsageOpen(on) {
+    const show = !!on && !!(ctxBar && !ctxBar.hidden);
+    ctx.ctxUsageOpen = show;
+    if (ctxBar) ctxBar.classList.toggle("open", show);
+    if (ctxTrack) ctxTrack.setAttribute("aria-expanded", show ? "true" : "false");
+    if (ctxUsage) ctxUsage.hidden = !show;
+    if (show) {
+      if (ctx.renderUsage) ctx.renderUsage((ctx.current && ctx.current.usage) || {});
+      if (ctx.refreshSessionUsage) ctx.refreshSessionUsage();
+    }
+  }
 
   function setSidebarCollapsed(on) {
     document.documentElement.dataset.sidebar = on ? "collapsed" : "";
@@ -328,9 +342,11 @@ export function bindSidebar(ctx) {
     const { used, window } = contextOf(src);
     if (ctx.current) ctx.current.context = { used, window };
     const pct = window > 0 ? Math.min(100, Math.round((used / window) * 100)) : 0;
-    const shouldShow = Boolean(ctx.currentId) && used > 0;
+    const recorded = !!(ctx.current && ctx.current.usage && ctx.current.usage.recorded);
+    const shouldShow = Boolean(ctx.currentId) && (used > 0 || recorded);
     if (ctxBar) {
       ctxBar.hidden = !shouldShow;
+      if (!shouldShow) setCtxUsageOpen(false);
       ctxBar.classList.toggle("warn", pct >= 60 && pct < 80);
       ctxBar.classList.toggle("hot", pct >= 80);
       const usedK = Math.round(used / 1000);
@@ -381,8 +397,25 @@ export function bindSidebar(ctx) {
     }
   }
 
+  if (ctxTrack) {
+    ctxTrack.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setCtxUsageOpen(!ctx.ctxUsageOpen);
+    });
+  }
+  if (ctxUsage) {
+    ctxUsage.addEventListener("click", (e) => e.stopPropagation());
+  }
+  document.addEventListener("click", (e) => {
+    if (ctx.ctxUsageOpen && ctxBar && !ctxBar.contains(e.target)) setCtxUsageOpen(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") setCtxUsageOpen(false);
+  });
+
   ctx.focusLiveGroup = focusLiveGroup;
   ctx.syncCompact = syncCompact;
+  ctx.setCtxUsageOpen = setCtxUsageOpen;
   ctx.setSidebarCollapsed = setSidebarCollapsed;
   ctx.closeMobile = closeMobile;
   ctx.openMobile = openMobile;

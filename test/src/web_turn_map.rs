@@ -42,10 +42,13 @@ fn turn_map_is_overlay_sibling_not_inside_timeline() {
         .expect("timeline-shell");
     let timeline_at = shell.find("id=\"timeline\"").expect("timeline");
     let map_at = shell.find("id=\"turn-map\"").expect("turn-map");
-    let preview_at = shell.find("id=\"turn-map-preview\"").expect("preview");
     assert!(
-        timeline_at < map_at && map_at < preview_at,
+        timeline_at < map_at,
         "turn-map must sit beside #timeline so it does not scroll with turns"
+    );
+    assert!(
+        !shell.contains("id=\"turn-map-preview\""),
+        "previews belong on each tick, not a singleton overlay"
     );
     let peek = app
         .split("id=\"peek-timeline\"")
@@ -62,7 +65,11 @@ fn turn_map_ticks_are_quiet_and_preview_matches_say() {
     let css = web_file("src/styles/chat.css");
     let map = css_block(&css, ".turn-map {");
     assert!(map.contains("position: absolute"), "{map}");
-    assert!(map.contains("pointer-events: none"), "{map}");
+    assert!(
+        !map.contains("right: 6px"),
+        "map must sit inboard of the window edge:\n{map}"
+    );
+    assert!(map.contains("50%"), "map should track the centered transcript:\n{map}");
 
     let tick = css_block(&css, ".turn-map-tick {");
     assert!(tick.contains("pointer-events: auto"), "{tick}");
@@ -75,6 +82,8 @@ fn turn_map_ticks_are_quiet_and_preview_matches_say() {
     assert!(preview.contains("var(--bubble)"), "{preview}");
     assert!(preview.contains("border-radius: 16px"), "{preview}");
     assert!(preview.contains("text-overflow: ellipsis"), "{preview}");
+    let hover_all = css_block(&css, ".turn-map:hover .turn-map-preview,");
+    assert!(hover_all.contains("opacity: 1"), "hovering the map must reveal every preview:\n{hover_all}");
     assert!(
         !preview.contains("counter-reset") && !preview.contains("list-style"),
         "preview must not look like a numbered directory:\n{preview}"
@@ -92,7 +101,17 @@ fn turn_map_js_jumps_without_tooltips() {
     assert!(js.contains("function syncTurnMap"));
     assert!(js.contains("function jumpToTurn"));
     assert!(js.contains("followOutput = false"));
+    assert!(js.contains("behavior: \"auto\""));
+    assert!(!js.contains("behavior: \"smooth\""));
     assert!(js.contains("marks.length < 2"));
+    assert!(
+        js.contains("(mapH - used) / 2"),
+        "ticks must pack with even spacing, not stretch to session length"
+    );
+    assert!(
+        !js.contains("m.top / span"),
+        "tick y must not be mapped from document offset"
+    );
     assert!(
         !js.contains("setTip(tick") && !js.contains("setTip(turnMap"),
         "turn map must not use the button tooltip layer"

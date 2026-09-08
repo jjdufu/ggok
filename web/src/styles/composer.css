@@ -297,11 +297,16 @@
   cursor: default;
   user-select: none;
   pointer-events: auto;
+  font-size: 11px;
+  font-weight: 550;
+  letter-spacing: -0.02em;
+  line-height: 1;
   transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .composer-ctx-bar:hover,
-.composer-ctx-bar:focus-within {
+.composer-ctx-bar:focus-within,
+.composer-ctx-bar.open {
   height: 22px;
 }
 
@@ -311,12 +316,28 @@
 
 .composer-ctx-bar .ctx-track {
   position: relative;
+  display: flex;
+  align-items: center;
   width: 100%;
-  height: 100%;
   min-width: 44px;
+  height: 18px;
+  padding: 0 10px;
   border-radius: 999px;
-  background: var(--border-strong);
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: color-mix(in oklab, var(--fg) 10%, var(--composer));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--fg) 12%, transparent);
   overflow: hidden;
+  transition: height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.composer-ctx-bar:hover .ctx-track,
+.composer-ctx-bar:focus-within .ctx-track,
+.composer-ctx-bar.open .ctx-track {
+  height: 22px;
 }
 
 .composer-ctx-bar .ctx-fill {
@@ -326,8 +347,15 @@
   width: 0%;
   border-radius: 0;
   background: #10b981;
+  opacity: 0;
+  pointer-events: none;
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease, opacity 0.16s ease;
+}
+
+.composer-ctx-bar:hover .ctx-fill,
+.composer-ctx-bar:focus-within .ctx-fill,
+.composer-ctx-bar.open .ctx-fill {
   opacity: 0.82;
-  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease;
 }
 
 .composer-ctx-bar .ctx-label {
@@ -337,15 +365,19 @@
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding: 0 10px;
-  font-size: 11px;
-  font-weight: 550;
-  letter-spacing: -0.02em;
-  line-height: 1;
-  color: #fff;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+  font: inherit;
+  color: var(--muted);
+  text-shadow: none;
   white-space: nowrap;
   pointer-events: none;
+  transition: color 0.16s ease, text-shadow 0.16s ease;
+}
+
+.composer-ctx-bar:hover .ctx-label,
+.composer-ctx-bar:focus-within .ctx-label,
+.composer-ctx-bar.open .ctx-label {
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
 }
 
 .composer-ctx-bar .ctx-pct {
@@ -355,18 +387,57 @@
 .composer-ctx-bar .ctx-detail {
   min-width: 0;
   max-width: 0;
+  margin-left: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   opacity: 0;
-  transition: max-width 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.16s ease;
+  transition: max-width 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.16s ease, margin-left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .composer-ctx-bar:hover .ctx-detail,
-.composer-ctx-bar:focus-within .ctx-detail {
+.composer-ctx-bar:focus-within .ctx-detail,
+.composer-ctx-bar.open .ctx-detail {
   max-width: 160px;
+  margin-left: 0;
   opacity: 1;
 }
+
+.ctx-usage {
+  position: absolute;
+  right: 0;
+  left: auto;
+  bottom: calc(100% + 8px);
+  top: auto;
+  z-index: 26;
+  display: none;
+  flex-direction: column;
+  min-width: 280px;
+  width: max(100%, 280px);
+  max-width: min(360px, calc(100vw - 48px));
+  max-height: min(50vh, 420px);
+  margin: 0;
+  padding: 12px 14px 14px;
+  overflow: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--menu);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.4;
+  color: var(--fg);
+  cursor: default;
+  text-shadow: none;
+}
+
+.composer-ctx-bar.open .ctx-usage {
+  display: flex;
+}
+
+.ctx-usage[hidden] { display: none !important; }
+
 
 .todos-bar {
   position: absolute;

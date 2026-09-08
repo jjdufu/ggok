@@ -631,7 +631,8 @@ export function bindComposer(ctx) {
     if (hit("model", "m")) return applySlashModel(tok.args);
     if (hit("effort") && applySlashEffort(tok.args)) return true;
     if (hit("usage", "cost")) {
-      if (ctx.setStatusOpen) ctx.setStatusOpen(true);
+      if (ctxBar && !ctxBar.hidden && ctx.setCtxUsageOpen) ctx.setCtxUsageOpen(true);
+      else if (ctx.setStatusOpen) ctx.setStatusOpen(true);
       return true;
     }
     if (hit("new", "clear")) {
@@ -1036,6 +1037,7 @@ export function bindComposer(ctx) {
     ctx.pendingPerms = {};
     ctx.todosOpen = false;
     if (ctx.renderTodos) ctx.renderTodos([]);
+    if (ctx.setCtxUsageOpen) ctx.setCtxUsageOpen(false);
     if (ctx.closeModeMenu) ctx.closeModeMenu();
     if (ctx.resetQuestions) ctx.resetQuestions();
     if (ctx.closeDrawer) ctx.closeDrawer();

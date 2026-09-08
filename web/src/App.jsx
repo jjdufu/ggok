@@ -138,9 +138,7 @@ export default function App() {
         </div>
         <div className="timeline-shell">
           <div id="timeline"></div>
-          <div id="turn-map" className="turn-map" hidden={true}>
-            <div id="turn-map-preview" className="turn-map-preview" hidden={true}></div>
-          </div>
+          <div id="turn-map" className="turn-map" hidden={true}></div>
         </div>
         <footer id="composer">
           <div className="composer-fade" aria-hidden="true"></div>
@@ -151,12 +149,17 @@ export default function App() {
             <div id="slash-menu" hidden={true}></div>
             <div id="at-menu" hidden={true}></div>
             <div id="ctx-bar" className="ctx-bar composer-ctx-bar" hidden={true}>
-              <div className="ctx-track">
+              <button type="button" className="ctx-track" id="ctx-track" aria-haspopup="true" aria-expanded="false">
                 <div id="ctx-fill" className="ctx-fill"></div>
                 <span id="ctx-label" className="ctx-label">
                   <span className="ctx-pct"></span>
                   <span className="ctx-detail"></span>
                 </span>
+              </button>
+              <div id="ctx-usage" className="ctx-usage" hidden={true}>
+                <div className="usage-pop-title" data-i18n="sessionUsage">会话用量</div>
+                <div className="usage-pop-sub" data-i18n="sinceStart">自启动或上次恢复起</div>
+                <div id="usage-body" className="usage-body"></div>
               </div>
             </div>
             <div className="composer-inner">
@@ -226,9 +229,6 @@ export default function App() {
           <div id="tasks-list"></div>
         </div>
         <div id="drawer-status" hidden={true}>
-          <div className="usage-pop-title" data-i18n="sessionUsage">会话用量</div>
-          <div className="usage-pop-sub" data-i18n="sinceStart">自启动或上次恢复起</div>
-          <div id="usage-body" className="usage-body"></div>
           <div className="host-head" data-i18n="host">主机</div>
           <div id="host-body" className="host-body"></div>
         </div>

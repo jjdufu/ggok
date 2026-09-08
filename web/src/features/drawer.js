@@ -416,8 +416,6 @@ export function bindDrawer(ctx) {
     if (infoPop) infoPop.hidden = true;
     setDrawerMode("status");
     showDrawer();
-    renderUsage((ctx.current && ctx.current.usage) || {});
-    refreshSessionUsage();
     refreshHost();
     startStatusPoll();
   }

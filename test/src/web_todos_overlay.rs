@@ -161,6 +161,10 @@ fn ctx_chip_shows_percent_by_default_and_detail_on_hover() {
         !label.contains("opacity: 0"),
         "percent label must stay visible when collapsed:\n{label}"
     );
+    assert!(
+        label.contains("var(--muted)"),
+        "default ctx text must match todos muted:\n{label}"
+    );
 
     let detail = css_block(&css, ".composer-ctx-bar .ctx-detail {");
     assert_decl(&detail, "max-width:", "0");
@@ -175,6 +179,25 @@ fn ctx_chip_shows_percent_by_default_and_detail_on_hover() {
         !track.contains("height: 4px"),
         "collapsed ctx chip must not be a 4px unlabeled track:\n{track}"
     );
+    let todos_toggle = css_block(&css, ".todos-toggle {");
+    assert!(
+        track.contains("color-mix(in oklab, var(--fg) 10%, var(--composer))"),
+        "ctx chip chrome must match todos:\n{track}"
+    );
+    assert!(
+        todos_toggle.contains("color-mix(in oklab, var(--fg) 10%, var(--composer))"),
+        "todos toggle chrome missing:\n{todos_toggle}"
+    );
+
+    let fill = css_block(&css, ".composer-ctx-bar .ctx-fill {");
+    assert_decl(&fill, "opacity:", "0");
+    let fill_hover = css_block(&css, ".composer-ctx-bar:hover .ctx-fill,");
+    assert_decl(&fill_hover, "opacity:", "0.82");
+    let label_hover = css_block(&css, ".composer-ctx-bar:hover .ctx-label,");
+    assert!(
+        label_hover.contains("#fff"),
+        "hover ctx text must stay white on the fill:\n{label_hover}"
+    );
 
     let js = web_file("src/features/sidebar.js");
     assert!(js.contains("querySelector(\".ctx-pct\")"));
@@ -184,4 +207,43 @@ fn ctx_chip_shows_percent_by_default_and_detail_on_hover() {
     let app = web_file("src/App.jsx");
     assert!(app.contains("className=\"ctx-pct\""));
     assert!(app.contains("className=\"ctx-detail\""));
+}
+
+#[test]
+fn ctx_chip_click_opens_session_usage_popover() {
+    let app = web_file("src/App.jsx");
+    let bar = app
+        .split("id=\"ctx-bar\"")
+        .nth(1)
+        .and_then(|rest| rest.split("id=\"chips\"").next())
+        .expect("ctx-bar block");
+    assert!(bar.contains("id=\"ctx-usage\""), "usage popover must live on the ctx chip");
+    assert!(bar.contains("id=\"usage-body\""), "usage-body must move onto the ctx chip");
+    assert!(bar.contains("sessionUsage"), "{bar}");
+
+    let drawer = app
+        .split("id=\"drawer-status\"")
+        .nth(1)
+        .and_then(|rest| rest.split("id=\"drawer-files\"").next())
+        .expect("drawer-status");
+    assert!(
+        !drawer.contains("id=\"usage-body\""),
+        "session usage must leave the status drawer"
+    );
+
+    let css = web_file("src/styles/composer.css");
+    let pop = css_block(&css, ".ctx-usage {");
+    assert_decl(&pop, "position:", "absolute");
+    assert_decl(&pop, "display:", "none");
+    assert_decl(&pop, "bottom:", "calc(100% + 8px)");
+    let open = css_block(&css, ".composer-ctx-bar.open .ctx-usage {");
+    assert_decl(&open, "display:", "flex");
+
+    let js = web_file("src/features/sidebar.js");
+    assert!(js.contains("function setCtxUsageOpen"));
+    assert!(js.contains("setCtxUsageOpen(!ctx.ctxUsageOpen)"));
+    assert!(
+        !js.contains("setTip(ctxBar") && !js.contains("setTip(ctxTrack"),
+        "ctx usage popover must not use the button tooltip layer"
+    );
 }

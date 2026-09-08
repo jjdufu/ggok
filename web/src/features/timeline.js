@@ -725,15 +725,10 @@ export function bindTimeline(ctx) {
   let lastUserTop = 0;
   const jumpBottomBtn = document.getElementById("jump-bottom");
   const turnMap = document.getElementById("turn-map");
-  const turnMapPreview = document.getElementById("turn-map-preview");
   let turnMapTimer = 0;
 
   function turnMapEnabled() {
     return window.matchMedia("(min-width: 901px)").matches;
-  }
-
-  function hideTurnMapPreview() {
-    if (turnMapPreview) turnMapPreview.hidden = true;
   }
 
   function turnPreviewText(row) {
@@ -764,23 +759,17 @@ export function bindTimeline(ctx) {
   }
 
   function layoutTurnMarks(marks, mapH) {
-    const span = Math.max((timeline && timeline.scrollHeight) || 1, 1);
-    const gap = 6;
-    const placed = marks.map((m) => ({
+    const n = marks.length;
+    const rowH = 28;
+    const gap = n > 0 ? Math.min(rowH, Math.max(12, mapH / n)) : rowH;
+    const used = n * gap;
+    const start = Math.max(0, (mapH - used) / 2);
+    return marks.map((m, i) => ({
       key: m.key,
       text: m.text,
       row: m.row,
-      y: (m.top / span) * Math.max(mapH - 3, 1)
+      y: start + i * gap
     }));
-    for (let i = 1; i < placed.length; i++) {
-      if (placed[i].y < placed[i - 1].y + gap) placed[i].y = placed[i - 1].y + gap;
-    }
-    const last = placed[placed.length - 1];
-    if (last && last.y > mapH - 4 && last.y > 0) {
-      const scale = (mapH - 4) / last.y;
-      for (const p of placed) p.y *= scale;
-    }
-    return placed;
   }
 
   function activeTurnKey(marks) {
@@ -803,35 +792,19 @@ export function bindTimeline(ctx) {
     }
   }
 
-  function placeTurnMapPreview(tick) {
-    if (!turnMap || !turnMapPreview || !tick) return;
-    turnMapPreview.textContent = tick.dataset.preview || "";
-    turnMapPreview.hidden = false;
-    const mapH = turnMap.clientHeight;
-    const ph = turnMapPreview.offsetHeight || 32;
-    const mid = tick.offsetTop + tick.offsetHeight / 2;
-    const top = Math.max(0, Math.min(mid - ph / 2, mapH - ph));
-    turnMapPreview.style.top = top + "px";
-  }
-
   function jumpToTurn(row) {
     if (!timeline || !row) return;
     followOutput = false;
     const pad = Number.parseFloat(getComputedStyle(timeline).paddingTop) || 52;
-    timeline.scrollTo({ top: Math.max(0, row.offsetTop - pad), behavior: "smooth" });
+    timeline.scrollTo({ top: Math.max(0, row.offsetTop - pad), behavior: "auto" });
     lastUserTop = timeline.scrollTop;
     syncJumpBottom();
     paintTurnMapActive();
   }
 
   function bindTurnMapTick(tick) {
-    tick.addEventListener("mouseenter", () => placeTurnMapPreview(tick));
-    tick.addEventListener("focus", () => placeTurnMapPreview(tick));
-    tick.addEventListener("mouseleave", hideTurnMapPreview);
-    tick.addEventListener("blur", hideTurnMapPreview);
     tick.addEventListener("click", (e) => {
       e.preventDefault();
-      hideTurnMapPreview();
       const key = tick.dataset.key;
       const hit = collectTurnMarks().find((m) => m.key === key);
       if (hit) jumpToTurn(hit.row);
@@ -840,7 +813,6 @@ export function bindTimeline(ctx) {
 
   function hideTurnMap() {
     if (!turnMap) return;
-    hideTurnMapPreview();
     turnMap.hidden = true;
     const ticks = turnMap.querySelectorAll(".turn-map-tick");
     for (const tick of ticks) tick.remove();
@@ -861,23 +833,26 @@ export function bindTimeline(ctx) {
     const same =
       ticks.length === placed.length && ticks.every((el, i) => el.dataset.key === placed[i].key);
     if (!same) {
-      hideTurnMapPreview();
       for (const el of ticks) el.remove();
       for (const mark of placed) {
         const tick = document.createElement("button");
         tick.type = "button";
         tick.className = "turn-map-tick";
         tick.dataset.key = mark.key;
-        tick.dataset.preview = mark.text;
         tick.style.top = Math.round(mark.y) + "px";
         tick.setAttribute("aria-label", t("turnMapAria"));
+        const preview = document.createElement("span");
+        preview.className = "turn-map-preview";
+        preview.textContent = mark.text;
+        tick.appendChild(preview);
         bindTurnMapTick(tick);
         turnMap.appendChild(tick);
       }
     } else {
       ticks.forEach((el, i) => {
-        el.dataset.preview = placed[i].text;
         el.style.top = Math.round(placed[i].y) + "px";
+        const preview = el.querySelector(".turn-map-preview");
+        if (preview) preview.textContent = placed[i].text;
       });
     }
     paintTurnMapActive();
@@ -977,7 +952,6 @@ export function bindTimeline(ctx) {
         if (top < lastUserTop - 1) followOutput = false;
         else if (atBottom()) followOutput = true;
         lastUserTop = top;
-        hideTurnMapPreview();
         syncJumpBottom();
         paintTurnMapActive();
       },
