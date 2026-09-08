@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.26](https://github.com/jjdufu/ggok/compare/v0.1.25...v0.1.26) (2026-09-08)
+
+
+### Bug Fixes
+
+* show update steps after the bar and fade turn-map over text ([05dc44b](https://github.com/jjdufu/ggok/commit/05dc44bcf50f9d4c155cfe208926383e35c6028b))
+
 ## [0.1.25](https://github.com/jjdufu/ggok/compare/v0.1.24...v0.1.25) (2026-09-08)
 
 
