@@ -11,7 +11,7 @@
   left: 50%;
   bottom: calc(100% + 12px);
   transform: translateX(-50%);
-  z-index: 8;
+  z-index: 4;
   display: inline-flex;
   align-items: center;
   gap: 6px;

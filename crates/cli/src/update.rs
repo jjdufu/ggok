@@ -4,7 +4,8 @@ use ggok_core::config::{pid_file, running_pid};
 use ggok_core::paths::is_under;
 use ggok_core::release::{
     CURRENT_VERSION, asset_filename, asset_url, fetch_latest_version, is_newer, os_arch,
-    parse_sha256sums, replace_file_atomic, sha256sums_url, verify_file_sha256,
+    parse_sha256sums, release_asset_ready, replace_file_atomic, sha256sums_url,
+    verify_file_sha256,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -31,6 +32,10 @@ pub(crate) fn run() -> Result<i32> {
         return Ok(0);
     }
     let (os, arch) = os_arch()?;
+    if !release_asset_ready(&latest, &os, &arch)? {
+        println!("Already up to date ({current}).");
+        return Ok(0);
+    }
     let filename = asset_filename(&latest, &os, &arch);
     let tmp = make_tmp()?;
     println!("Updating {current} → {latest}.");

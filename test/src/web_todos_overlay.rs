@@ -141,6 +141,10 @@ fn jump_bottom_has_no_tooltip_and_hover_border_only() {
     let base = css_block(&css, ".jump-bottom {");
     assert_decl(&base, "border:", "transparent");
     assert!(
+        base.contains("z-index: 4"),
+        "jump-bottom must sit under composer menus:\n{base}"
+    );
+    assert!(
         !base.contains("box-shadow: var(--shadow)"),
         "default jump-bottom should not use the raised shadow"
     );
@@ -271,6 +275,10 @@ fn ctx_usage_models_use_picker_names_and_own_rows() {
     assert!(
         helpers.contains("m.name || m.id"),
         "picker and usage must share the short name"
+    );
+    assert!(
+        helpers.contains("-build") && helpers.contains("modelKey"),
+        "usage keys like grok-4.6-build must resolve to the picker name"
     );
 
     let menu = web_file("src/features/model-menu.js");

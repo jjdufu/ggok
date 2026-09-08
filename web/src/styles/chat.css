@@ -32,7 +32,7 @@
   width: 22px;
   z-index: 6;
   overflow: visible;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .turn-map[hidden] { display: none !important; }
@@ -48,6 +48,7 @@
   background: transparent;
   cursor: pointer;
   pointer-events: auto;
+  z-index: 1;
 }
 
 .turn-map-tick::after {
@@ -65,39 +66,64 @@
 
 .turn-map-tick:hover::after,
 .turn-map-tick:focus-visible::after,
-.turn-map-tick.on::after {
+.turn-map-tick.on::after,
+.turn-map-tick.lit::after {
   background: var(--fg);
   opacity: 1;
 }
 
-.turn-map-preview {
+.turn-map-panel {
   position: absolute;
-  right: 26px;
+  right: 22px;
   top: 50%;
   transform: translateY(-50%);
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
   max-width: min(280px, 42vw);
-  padding: 8px 14px;
-  border-radius: 16px;
+  max-height: min(56vh, 420px);
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--menu);
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.turn-map:has(.turn-map-tick:hover) .turn-map-panel,
+.turn-map:has(.turn-map-tick:focus-visible) .turn-map-panel,
+.turn-map:has(.turn-map-panel:hover) .turn-map-panel,
+.turn-map:has(.turn-map-panel:focus-within) .turn-map-panel {
+  display: flex;
+}
+
+.turn-map-row {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
   background: var(--bubble);
   color: var(--fg);
   font-size: 13px;
   font-weight: 400;
   line-height: 1.35;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  box-shadow: var(--shadow);
-  z-index: 2;
+  cursor: pointer;
 }
 
-.turn-map:hover .turn-map-preview,
-.turn-map:focus-within .turn-map-preview {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
+.turn-map-row:hover,
+.turn-map-row.lit,
+.turn-map-row:focus-visible {
+  border-color: var(--fg);
+  background: var(--active);
 }
 
 @media (max-width: 900px) {

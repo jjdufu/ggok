@@ -47,8 +47,8 @@ fn turn_map_is_overlay_sibling_not_inside_timeline() {
         "turn-map must sit beside #timeline so it does not scroll with turns"
     );
     assert!(
-        !shell.contains("id=\"turn-map-preview\""),
-        "previews belong on each tick, not a singleton overlay"
+        !shell.contains("turn-map-panel") && !shell.contains("turn-map-preview"),
+        "the conversation list is created in JS, not baked into App.jsx"
     );
     let peek = app
         .split("id=\"peek-timeline\"")
@@ -87,6 +87,11 @@ fn turn_map_ticks_are_quiet_and_preview_matches_say() {
         "map must not sit 18px off the transcript:\n{map}"
     );
 
+    assert!(
+        map.contains("pointer-events: none"),
+        "empty map column must not capture hover:\n{map}"
+    );
+
     let tick = css_block(&css, ".turn-map-tick {");
     assert!(tick.contains("pointer-events: auto"), "{tick}");
     assert!(
@@ -108,28 +113,23 @@ fn turn_map_ticks_are_quiet_and_preview_matches_say() {
         !active.contains("width:"),
         "current tick must not grow longer than the rest:\n{active}"
     );
-    let mark = css_block(&css, ".turn-map-tick::after {");
-    assert!(mark.contains("width: 14px"), "default tick width:\n{mark}");
-    let active = css_block(&css, ".turn-map-tick:hover::after,");
     assert!(
-        active.contains("background: var(--fg)"),
-        "current tick must invert color:\n{active}"
-    );
-    assert!(
-        !active.contains("width:"),
-        "current tick must not grow longer than the rest:\n{active}"
+        active.contains(".turn-map-tick.lit::after"),
+        "hovered conversation must light the matching tick:\n{active}"
     );
 
-    let preview = css_block(&css, ".turn-map-preview {");
-    assert!(preview.contains("var(--bubble)"), "{preview}");
-    assert!(preview.contains("border-radius: 16px"), "{preview}");
-    assert!(preview.contains("text-overflow: ellipsis"), "{preview}");
-    let hover_all = css_block(&css, ".turn-map:hover .turn-map-preview,");
-    assert!(hover_all.contains("opacity: 1"), "hovering the map must reveal every preview:\n{hover_all}");
+    let panel = css_block(&css, ".turn-map-panel {");
+    assert!(panel.contains("border: 1px solid"), "{panel}");
+    assert!(panel.contains("gap: 4px"), "{panel}");
     assert!(
-        !preview.contains("counter-reset") && !preview.contains("list-style"),
-        "preview must not look like a numbered directory:\n{preview}"
+        !css.contains(".turn-map:hover .turn-map-preview"),
+        "hovering empty map space must not open the list"
     );
+    let open = css_block(&css, ".turn-map:has(.turn-map-tick:hover) .turn-map-panel,");
+    assert!(open.contains("display: flex"), "{open}");
+    let row = css_block(&css, ".turn-map-row {");
+    assert!(row.contains("border: 1px solid"), "{row}");
+    assert!(row.contains("text-overflow: ellipsis"), "{row}");
 
     assert!(
         css.contains("@media (max-width: 900px)"),
@@ -160,6 +160,13 @@ fn turn_map_js_jumps_without_tooltips() {
     );
     assert!(js.contains("t(\"turnMapImage\")"));
     assert!(js.contains("t(\"turnMapFile\")"));
+    assert!(js.contains("turn-map-panel"));
+    assert!(js.contains("turn-map-row"));
+    assert!(js.contains("function setTurnMapLit"));
+    assert!(
+        !js.contains("turn-map-preview"),
+        "previews moved off the ticks into the shared panel"
+    );
 }
 
 #[test]

@@ -5,12 +5,26 @@ export function modelDisplayName(m) {
   return m.name || m.id || "";
 }
 
+function modelKey(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/-build\b/g, "")
+    .replace(/\bbuild\b/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
 export function modelNameById(models, id) {
   const raw = String(id || "").trim();
   if (!raw) return "";
   const list = Array.isArray(models) ? models : [];
-  const hit = list.find((m) => m && String(m.id) === raw);
-  return modelDisplayName(hit) || raw;
+  const want = modelKey(raw);
+  const hit = list.find((m) => {
+    if (!m) return false;
+    if (String(m.id) === raw) return true;
+    return modelKey(m.id) === want || modelKey(m.name) === want;
+  });
+  if (hit) return modelDisplayName(hit);
+  return raw.replace(/-build$/i, "").trim() || raw;
 }
 
 export function isSpectatingSource(src) {

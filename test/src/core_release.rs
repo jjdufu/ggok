@@ -1,6 +1,6 @@
 use ggok_core::release::{
-    asset_filename, asset_url, is_newer, os_arch, parse_latest_tag, parse_repo, parse_sha256sums,
-    parse_version, replace_file_atomic, verify_file_sha256,
+    asset_filename, asset_ready_from_http, asset_url, is_newer, os_arch, parse_latest_tag,
+    parse_repo, parse_sha256sums, parse_version, replace_file_atomic, verify_file_sha256,
 };
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -114,6 +114,17 @@ fn parse_repo_accepts_default_rejects_traversal() {
     assert!(parse_repo("jjdufu/").is_err());
     assert!(parse_repo("/ggok").is_err());
     assert!(parse_repo("").is_err());
+}
+
+#[test]
+fn asset_ready_from_http_treats_missing_as_not_ready() {
+    assert_eq!(asset_ready_from_http(200), Some(true));
+    assert_eq!(asset_ready_from_http(302), Some(true));
+    assert_eq!(asset_ready_from_http(404), Some(false));
+    assert_eq!(asset_ready_from_http(410), Some(false));
+    assert_eq!(asset_ready_from_http(403), Some(false));
+    assert_eq!(asset_ready_from_http(500), None);
+    assert_eq!(asset_ready_from_http(0), None);
 }
 
 #[test]

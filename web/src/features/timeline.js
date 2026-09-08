@@ -787,9 +787,21 @@ export function bindTimeline(ctx) {
     if (!turnMap || turnMap.hidden) return;
     const marks = collectTurnMarks();
     const cur = activeTurnKey(marks);
-    for (const tick of turnMap.querySelectorAll(".turn-map-tick")) {
-      tick.classList.toggle("on", tick.dataset.key === cur);
+    for (const el of turnMap.querySelectorAll(".turn-map-tick, .turn-map-row")) {
+      el.classList.toggle("on", el.dataset.key === cur);
     }
+  }
+
+  function setTurnMapLit(key) {
+    if (!turnMap) return;
+    for (const el of turnMap.querySelectorAll(".turn-map-tick, .turn-map-row")) {
+      el.classList.toggle("lit", !!key && el.dataset.key === key);
+    }
+  }
+
+  function jumpTurnByKey(key) {
+    const hit = collectTurnMarks().find((m) => m.key === key);
+    if (hit) jumpToTurn(hit.row);
   }
 
   function jumpToTurn(row) {
@@ -802,20 +814,18 @@ export function bindTimeline(ctx) {
     paintTurnMapActive();
   }
 
-  function bindTurnMapTick(tick) {
-    tick.addEventListener("click", (e) => {
+  function bindTurnMapJump(el) {
+    el.addEventListener("click", (e) => {
       e.preventDefault();
-      const key = tick.dataset.key;
-      const hit = collectTurnMarks().find((m) => m.key === key);
-      if (hit) jumpToTurn(hit.row);
+      jumpTurnByKey(el.dataset.key);
     });
   }
 
   function hideTurnMap() {
     if (!turnMap) return;
     turnMap.hidden = true;
-    const ticks = turnMap.querySelectorAll(".turn-map-tick");
-    for (const tick of ticks) tick.remove();
+    turnMap.replaceChildren();
+    setTurnMapLit("");
   }
 
   function syncTurnMap() {
@@ -829,11 +839,22 @@ export function bindTimeline(ctx) {
     }
     turnMap.hidden = false;
     const placed = layoutTurnMarks(marks, turnMap.clientHeight || 1);
+    let panel = turnMap.querySelector(".turn-map-panel");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.className = "turn-map-panel";
+      panel.setAttribute("role", "list");
+      turnMap.appendChild(panel);
+    }
     const ticks = [...turnMap.querySelectorAll(".turn-map-tick")];
+    const rows = [...panel.querySelectorAll(".turn-map-row")];
     const same =
-      ticks.length === placed.length && ticks.every((el, i) => el.dataset.key === placed[i].key);
+      ticks.length === placed.length &&
+      rows.length === placed.length &&
+      ticks.every((el, i) => el.dataset.key === placed[i].key);
     if (!same) {
       for (const el of ticks) el.remove();
+      panel.replaceChildren();
       for (const mark of placed) {
         const tick = document.createElement("button");
         tick.type = "button";
@@ -841,18 +862,23 @@ export function bindTimeline(ctx) {
         tick.dataset.key = mark.key;
         tick.style.top = Math.round(mark.y) + "px";
         tick.setAttribute("aria-label", t("turnMapAria"));
-        const preview = document.createElement("span");
-        preview.className = "turn-map-preview";
-        preview.textContent = mark.text;
-        tick.appendChild(preview);
-        bindTurnMapTick(tick);
+        bindTurnMapJump(tick);
         turnMap.appendChild(tick);
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "turn-map-row";
+        row.dataset.key = mark.key;
+        row.setAttribute("role", "listitem");
+        row.textContent = mark.text;
+        bindTurnMapJump(row);
+        panel.appendChild(row);
       }
     } else {
       ticks.forEach((el, i) => {
         el.style.top = Math.round(placed[i].y) + "px";
-        const preview = el.querySelector(".turn-map-preview");
-        if (preview) preview.textContent = placed[i].text;
+      });
+      rows.forEach((el, i) => {
+        el.textContent = placed[i].text;
       });
     }
     paintTurnMapActive();
@@ -963,6 +989,13 @@ export function bindTimeline(ctx) {
       e.preventDefault();
       setFollowOutput(true);
     });
+  }
+  if (turnMap) {
+    turnMap.addEventListener("pointerover", (e) => {
+      const hit = e.target.closest(".turn-map-tick, .turn-map-row");
+      if (hit && turnMap.contains(hit)) setTurnMapLit(hit.dataset.key || "");
+    });
+    turnMap.addEventListener("pointerleave", () => setTurnMapLit(""));
   }
   window.addEventListener("resize", () => {
     syncJumpBottom();

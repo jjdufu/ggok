@@ -294,6 +294,57 @@ pub fn verify_file_sha256(path: &Path, hex: &str) -> Result<()> {
     }
 }
 
+/// Interpret a HEAD/GET status for a release archive.
+///
+/// `Some(true)` = downloadable, `Some(false)` = not published yet / missing,
+/// `None` = probe failed (network, 5xx).
+#[must_use]
+pub fn asset_ready_from_http(code: u16) -> Option<bool> {
+    match code {
+        200..=399 => Some(true),
+        401 | 403 | 404 | 410 => Some(false),
+        _ => None,
+    }
+}
+
+/// # Errors
+/// Returns an error if [`repo`] / version / os-arch fail, curl cannot run, or
+/// the HTTP status is not a definite yes/no.
+pub fn release_asset_ready(ver: &str, os: &str, arch: &str) -> Result<bool> {
+    let url = asset_url(ver, os, arch)?;
+    let code = curl_http_code(&url)?;
+    asset_ready_from_http(code).ok_or_else(|| anyhow!("could not check for updates"))
+}
+
+fn curl_http_code(url: &str) -> Result<u16> {
+    let output = curl_cmd()
+        .args([
+            "-sS",
+            "-I",
+            "-L",
+            "--retry",
+            "3",
+            "--connect-timeout",
+            "4",
+            "--max-time",
+            "8",
+            "-o",
+            "/dev/null",
+            "-w",
+            "%{http_code}",
+            url,
+        ])
+        .output()
+        .context("run curl")?;
+    if !output.status.success() {
+        bail!("could not check for updates");
+    }
+    let text = String::from_utf8(output.stdout).context("curl HTTP code is not utf-8")?;
+    let text = text.trim();
+    let code: u16 = text.parse().context("could not check for updates")?;
+    Ok(code)
+}
+
 /// # Errors
 /// Returns an error if `curl` fails or the effective URL cannot be read.
 pub fn curl_effective_url(url: &str) -> Result<String> {
@@ -314,7 +365,7 @@ pub fn curl_effective_url(url: &str) -> Result<String> {
         ])
         .output()
         .with_context(|| format!("run {} for effective URL", curl_bin()))?;
-    check_curl(&output, url)?;
+    check_curl(&output)?;
     String::from_utf8(output.stdout).context("curl effective URL is not utf-8")
 }
 
@@ -351,13 +402,13 @@ pub fn curl_download(url: &str, dest: &Path) -> Result<()> {
             eprintln!();
             Ok(())
         } else {
-            bail!("curl failed for {url} ({status})")
+            bail!("download failed")
         }
     } else {
         let output = cmd
             .output()
             .with_context(|| format!("run {} download {}", curl_bin(), dest.display()))?;
-        check_curl(&output, url)
+        check_curl(&output)
     }
 }
 
@@ -376,8 +427,8 @@ pub fn curl_to_string(url: &str) -> Result<String> {
             url,
         ])
         .output()
-        .with_context(|| format!("run {} for {url}", curl_bin()))?;
-    check_curl(&output, url)?;
+        .context("run curl")?;
+    check_curl(&output)?;
     String::from_utf8(output.stdout).context("curl body is not utf-8")
 }
 
@@ -401,16 +452,11 @@ fn curl_cmd() -> Command {
     cmd
 }
 
-fn check_curl(output: &std::process::Output, url: &str) -> Result<()> {
+fn check_curl(output: &std::process::Output) -> Result<()> {
     if output.status.success() {
         return Ok(());
     }
-    let err = String::from_utf8_lossy(&output.stderr);
-    let err = err.trim();
-    if err.is_empty() {
-        bail!("curl failed for {url} ({})", output.status);
-    }
-    bail!("curl failed for {url}: {err}");
+    bail!("download failed")
 }
 
 /// Replace `dest` with `src` using same-directory rename (never truncate `dest`).
