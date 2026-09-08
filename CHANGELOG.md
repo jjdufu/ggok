@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.1.0](https://github.com/jjdufu/ggok/compare/v0.1.23...v0.1.0) (2026-09-08)
+
+
+### Features
+
+* add GitHub link, grok-style update progress, and quieter login ([4b55551](https://github.com/jjdufu/ggok/commit/4b55551dafcce84f3cf56ca0768f57014df7ea2f))
+* add rewind, fork, tasks, and session mode controls ([9d5cdfb](https://github.com/jjdufu/ggok/commit/9d5cdfb727bc862da90e94a660921699d90879ec))
+* add user-turn minimap and show context percent by default ([ed6dd5e](https://github.com/jjdufu/ggok/commit/ed6dd5efbf6e2f96382eb82f524fe1835475bcef))
+* attach to grok leader instead of --no-leader stdio ([26ae7ec](https://github.com/jjdufu/ggok/commit/26ae7ec34697eeca8bf4ec162c57bf9c533a8b3a))
+* caption prompt images in composer and timeline ([2064986](https://github.com/jjdufu/ggok/commit/2064986fb08580e914878a2a4e50a2dd712ed3c3))
+* compact ggok status; list sessions only with -v ([5c0e490](https://github.com/jjdufu/ggok/commit/5c0e49003b73eb6e0fb4190501bff1ac36bf288a))
+* distinguish TUI sessions and persist draft across tabs ([6eff84c](https://github.com/jjdufu/ggok/commit/6eff84c342b8e7b611001031540004f98d86d55b))
+* keep upload attachments in chat and harden live SSE ([d8a75db](https://github.com/jjdufu/ggok/commit/d8a75dbf48c17fa4fc81b34ca2a56f6d7d1e7c08))
+* mode picker menu and collapsible todos ([366c214](https://github.com/jjdufu/ggok/commit/366c21492b23cf59d016ed982d8334e76c4e2eb8))
+* name ARM release archives aarch64 instead of arm64 ([2cdf38c](https://github.com/jjdufu/ggok/commit/2cdf38c9e679eeb43961e4c53fb74d6ec34849ee))
+* open session usage from the context chip ([0e06e72](https://github.com/jjdufu/ggok/commit/0e06e72e039e88509a45ca0899b05cdec1fb4d2b))
+* overlay todos as a left composer chip ([e02bd65](https://github.com/jjdufu/ggok/commit/e02bd65cb21e80389284f4c9c8c1a469b8e2901f))
+* polish overlays and apply session mode via ACP ([acfbf17](https://github.com/jjdufu/ggok/commit/acfbf1739aacd19ee7195d5df1d2634eab95df4b))
+* self-update command and version check ([3df3a3c](https://github.com/jjdufu/ggok/commit/3df3a3c19562c9b083256a70e4a5e48d5cd1f7a6))
+* show current and latest version in quota popover ([a582571](https://github.com/jjdufu/ggok/commit/a5825713ff22cd7bd5a8da3b49dcc63b758c5b04))
+* show subagents in the timeline and peek child sessions ([bcf52b0](https://github.com/jjdufu/ggok/commit/bcf52b085355fc47a598aab18b77789f4b5e272f))
+* skill chips, plugin MCP lineage, and install progress ([9b0410e](https://github.com/jjdufu/ggok/commit/9b0410e103ed888309171c5131b937855de577da))
+* web session tracking and independent leader detection ([9ebacbb](https://github.com/jjdufu/ggok/commit/9ebacbb50b4310bb10a998d38518091536ed7644))
+* WebUI ask_user_question cards via ggok-ask MCP ([e32c185](https://github.com/jjdufu/ggok/commit/e32c18574236c169bca54b06e28686b81e390eee))
+
+
+### Bug Fixes
+
+* hold latest until packages exist and tidy session overlays ([2e612ae](https://github.com/jjdufu/ggok/commit/2e612ae16df6aa9fcba9a9c41227c7cdedbad43f))
+* keep session delete confirm above the composer ([eff5006](https://github.com/jjdufu/ggok/commit/eff500690b47c32986c70a1387b28de4311d335a))
+* stop toasting cwd errors when opening extensions ([95cba18](https://github.com/jjdufu/ggok/commit/95cba18becc3704669d46e5945ea39133b559c77))
+* strip echoed image captions and keep timeline scroll ([a75a8dc](https://github.com/jjdufu/ggok/commit/a75a8dc73f6d64064c176ea35aad5527367c7143))
+* sync TUI effort, keep drafts, persist last model ([622d91f](https://github.com/jjdufu/ggok/commit/622d91f99d1607d43cd44a937c256538f8854228))
+
+
+### Miscellaneous Chores
+
+* first public release ([a151336](https://github.com/jjdufu/ggok/commit/a151336372db0e45849be2baf957e99212ebc86e))
+
 ## [0.1.23](https://github.com/jjdufu/ggok/compare/v0.1.22...v0.1.23) (2026-09-08)
 
 
