@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.23](https://github.com/jjdufu/ggok/compare/v0.1.22...v0.1.23) (2026-09-08)
+
+
+### Bug Fixes
+
+* hold latest until packages exist and tidy session overlays ([2e612ae](https://github.com/jjdufu/ggok/commit/2e612ae16df6aa9fcba9a9c41227c7cdedbad43f))
+
 ## [0.1.22](https://github.com/jjdufu/ggok/compare/v0.1.21...v0.1.22) (2026-09-08)
 
 
