@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19](https://github.com/jjdufu/ggok/compare/v0.1.18...v0.1.19) (2026-09-08)
+
+
+### Features
+
+* overlay todos as a left composer chip ([e02bd65](https://github.com/jjdufu/ggok/commit/e02bd65cb21e80389284f4c9c8c1a469b8e2901f))
+
 ## [0.1.18](https://github.com/jjdufu/ggok/compare/v0.1.17...v0.1.18) (2026-09-08)
 
 
