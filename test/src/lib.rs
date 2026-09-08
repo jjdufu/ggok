@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 mod agent_session_mode;
+mod cli_update;
 mod agent_slash;
 mod core_occupy;
 mod core_parse;

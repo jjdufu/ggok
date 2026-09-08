@@ -85,11 +85,11 @@
   transform: translateY(-50%);
   display: none;
   flex-direction: column;
-  gap: 8px;
+  isolation: isolate;
   min-width: 160px;
   max-width: min(320px, 42vw);
   max-height: 100%;
-  overflow: auto;
+  overflow: visible;
   padding: 0 20px 0 0;
   border: 0;
   background: transparent;
@@ -98,10 +98,65 @@
   z-index: 2;
 }
 
+.turn-map-panel::before,
+.turn-map-panel::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.turn-map-panel::before {
+  top: 0;
+  bottom: 0;
+  left: -48px;
+  right: 0;
+  background: linear-gradient(
+    to right in oklab,
+    rgba(var(--bg-rgb), 0) 0%,
+    var(--bg) 40%,
+    var(--bg) 100%
+  );
+}
+
+.turn-map-panel::after {
+  left: 0;
+  right: 0;
+  top: -32px;
+  bottom: -32px;
+  background: linear-gradient(
+    to bottom in oklab,
+    rgba(var(--bg-rgb), 0) 0%,
+    var(--bg) 32px,
+    var(--bg) calc(100% - 32px),
+    rgba(var(--bg-rgb), 0) 100%
+  );
+}
+
+.turn-map-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  max-height: 100%;
+  overflow: auto;
+}
+
 .turn-map[data-side="out"] .turn-map-panel {
   left: 22px;
   right: auto;
   padding: 0 0 0 20px;
+}
+
+.turn-map[data-side="out"] .turn-map-panel::before {
+  left: 0;
+  right: -48px;
+  background: linear-gradient(
+    to left in oklab,
+    rgba(var(--bg-rgb), 0) 0%,
+    var(--bg) 40%,
+    var(--bg) 100%
+  );
 }
 
 .turn-map:has(.turn-map-tick:hover) .turn-map-panel,

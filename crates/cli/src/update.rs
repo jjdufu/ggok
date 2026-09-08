@@ -41,6 +41,7 @@ pub(crate) fn run() -> Result<i32> {
     println!("Updating {current} → {latest}.");
     let archive = tmp.0.join(&filename);
     curl_and_verify(&latest, &os, &arch, &filename, &archive)?;
+    println!("Installing.");
     let extracted = extract_ggok(&archive, &tmp.0)?;
     replace_file_atomic(&extracted, &dest)?;
     println!("Updated to {latest}.");
@@ -56,6 +57,7 @@ fn curl_and_verify(
     archive: &Path,
 ) -> Result<()> {
     ggok_core::release::curl_download(&asset_url(latest, os, arch)?, archive)?;
+    println!("Verifying.");
     let sums = ggok_core::release::curl_to_string(&sha256sums_url(latest)?)?;
     let hex = parse_sha256sums(&sums, filename)?;
     verify_file_sha256(archive, &hex)

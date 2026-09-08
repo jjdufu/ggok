@@ -865,7 +865,16 @@ export function bindTimeline(ctx) {
       panel = document.createElement("div");
       panel.className = "turn-map-panel";
       panel.setAttribute("role", "list");
+      const list = document.createElement("div");
+      list.className = "turn-map-list";
+      panel.appendChild(list);
       turnMap.appendChild(panel);
+    }
+    let list = panel.querySelector(".turn-map-list");
+    if (!list) {
+      list = document.createElement("div");
+      list.className = "turn-map-list";
+      panel.appendChild(list);
     }
     const ticks = [...turnMap.querySelectorAll(".turn-map-tick")];
     const rows = [...panel.querySelectorAll(".turn-map-row")];
@@ -875,7 +884,7 @@ export function bindTimeline(ctx) {
       ticks.every((el, i) => el.dataset.key === placed[i].key);
     if (!same) {
       for (const el of ticks) el.remove();
-      panel.replaceChildren();
+      list.replaceChildren();
       for (const mark of placed) {
         const tick = document.createElement("button");
         tick.type = "button";
@@ -892,7 +901,7 @@ export function bindTimeline(ctx) {
         row.setAttribute("role", "listitem");
         row.textContent = mark.text;
         bindTurnMapJump(row);
-        panel.appendChild(row);
+        list.appendChild(row);
       }
     } else {
       ticks.forEach((el, i) => {

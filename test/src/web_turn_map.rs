@@ -133,11 +133,22 @@ fn turn_map_ticks_are_quiet_and_preview_matches_say() {
         panel.contains("background: transparent"),
         "panel chrome must be gone:\n{panel}"
     );
+    let fade_hit = css_block(&css, ".turn-map-panel::before,");
+    assert!(
+        fade_hit.contains("pointer-events: none"),
+        "fade plate must not steal clicks:\n{fade_hit}"
+    );
+    let fade = css_block(&css, ".turn-map-panel::before {");
+    assert!(
+        fade.contains("var(--bg)") && fade.contains("rgba(var(--bg-rgb), 0)"),
+        "occluder must use page bg and fade like composer-fade:\n{fade}"
+    );
     assert!(
         panel.contains("padding: 0 20px 0 0"),
         "ticks and list must have a hover-safe gap:\n{panel}"
     );
-    assert!(panel.contains("gap: 8px"), "{panel}");
+    let list = css_block(&css, ".turn-map-list {");
+    assert!(list.contains("gap: 8px"), "{list}");
     assert!(
         panel.contains("max-height: 100%"),
         "panel height must follow the page/rail, not a fixed inward box:\n{panel}"
@@ -204,6 +215,7 @@ fn turn_map_js_jumps_without_tooltips() {
     assert!(js.contains("t(\"turnMapImage\")"));
     assert!(js.contains("t(\"turnMapFile\")"));
     assert!(js.contains("turn-map-panel"));
+    assert!(js.contains("turn-map-list"));
     assert!(js.contains("turn-map-row"));
     assert!(js.contains("function setTurnMapLit"));
     assert!(js.contains("function placeTurnMapPanel"));
