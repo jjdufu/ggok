@@ -1,18 +1,22 @@
 use ggok_core::release::{CURRENT_VERSION, fetch_latest_version, is_newer};
 use serde::Serialize;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
+use tokio::sync::watch;
 
-const CACHE_OK: Duration = Duration::from_hours(6);
-const CACHE_ERR: Duration = Duration::from_mins(15);
+const CACHE_OK: Duration = Duration::from_secs(60);
+const CACHE_ERR: Duration = Duration::from_secs(15);
 
 static CACHE: Mutex<Option<CacheEntry>> = Mutex::new(None);
-static REFRESHING: AtomicBool = AtomicBool::new(false);
+static INFLIGHT: Mutex<Inflight> = Mutex::new(Inflight { rx: None });
 
 struct CacheEntry {
     at: Instant,
     latest: Option<String>,
+}
+
+struct Inflight {
+    rx: Option<watch::Receiver<Option<VersionView>>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -35,34 +39,107 @@ pub fn version_view(current: &str, latest: Option<&str>) -> VersionView {
 
 enum Hit {
     FreshOk(String),
-    StaleOk(String),
+    StaleOk,
     FreshErr,
     Miss,
 }
 
-#[must_use]
-pub fn snapshot() -> VersionView {
-    let hit = cached();
-    match &hit {
-        Hit::FreshOk(_) | Hit::FreshErr => {}
-        Hit::StaleOk(_) | Hit::Miss => spawn_refresh(),
+/// Look-path snapshot: serve a minute-fresh hit, otherwise wait for GitHub.
+pub async fn snapshot() -> VersionView {
+    match cached() {
+        Hit::FreshOk(ver) => version_view(CURRENT_VERSION, Some(&ver)),
+        Hit::FreshErr => version_view(CURRENT_VERSION, None),
+        Hit::StaleOk | Hit::Miss => load_shared().await,
     }
-    view_from(&hit)
 }
 
 pub fn warm() {
-    match cached() {
-        Hit::FreshOk(_) | Hit::StaleOk(_) => {}
-        Hit::FreshErr | Hit::Miss => spawn_refresh(),
+    tokio::spawn(async {
+        let _ = snapshot().await;
+    });
+}
+
+async fn wait_shared(mut rx: watch::Receiver<Option<VersionView>>) -> Option<VersionView> {
+    loop {
+        if let Some(view) = rx.borrow().clone() {
+            return Some(view);
+        }
+        if rx.changed().await.is_err() {
+            return None;
+        }
     }
 }
 
-fn view_from(hit: &Hit) -> VersionView {
-    let latest = match hit {
-        Hit::FreshOk(v) | Hit::StaleOk(v) => Some(v.as_str()),
-        Hit::FreshErr | Hit::Miss => None,
+async fn load_shared() -> VersionView {
+    loop {
+        let pending = INFLIGHT.lock().ok().and_then(|g| g.rx.clone());
+        if let Some(rx) = pending {
+            if let Some(view) = wait_shared(rx).await {
+                return view;
+            }
+            continue;
+        }
+
+        let (tx, rx) = watch::channel(None);
+        let existing = {
+            let Ok(mut g) = INFLIGHT.lock() else {
+                return load().await;
+            };
+            if let Some(existing) = g.rx.clone() {
+                Some(existing)
+            } else {
+                g.rx = Some(rx);
+                None
+            }
+        };
+        if let Some(existing) = existing {
+            if let Some(view) = wait_shared(existing).await {
+                return view;
+            }
+            continue;
+        }
+
+        let view = load().await;
+        let _ = tx.send(Some(view.clone()));
+        if let Ok(mut g) = INFLIGHT.lock() {
+            g.rx = None;
+        }
+        return view;
+    }
+}
+
+async fn load() -> VersionView {
+    let fetched = tokio::task::spawn_blocking(fetch_latest_version).await;
+    match fetched {
+        Ok(Ok(ver)) => {
+            store(Some(ver.clone()));
+            version_view(CURRENT_VERSION, Some(&ver))
+        }
+        Ok(Err(e)) => {
+            tracing::warn!("version check failed: {e:#}");
+            fallback_after_err()
+        }
+        Err(e) => {
+            tracing::warn!("version check failed: {e:#}");
+            fallback_after_err()
+        }
+    }
+}
+
+fn fallback_after_err() -> VersionView {
+    if let Some(ver) = last_ok() {
+        version_view(CURRENT_VERSION, Some(&ver))
+    } else {
+        store(None);
+        version_view(CURRENT_VERSION, None)
+    }
+}
+
+fn last_ok() -> Option<String> {
+    let Ok(guard) = CACHE.lock() else {
+        return None;
     };
-    version_view(CURRENT_VERSION, latest)
+    guard.as_ref().and_then(|entry| entry.latest.clone())
 }
 
 fn cached() -> Hit {
@@ -75,7 +152,7 @@ fn cached() -> Hit {
     let age = entry.at.elapsed();
     match &entry.latest {
         Some(ver) if age <= CACHE_OK => Hit::FreshOk(ver.clone()),
-        Some(ver) => Hit::StaleOk(ver.clone()),
+        Some(_) => Hit::StaleOk,
         None if age <= CACHE_ERR => Hit::FreshErr,
         None => Hit::Miss,
     }
@@ -88,25 +165,4 @@ fn store(latest: Option<String>) {
             latest,
         });
     }
-}
-
-fn spawn_refresh() {
-    if REFRESHING.swap(true, Ordering::SeqCst) {
-        return;
-    }
-    tokio::spawn(async {
-        let fetched = tokio::task::spawn_blocking(fetch_latest_version).await;
-        match fetched {
-            Ok(Ok(ver)) => store(Some(ver)),
-            Ok(Err(e)) => {
-                tracing::warn!("version check failed: {e:#}");
-                store(None);
-            }
-            Err(e) => {
-                tracing::warn!("version check failed: {e:#}");
-                store(None);
-            }
-        }
-        REFRESHING.store(false, Ordering::SeqCst);
-    });
 }

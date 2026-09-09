@@ -39,7 +39,7 @@ pub(crate) async fn api_account(State(state): State<Arc<AppState>>) -> Response 
 }
 
 pub(crate) async fn api_version() -> Response {
-    json_ok(&crate::release::snapshot())
+    json_ok(&crate::release::snapshot().await)
 }
 
 #[derive(Debug, serde::Deserialize)]
