@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.33](https://github.com/jjdufu/ggok/compare/v0.1.32...v0.1.33) (2026-09-09)
+
+
+### Bug Fixes
+
+* wait for GitHub on stale version looks ([a4f8b41](https://github.com/jjdufu/ggok/commit/a4f8b4183b01ff2595a8a19ea7cbda1fa7162d2f))
+
 ## [0.1.32](https://github.com/jjdufu/ggok/compare/v0.1.31...v0.1.32) (2026-09-09)
 
 
