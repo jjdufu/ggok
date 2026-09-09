@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.31](https://github.com/jjdufu/ggok/compare/v0.1.30...v0.1.31) (2026-09-09)
+
+
+### Features
+
+* restack collapsed rail and paint newer latest in red ([b4a750f](https://github.com/jjdufu/ggok/commit/b4a750f4b01653133cd6807568c9805223bc6ff7))
+
+
+### Bug Fixes
+
+* drop hamburger drawer and boot into the collapsed icon rail ([df8d207](https://github.com/jjdufu/ggok/commit/df8d207d41bc335404c1e02275dac94529c8b7a2))
+
 ## [0.1.30](https://github.com/jjdufu/ggok/compare/v0.1.29...v0.1.30) (2026-09-09)
 
 
