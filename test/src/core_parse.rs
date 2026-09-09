@@ -469,3 +469,110 @@ fn apply_event_reads_xai_subagent_update() {
         "{blocks:?}"
     );
 }
+
+#[test]
+fn usage_update_sets_context_without_billed_usage() {
+    let mut p = Parser::new();
+    assert_eq!(
+        p.ingest_at(
+            &json!({
+                "sessionUpdate": "usage_update",
+                "used": 99_000,
+                "size": 500_000
+            }),
+            "",
+            None
+        ),
+        Ingest::None
+    );
+    assert_eq!(p.context_tokens(), 99_000);
+    assert!(!p.usage_snapshot().recorded);
+}
+
+#[test]
+fn usage_update_nested_usage_is_recorded() {
+    let mut p = Parser::new();
+    assert_eq!(
+        p.ingest_at(
+            &json!({
+                "sessionUpdate": "usage_update",
+                "used": 1200,
+                "usage": { "inputTokens": 800, "outputTokens": 400 }
+            }),
+            "",
+            None
+        ),
+        Ingest::Usage
+    );
+    assert_eq!(p.context_tokens(), 1200);
+    let usage = p.usage_snapshot();
+    assert!(usage.recorded);
+    assert_eq!(usage.input_tokens, 800);
+    assert_eq!(usage.output_tokens, 400);
+}
+
+#[test]
+fn apply_event_meta_total_tokens_sets_live_context() {
+    let mut p = Parser::new();
+    apply_event(
+        &mut p,
+        &json!({
+            "params": {
+                "_meta": { "totalTokens": 99_000, "promptId": "p1" },
+                "update": {
+                    "sessionUpdate": "agent_thought_chunk",
+                    "content": { "text": "x" }
+                }
+            }
+        }),
+    );
+    assert_eq!(p.context_tokens(), 99_000);
+    p.note_meta(&json!({ "totalTokens": 0 }));
+    assert_eq!(p.context_tokens(), 99_000);
+}
+
+#[test]
+fn ingest_prompt_result_reads_grok_meta_counters() {
+    let mut p = Parser::new();
+    p.ingest_prompt_result(&json!({
+        "_meta": {
+            "totalTokens": 2000,
+            "inputTokens": 1500,
+            "outputTokens": 500,
+            "cachedReadTokens": 200
+        }
+    }));
+    assert_eq!(p.context_tokens(), 2000);
+    let usage = p.usage_snapshot();
+    assert!(usage.recorded);
+    assert_eq!(usage.input_tokens, 1500);
+    assert_eq!(usage.output_tokens, 500);
+    assert_eq!(usage.cached_tokens, 200);
+}
+
+#[test]
+fn ingest_prompt_result_occupancy_only_is_not_billed() {
+    let mut p = Parser::new();
+    p.ingest_prompt_result(&json!({ "_meta": { "totalTokens": 99_000 } }));
+    assert_eq!(p.context_tokens(), 99_000);
+    assert!(!p.usage_snapshot().recorded);
+}
+
+#[test]
+fn ingest_prompt_result_does_not_double_recorded_usage() {
+    let mut p = Parser::new();
+    assert_eq!(
+        p.ingest_at(
+            &json!({ "usage": { "inputTokens": 3, "outputTokens": 5 } }),
+            "",
+            None
+        ),
+        Ingest::Usage
+    );
+    p.ingest_prompt_result(&json!({
+        "_meta": { "inputTokens": 3, "outputTokens": 5 }
+    }));
+    let usage = p.usage_snapshot();
+    assert_eq!(usage.input_tokens, 3);
+    assert_eq!(usage.output_tokens, 5);
+}

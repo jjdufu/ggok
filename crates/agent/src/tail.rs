@@ -162,10 +162,16 @@ async fn emit_line(
             if let Some(block) = parser.last_block() {
                 let _ = send_event(tx, "block", &block).await;
             }
-            let _ = send_event(tx, "usage", &parser.usage_snapshot()).await;
+            let snap = parser.usage_snapshot();
+            if snap.recorded {
+                let _ = send_event(tx, "usage", &snap).await;
+            }
         }
         Ingest::Usage => {
-            let _ = send_event(tx, "usage", &parser.usage_snapshot()).await;
+            let snap = parser.usage_snapshot();
+            if snap.recorded {
+                let _ = send_event(tx, "usage", &snap).await;
+            }
         }
         Ingest::Plan => {
             let _ = send_event(tx, "todos", &parser.todos()).await;

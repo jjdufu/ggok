@@ -71,19 +71,36 @@ impl Agent {
                 g.in_flight.remove(&id)
             };
             if let Some(sid) = sid {
-                let usage = {
+                let finished = {
                     let mut g = self.inner.lock().await;
                     if let Some(sess) = g.sessions.get_mut(&sid) {
                         sess.running = false;
                         sess.user_emitted = false;
+                        if let Ok(value) = &result {
+                            sess.parser.ingest_prompt_result(value);
+                        }
                         sess.usage = sess.parser.usage_snapshot();
-                        Some(sess.usage.clone())
+                        Some((
+                            sess.usage.clone(),
+                            sess.parser.context_tokens(),
+                            sess.model.clone(),
+                        ))
                     } else {
                         None
                     }
                 };
-                if let Some(usage) = usage.filter(|u| u.recorded) {
-                    self.emit(&sid, "usage", &usage);
+                if let Some((usage, ctx_used, model)) = finished {
+                    if usage.recorded {
+                        self.emit(&sid, "usage", &usage);
+                    }
+                    if ctx_used > 0 {
+                        let window = ggok_core::parse::context_window(&self.grok_home, &model);
+                        self.emit(
+                            &sid,
+                            "context",
+                            &json!({ "used": ctx_used, "window": window }),
+                        );
+                    }
                 }
                 self.refresh_usage_from_disk(&sid).await;
                 if let Err(e) = &result {

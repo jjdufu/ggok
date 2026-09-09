@@ -325,8 +325,23 @@ export function bindDrawer(ctx) {
   function renderUsage(usage) {
     if (!usageBody) return;
     usageBody.replaceChildren();
-    if (!usage || !usage.recorded) {
+    const occupancy = ctx.contextOf ? ctx.contextOf() : { used: 0, window: 0 };
+    const used = Number(occupancy.used || 0);
+    const ctxWindow = Number(occupancy.window || 0);
+    const hasCtx = used > 0;
+    const recorded = !!(usage && usage.recorded);
+    if (!hasCtx && !recorded) {
       usageBody.appendChild(emptyEl("usage-empty", t("noModelCalls")));
+      return;
+    }
+    if (hasCtx) {
+      const pct = ctxWindow > 0 ? Math.min(100, Math.round((used / ctxWindow) * 100)) : 0;
+      usageCells(usageBody, t("used"), fmtNum(used), pct + "%");
+      usageCells(usageBody, t("window"), fmtNum(ctxWindow));
+      usageCells(usageBody, t("remainingLabel"), fmtNum(Math.max(0, ctxWindow - used)));
+    }
+    if (!recorded) {
+      usageBody.appendChild(emptyEl("usage-empty", t("noTokenBreakdown")));
       return;
     }
     usageCells(usageBody, t("inputTokens"), fmtNum(usage.input_tokens), t("cachedNote", { n: fmtNum(usage.cached_tokens) }));
@@ -393,10 +408,10 @@ export function bindDrawer(ctx) {
         const prev = (ctx.current && ctx.current.usage) || {};
         if (!prev.recorded || (detail.usage.total_tokens || 0) >= (prev.total_tokens || 0)) {
           if (ctx.current) ctx.current.usage = detail.usage;
-          renderUsage(detail.usage);
         }
       }
       if (detail.context && ctx.applyContext) ctx.applyContext(detail.context);
+      else if (ctx.ctxUsageOpen) renderUsage((ctx.current && ctx.current.usage) || {});
     } catch (e) {
     }
   }

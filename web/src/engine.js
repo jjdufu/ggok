@@ -299,6 +299,7 @@ export function boot() {
     if (ctx.lastAccount && ctx.renderAccount) ctx.renderAccount(ctx.lastAccount);
     if (ctx.syncWsButton) ctx.syncWsButton();
     if (ctx.filesDrawerOpen && ctx.filesDrawerOpen() && ctx.renderWsList) ctx.renderWsList();
+    if (ctx.ctxUsageOpen && ctx.renderUsage) ctx.renderUsage((ctx.current && ctx.current.usage) || {});
     if (ctx.drawerMode === "status") {
       if (ctx.renderUsage) ctx.renderUsage((ctx.current && ctx.current.usage) || {});
       if (ctx.lastHost && ctx.renderHost) ctx.renderHost(ctx.lastHost);

@@ -697,13 +697,13 @@ impl Agent {
             let mut g = self.inner.lock().await;
             let sess = live_entry(&mut g, &sid, "");
             if kind == "user_message_chunk" && sess.user_emitted {
-                sess.parser.ingest_at(&update, &prompt_id, ts);
                 sess.parser.note_meta(meta);
+                sess.parser.ingest_at(&update, &prompt_id, ts);
                 return;
             }
-            let ingest = sess.parser.ingest_at(&update, &prompt_id, ts);
             let before_ctx = sess.parser.context_tokens();
             sess.parser.note_meta(meta);
+            let ingest = sess.parser.ingest_at(&update, &prompt_id, ts);
             let skip_user = sess.user_emitted;
             let block = block_from_ingest(sess, ingest, &update, skip_user);
             let emit_usage = matches!(ingest, Ingest::TurnEnd | Ingest::Usage);

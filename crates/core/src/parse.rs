@@ -456,7 +456,30 @@ impl Parser {
 
     pub fn note_meta(&mut self, meta: &Value) {
         if let Some(n) = json_u64_opt(meta, &["totalTokens", "total_tokens"]) {
-            self.context_tokens = n;
+            self.set_context_tokens(n);
+        }
+    }
+
+    pub fn ingest_prompt_result(&mut self, result: &Value) {
+        let meta = result.get("_meta").unwrap_or(&Value::Null);
+        self.note_meta(result);
+        self.note_meta(meta);
+        if self.usage.recorded {
+            return;
+        }
+        if let Some(usage) = result
+            .get("usage")
+            .or_else(|| meta.get("usage"))
+            .or_else(|| meta.get("promptUsage"))
+            .or_else(|| meta.get("prompt_usage"))
+            .or_else(|| meta.get("lastTurnUsage"))
+            .or_else(|| meta.get("last_turn_usage"))
+        {
+            self.add_usage(usage);
+            return;
+        }
+        if billed_counters_present(meta) {
+            self.add_usage(meta);
         }
     }
 }
@@ -506,6 +529,7 @@ fn ingest_update(
         "tool_call" => ingest_tool_call(parser, &prompt_id, update, ts_ms),
         "tool_call_update" => ingest_tool_update(parser, update, ts_ms),
         "turn_completed" => ingest_turn_completed(parser, prompt_id, update, ts_ms),
+        "usage_update" => ingest_usage_update(parser, update, ts_ms),
         "plan" => ingest_plan(parser, update, ts_ms),
         "subagent_spawned" | "subagent_finished" => {
             ingest_subagent(parser, kind, update, &prompt_id, ts_ms)
@@ -745,12 +769,26 @@ fn ingest_turn_completed(
     Ingest::TurnEnd
 }
 
+fn ingest_usage_update(parser: &mut Parser, update: &Value, ts_ms: Option<u64>) -> Ingest {
+    parser.note_time(ts_ms);
+    if let Some(used) = json_u64_opt(update, &["used"]) {
+        parser.set_context_tokens(used);
+    }
+    ingest_usage_field(parser, update)
+}
+
 fn ingest_usage_field(parser: &mut Parser, update: &Value) -> Ingest {
     let Some(usage) = update.get("usage") else {
         return Ingest::None;
     };
     parser.add_usage(usage);
     Ingest::Usage
+}
+
+fn billed_counters_present(v: &Value) -> bool {
+    json_u64_opt(v, &["inputTokens", "input_tokens"])
+        .is_some_and(|n| n > 0)
+        || json_u64_opt(v, &["outputTokens", "output_tokens"]).is_some_and(|n| n > 0)
 }
 
 fn json_str(v: &Value, keys: &[&str]) -> String {

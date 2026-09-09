@@ -375,6 +375,9 @@ export function bindSidebar(ctx) {
       }
       ctxFill.style.backgroundColor = `hsl(${Math.round(hue)}, 85%, 48%)`;
     }
+    if (ctx.ctxUsageOpen && ctx.renderUsage) {
+      ctx.renderUsage((ctx.current && ctx.current.usage) || {});
+    }
   }
 
   function focusLiveGroup() {

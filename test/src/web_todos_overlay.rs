@@ -254,6 +254,39 @@ fn ctx_chip_click_opens_session_usage_popover() {
 }
 
 #[test]
+fn ctx_usage_popover_shows_live_context_without_recorded_usage() {
+    let js = web_file("src/features/drawer.js");
+    assert!(
+        js.contains("ctx.contextOf"),
+        "usage popover must read live occupancy from contextOf:\n{js}"
+    );
+    assert!(
+        !js.contains("if (!usage || !usage.recorded)"),
+        "must not hide occupancy when billed usage is not recorded yet:\n{js}"
+    );
+    assert!(
+        js.contains("noTokenBreakdown"),
+        "in-progress occupancy must not claim there were no model calls:\n{js}"
+    );
+    assert!(
+        js.contains("t(\"used\")") && js.contains("t(\"window\")"),
+        "popover must show used/window while the turn is still running:\n{js}"
+    );
+
+    let side = web_file("src/features/sidebar.js");
+    assert!(
+        side.contains("ctx.ctxUsageOpen") && side.contains("ctx.renderUsage"),
+        "context SSE must refresh an open usage popover:\n{side}"
+    );
+
+    let i18n = web_file("public/i18n.js");
+    assert!(
+        i18n.contains("noTokenBreakdown"),
+        "i18n missing noTokenBreakdown:\n{i18n}"
+    );
+}
+
+#[test]
 fn ctx_usage_models_use_picker_names_and_own_rows() {
     let js = web_file("src/features/drawer.js");
     assert!(
