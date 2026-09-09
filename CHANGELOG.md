@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.30](https://github.com/jjdufu/ggok/compare/v0.1.29...v0.1.30) (2026-09-09)
+
+
+### Bug Fixes
+
+* reset quota on period rollover and keep collapsed sidebar as icon rail ([110fcf4](https://github.com/jjdufu/ggok/commit/110fcf40160167887b185248e418fed9af2a8e55))
+
 ## [0.1.29](https://github.com/jjdufu/ggok/compare/v0.1.28...v0.1.29) (2026-09-09)
 
 
