@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.28](https://github.com/jjdufu/ggok/compare/v0.1.27...v0.1.28) (2026-09-09)
+
+
+### Bug Fixes
+
+* share usage gradient on quota and ctx chips ([50a4132](https://github.com/jjdufu/ggok/commit/50a41324277b2e3721666faeb599adbe0ece7570))
+* show live context occupancy in the session usage popover ([219f329](https://github.com/jjdufu/ggok/commit/219f3298671235e3c2f1a479aa08320e26c13540))
+
 ## [0.1.27](https://github.com/jjdufu/ggok/compare/v0.1.26...v0.1.27) (2026-09-08)
 
 
