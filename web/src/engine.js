@@ -283,7 +283,6 @@ export function boot() {
       if (drawerEl && !drawerEl.hidden) {
         if (ctx.closeDrawer) ctx.closeDrawer();
       }
-      if (ctx.closeMobile) ctx.closeMobile();
     }
   });
 

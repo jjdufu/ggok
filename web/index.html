@@ -12,7 +12,7 @@
       document.documentElement.dataset.theme = dark ? "dark" : "light";
       document.documentElement.style.colorScheme = dark ? "dark" : "light";
       var side = localStorage.getItem("ggok-sidebar");
-      if (side === "collapsed") {
+      if (side !== "open" || matchMedia("(max-width: 900px)").matches) {
         document.documentElement.dataset.sidebar = "collapsed";
       }
       var stored;
@@ -56,9 +56,6 @@
     <symbol id="i-panel" viewBox="0 0 24 24">
       <rect x="3.5" y="4" width="17" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
       <path d="M9 4V20" stroke="currentColor" stroke-width="2"/>
-    </symbol>
-    <symbol id="i-menu" viewBox="0 0 24 24">
-      <path d="M5 7h14M5 12h14M5 17h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/>
     </symbol>
     <symbol id="i-sun" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="3.75" fill="none" stroke="currentColor" stroke-width="2"/>

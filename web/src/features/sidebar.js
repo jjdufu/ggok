@@ -4,13 +4,10 @@ import { beginInlineRename } from "../lib/rename.js";
 import { svgUse } from "../lib/svg.js";
 import { api, patch, del } from "../lib/api.js";
 import { toast } from "../lib/clipboard.js";
-import { openOverlay, closeOverlay } from "../lib/overlay.js";
 
 export function bindSidebar(ctx) {
   const { SIDE_KEY } = ctx;
   const tree = document.getElementById("tree");
-  const app = document.getElementById("app");
-  const scrim = document.getElementById("scrim");
   const sessMenu = document.getElementById("sess-menu");
   const ctxBar = document.getElementById("ctx-bar");
   const ctxFill = document.getElementById("ctx-fill");
@@ -34,16 +31,6 @@ export function bindSidebar(ctx) {
     localStorage.setItem(SIDE_KEY, on ? "collapsed" : "open");
   }
 
-  function closeMobile() {
-    if (app) app.classList.remove("mobile-open");
-    closeOverlay(scrim);
-  }
-
-  function openMobile() {
-    if (app) app.classList.add("mobile-open");
-    openOverlay(scrim);
-  }
-
   const collapseSideBtn = document.getElementById("collapse-side");
   function syncCollapseTip() {
     if (!collapseSideBtn) return;
@@ -54,25 +41,11 @@ export function bindSidebar(ctx) {
   }
   if (collapseSideBtn) {
     collapseSideBtn.addEventListener("click", () => {
-      const collapse = document.documentElement.dataset.sidebar !== "collapsed";
-      setSidebarCollapsed(collapse);
+      setSidebarCollapsed(document.documentElement.dataset.sidebar !== "collapsed");
       syncCollapseTip();
-      if (window.matchMedia("(max-width: 900px)").matches) {
-        if (collapse) closeMobile();
-        else openMobile();
-      }
     });
   }
   syncCollapseTip();
-
-  const openSideBtn = document.getElementById("open-side");
-  if (openSideBtn) {
-    openSideBtn.addEventListener("click", openMobile);
-  }
-
-  if (scrim) {
-    scrim.addEventListener("click", closeMobile);
-  }
 
   function groupTree(list) {
     const byCwd = new Map();
@@ -273,7 +246,6 @@ export function bindSidebar(ctx) {
         if (ctx.sessRenaming === s.id) return;
         hideTip(false);
         closeSessMenu();
-        closeMobile();
         if (ctx.openSession) ctx.openSession(s.id);
       });
       listEl.appendChild(b);
@@ -417,8 +389,6 @@ export function bindSidebar(ctx) {
   ctx.syncCompact = syncCompact;
   ctx.setCtxUsageOpen = setCtxUsageOpen;
   ctx.setSidebarCollapsed = setSidebarCollapsed;
-  ctx.closeMobile = closeMobile;
-  ctx.openMobile = openMobile;
   ctx.groupTree = groupTree;
   ctx.renderTree = renderTree;
   ctx.loadList = loadList;

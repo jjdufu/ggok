@@ -90,14 +90,10 @@ export default function App() {
         </div>
       </footer>
     </aside>
-    <div id="scrim" className="ui-scrim" hidden={true}></div>
     <section id="main">
       <div id="chatcol">
       <header id="toolbar">
         <div className="toolbar-fade" aria-hidden="true"></div>
-        <button type="button" id="open-side" className="icon-btn" data-tip="会话列表" data-i18n-title="sessionList">
-          <svg viewBox="0 0 24 24"><use href="#i-menu"/></svg>
-        </button>
         <div id="titlebar">
           <div className="title-tools">
             <a id="github-link" className="icon-btn" href="https://github.com/jjdufu/ggok" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
