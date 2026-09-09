@@ -368,16 +368,10 @@
   height: 100%;
   width: 0%;
   border-radius: 0;
-  background: #10b981;
-  opacity: 0;
+  background: var(--muted);
+  opacity: 0.82;
   pointer-events: none;
   transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s ease, opacity 0.16s ease;
-}
-
-.composer-ctx-bar:hover .ctx-fill,
-.composer-ctx-bar:focus-within .ctx-fill,
-.composer-ctx-bar.open .ctx-fill {
-  opacity: 0.82;
 }
 
 .composer-ctx-bar .ctx-label {

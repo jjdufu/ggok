@@ -285,7 +285,6 @@
 .quota-btn:hover,
 .quota-btn.on {
   background: var(--hover);
-  --quota-color: var(--fg);
 }
 
 .quota-btn.warn { --quota-color: #d97706; }

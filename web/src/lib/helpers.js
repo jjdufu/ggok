@@ -83,6 +83,19 @@ export function setPressed(btn, on) {
   btn.setAttribute("aria-pressed", on ? "true" : "false");
 }
 
+export function usageColor(pct) {
+  const n = Number(pct);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  const p = Math.min(100, n);
+  let hue;
+  if (p <= 50) {
+    hue = 142 - (p / 50) * (142 - 45);
+  } else {
+    hue = 45 - ((p - 50) / 50) * (45 - 10);
+  }
+  return "hsl(" + Math.round(hue) + ", 85%, 48%)";
+}
+
 export function relTime(iso) {
   if (!iso) return "";
   const ts = Date.parse(iso);

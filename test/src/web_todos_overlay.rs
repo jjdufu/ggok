@@ -194,9 +194,12 @@ fn ctx_chip_shows_percent_by_default_and_detail_on_hover() {
     );
 
     let fill = css_block(&css, ".composer-ctx-bar .ctx-fill {");
-    assert_decl(&fill, "opacity:", "0");
-    let fill_hover = css_block(&css, ".composer-ctx-bar:hover .ctx-fill,");
-    assert_decl(&fill_hover, "opacity:", "0.82");
+    assert_decl(&fill, "opacity:", "0.82");
+    assert_decl(&fill, "background:", "var(--muted)");
+    assert!(
+        !css.contains(".composer-ctx-bar:hover .ctx-fill"),
+        "ctx fill must stay visible without hover:\n{css}"
+    );
     let label_hover = css_block(&css, ".composer-ctx-bar:hover .ctx-label,");
     assert!(
         label_hover.contains("#fff"),

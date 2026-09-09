@@ -22,5 +22,6 @@ mod server_version;
 mod web_ext_quiet;
 mod web_mode;
 mod web_prompt_editor;
+mod web_quota_usage;
 mod web_todos_overlay;
 mod web_turn_map;

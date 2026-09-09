@@ -1,4 +1,4 @@
-import { t, periodLabel, fmtReset, fmtResetDate, setTip } from "../lib/helpers.js";
+import { t, periodLabel, fmtReset, fmtResetDate, setTip, usageColor } from "../lib/helpers.js";
 import { emptyEl, kv, mkEl } from "../lib/dom.js";
 import { placePopover } from "../lib/popover.js";
 import { api } from "../lib/api.js";
@@ -27,12 +27,8 @@ function writeCachedAccount(st) {
   }
 }
 
-function quotaRed(pct) {
-  const n = Math.min(1, Math.max(0, (pct - 90) / 8));
-  const r = Math.round(196 + 24 * n);
-  const g = Math.round(92 * (1 - n));
-  const b = Math.round(36 * (1 - n));
-  return "rgb(" + r + ", " + g + ", " + b + ")";
+function pageVisible() {
+  return document.visibilityState === "visible";
 }
 
 export function bindQuota(ctx) {
@@ -89,7 +85,8 @@ export function bindQuota(ctx) {
     el.classList.remove("warn");
     el.classList.toggle("hot", has && pct >= 90);
     el.classList.toggle("pulse", has && pct >= 98);
-    if (has && pct >= 90) el.style.setProperty("--quota-color", quotaRed(pct));
+    const color = has ? usageColor(pct) : "";
+    if (color) el.style.setProperty("--quota-color", color);
     else el.style.removeProperty("--quota-color");
   }
 
@@ -189,11 +186,16 @@ export function bindQuota(ctx) {
     }
   }
 
-  function armQuotaTimer(ready) {
+  function stopQuotaTimers() {
     clearInterval(ctx.quotaTimer);
     clearTimeout(ctx.quotaRetry);
     ctx.quotaTimer = 0;
     ctx.quotaRetry = 0;
+  }
+
+  function armQuotaTimer(ready) {
+    stopQuotaTimers();
+    if (!pageVisible()) return;
     if (ready || retryAttempt >= QUOTA_RETRY_MS.length) {
       if (ready) retryAttempt = 0;
       ctx.quotaTimer = setInterval(refreshAccount, QUOTA_OK_MS);
@@ -208,6 +210,7 @@ export function bindQuota(ctx) {
   }
 
   async function refreshAccount() {
+    if (!pageVisible()) return;
     if (quotaBusy) {
       quotaAgain = true;
       return;
@@ -240,9 +243,22 @@ export function bindQuota(ctx) {
     armQuotaTimer(accountReady(ctx.lastAccount));
   }
 
+  function onPageShow() {
+    if (!pageVisible()) {
+      quotaAgain = false;
+      stopQuotaTimers();
+      return;
+    }
+    refreshAccount();
+  }
+
   if (btn) {
+    btn.addEventListener("mouseenter", () => {
+      refreshAccount();
+    });
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
+      refreshAccount();
       setQuotaOpen(pop && pop.hidden);
     });
   }
@@ -256,6 +272,10 @@ export function bindQuota(ctx) {
   });
   window.addEventListener("resize", () => {
     if (pop && !pop.hidden) placeQuotaPop();
+  });
+  document.addEventListener("visibilitychange", onPageShow);
+  window.addEventListener("pageshow", (e) => {
+    if (e.persisted) onPageShow();
   });
 
   ctx.setQuotaOpen = setQuotaOpen;

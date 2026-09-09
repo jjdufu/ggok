@@ -1,4 +1,4 @@
-import { t, hideTip, shortCwd, fmtNum, fmtTok } from "../lib/helpers.js";
+import { t, hideTip, shortCwd, fmtNum, fmtTok, usageColor } from "../lib/helpers.js";
 import { menuButton } from "../lib/dom.js";
 import { beginInlineRename } from "../lib/rename.js";
 import { svgUse } from "../lib/svg.js";
@@ -367,13 +367,9 @@ export function bindSidebar(ctx) {
     }
     if (ctxFill) {
       ctxFill.style.width = pct + "%";
-      let hue;
-      if (pct <= 50) {
-        hue = 142 - (pct / 50) * (142 - 45);
-      } else {
-        hue = 45 - ((pct - 50) / 50) * (45 - 10);
-      }
-      ctxFill.style.backgroundColor = `hsl(${Math.round(hue)}, 85%, 48%)`;
+      const color = usageColor(pct);
+      if (color) ctxFill.style.backgroundColor = color;
+      else ctxFill.style.removeProperty("background-color");
     }
     if (ctx.ctxUsageOpen && ctx.renderUsage) {
       ctx.renderUsage((ctx.current && ctx.current.usage) || {});
