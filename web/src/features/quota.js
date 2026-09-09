@@ -5,6 +5,7 @@ import { api } from "../lib/api.js";
 
 const ACCOUNT_KEY = "ggok-account";
 const QUOTA_OK_MS = 60 * 1000;
+const QUOTA_LOOK_MS = 2 * 1000;
 const QUOTA_RETRY_MS = [1000, 3000, 8000];
 
 function readCachedAccount() {
@@ -40,6 +41,7 @@ export function bindQuota(ctx) {
   let retryAttempt = 0;
   let quotaBusy = false;
   let quotaAgain = false;
+  let lastLookAt = 0;
 
   function placeQuotaPop() {
     if (!pop || !btn || pop.hidden) return;
@@ -243,6 +245,13 @@ export function bindQuota(ctx) {
     armQuotaTimer(accountReady(ctx.lastAccount));
   }
 
+  function refreshAccountLook() {
+    const now = Date.now();
+    if (now - lastLookAt < QUOTA_LOOK_MS) return;
+    lastLookAt = now;
+    refreshAccount();
+  }
+
   function onPageShow() {
     if (!pageVisible()) {
       quotaAgain = false;
@@ -254,11 +263,13 @@ export function bindQuota(ctx) {
 
   if (btn) {
     btn.addEventListener("mouseenter", () => {
-      refreshAccount();
+      refreshAccountLook();
+    });
+    btn.addEventListener("focus", () => {
+      if (btn.matches(":focus-visible")) refreshAccountLook();
     });
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      refreshAccount();
       setQuotaOpen(pop && pop.hidden);
     });
   }

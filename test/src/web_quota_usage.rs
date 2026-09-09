@@ -118,29 +118,66 @@ fn quota_poll_pauses_in_background_and_refreshes_on_show() {
     );
 }
 
+fn listener_body(src: &str, event: &str) -> String {
+    let needle = format!("addEventListener(\"{event}\"");
+    let rest = src
+        .split(&needle)
+        .nth(1)
+        .unwrap_or_else(|| panic!("missing {event} listener"));
+    let start = rest.find('{').expect("listener block");
+    let mut depth = 0i32;
+    for (i, c) in rest[start..].char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return rest[..=start + i].to_string();
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("unclosed {event} listener");
+}
+
 #[test]
-fn quota_chip_hover_and_click_refresh_usage() {
+fn quota_chip_look_refreshes_usage_click_only_opens() {
     let quota = web_file("src/features/quota.js");
     assert!(
-        quota.contains("addEventListener(\"mouseenter\"")
-            && quota.contains("addEventListener(\"click\""),
-        "quota chip must listen for hover and click:\n{quota}"
+        quota.contains("const QUOTA_LOOK_MS = 2 * 1000")
+            && quota.contains("function refreshAccountLook()")
+            && quota.contains("now - lastLookAt < QUOTA_LOOK_MS"),
+        "pointer/keyboard look must share a 2s cooldown:\n{quota}"
     );
-    let click = quota
-        .split("addEventListener(\"click\"")
-        .nth(1)
-        .expect("quota click listener");
     assert!(
-        click.contains("refreshAccount()"),
-        "click must trigger a usage query:\n{click}"
+        quota.contains("setInterval(refreshAccount, QUOTA_OK_MS)")
+            && quota.contains("function onPageShow()")
+            && quota.contains("refreshAccount();"),
+        "60s poll and foreground resume must bypass look cooldown:\n{quota}"
     );
-    let hover = quota
-        .split("addEventListener(\"mouseenter\"")
-        .nth(1)
-        .expect("quota mouseenter listener");
+
+    let hover = listener_body(&quota, "mouseenter");
     assert!(
-        hover.contains("refreshAccount()"),
-        "hover must trigger a usage query:\n{hover}"
+        hover.contains("refreshAccountLook()"),
+        "hover must query through the look cooldown:\n{hover}"
+    );
+
+    let focus = listener_body(&quota, "focus");
+    assert!(
+        focus.contains(":focus-visible") && focus.contains("refreshAccountLook()"),
+        "keyboard focus-visible must query through the look cooldown:\n{focus}"
+    );
+    assert!(
+        !quota.contains("addEventListener(\"keydown\"")
+            && !quota.contains("key === \"Tab\""),
+        "must not bind the Tab key:\n{quota}"
+    );
+
+    let click = listener_body(&quota, "click");
+    assert!(
+        click.contains("setQuotaOpen") && !click.contains("refreshAccount"),
+        "click must only toggle the popover:\n{click}"
     );
 }
 
