@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.29](https://github.com/jjdufu/ggok/compare/v0.1.28...v0.1.29) (2026-09-09)
+
+
+### Bug Fixes
+
+* query quota on look, not click ([c6f9c4e](https://github.com/jjdufu/ggok/commit/c6f9c4efbe4d16f08e647f5a9f6d1dfdfb92dbb0))
+
 ## [0.1.28](https://github.com/jjdufu/ggok/compare/v0.1.27...v0.1.28) (2026-09-09)
 
 
