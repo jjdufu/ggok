@@ -86,3 +86,33 @@ fn boot_uses_icon_rail_unless_user_opened_on_desktop() {
         "narrow and first visit must boot into the icon rail:\n{html}"
     );
 }
+
+#[test]
+fn collapsed_rail_hides_brand_and_matches_expanded_chrome() {
+    let css = web_file("src/styles/sidebar.css");
+    assert!(
+        css.contains("html[data-sidebar=\"collapsed\"] .brand,")
+            && css.contains("display: none !important;"),
+        "collapsed rail must hide the brand mark until expanded:\n{css}"
+    );
+    assert!(
+        !css.contains("html[data-sidebar=\"collapsed\"] .brand { order:"),
+        "collapsed rail must not keep the brand in the icon stack:\n{css}"
+    );
+    assert!(
+        css.contains("html[data-sidebar=\"collapsed\"] #collapse-side { order: 1; }")
+            && css.contains("html[data-sidebar=\"collapsed\"] #new-session { order: 2; }")
+            && css.contains("html[data-sidebar=\"collapsed\"] #search-btn { order: 3; }"),
+        "collapse control must sit at the top of the collapsed rail:\n{css}"
+    );
+    assert!(
+        css.contains("html[data-sidebar=\"collapsed\"] #ext-btn {")
+            && css.contains("order: 4;")
+            && css.contains("margin-top: auto;"),
+        "ext nav must sit second-from-bottom like the expanded footer:\n{css}"
+    );
+    assert!(
+        css.contains("html[data-sidebar=\"collapsed\"] .foot-quota-row { order: 5; }"),
+        "quota must sit at the bottom of the collapsed rail:\n{css}"
+    );
+}

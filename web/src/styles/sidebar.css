@@ -448,26 +448,8 @@
   min-width: 0;
 }
 
-.quota-ver-latest {
-  flex-shrink: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg);
-  text-align: right;
-  cursor: default;
-}
-
-.quota-ver-latest.has {
-  cursor: pointer;
-}
-
-.quota-ver-latest.has:hover {
-  color: var(--muted);
+.quota-ver-latest.new {
+  color: var(--danger);
 }
 
 .quota-logout-form {
@@ -512,18 +494,11 @@ html[data-sidebar="collapsed"] #sidebar {
   gap: 4px;
 }
 
+html[data-sidebar="collapsed"] .brand,
 html[data-sidebar="collapsed"] .brand-text,
 html[data-sidebar="collapsed"] #tree,
 html[data-sidebar="collapsed"] .side-nav > span:not(.nav-ico) {
   display: none !important;
-}
-
-html[data-sidebar="collapsed"] .brand {
-  width: 32px;
-  padding: 0;
-  margin: 0 auto;
-  justify-content: center;
-  gap: 0;
 }
 
 html[data-sidebar="collapsed"] .side-nav {
@@ -567,17 +542,15 @@ html[data-sidebar="collapsed"] .side-foot {
   display: contents;
 }
 
-html[data-sidebar="collapsed"] .brand { order: 1; }
+html[data-sidebar="collapsed"] #collapse-side { order: 1; }
 html[data-sidebar="collapsed"] #new-session { order: 2; }
 html[data-sidebar="collapsed"] #search-btn { order: 3; }
-html[data-sidebar="collapsed"] #collapse-side { order: 4; }
 html[data-sidebar="collapsed"] #ext-btn {
-  order: 5;
+  order: 4;
   margin-top: auto;
 }
-html[data-sidebar="collapsed"] .foot-quota-row { order: 6; }
+html[data-sidebar="collapsed"] .foot-quota-row { order: 5; }
 
-html[data-sidebar="collapsed"] .logo-mark,
 html[data-sidebar="collapsed"] .side-head .icon-btn,
 html[data-sidebar="collapsed"] .side-nav,
 html[data-sidebar="collapsed"] .side-nav svg,
@@ -585,7 +558,6 @@ html[data-sidebar="collapsed"] .quota-btn {
   color: var(--muted);
 }
 
-html[data-sidebar="collapsed"] .brand:hover .logo-mark,
 html[data-sidebar="collapsed"] .side-head .icon-btn:hover,
 html[data-sidebar="collapsed"] .side-nav:hover,
 html[data-sidebar="collapsed"] .side-nav:hover svg,

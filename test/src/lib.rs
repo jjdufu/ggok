@@ -24,5 +24,6 @@ mod web_mode;
 mod web_prompt_editor;
 mod web_quota_usage;
 mod web_sidebar;
+mod web_version;
 mod web_todos_overlay;
 mod web_turn_map;

@@ -253,6 +253,7 @@ export function bindQuota(ctx) {
     if (now - lastLookAt < QUOTA_LOOK_MS) return;
     lastLookAt = now;
     refreshAccount();
+    if (ctx.refreshVersion) ctx.refreshVersion();
   }
 
   function onPageShow() {

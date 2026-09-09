@@ -77,7 +77,7 @@ export default function App() {
               </div>
               <div className="quota-row">
                 <span className="quota-row-k" data-i18n="latestVersion">最新版本</span>
-                <button type="button" id="quota-ver-latest" className="quota-ver-latest"></button>
+                <span id="quota-ver-latest" className="quota-row-v quota-ver-latest"></span>
               </div>
             </div>
             <form action="/logout" method="post" className="quota-logout-form">
