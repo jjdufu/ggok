@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.32](https://github.com/jjdufu/ggok/compare/v0.1.31...v0.1.32) (2026-09-09)
+
+
+### Features
+
+* auto-collapse the rail on narrow viewports ([8d3f61b](https://github.com/jjdufu/ggok/commit/8d3f61b6b7689bff9d84403984a8973fd21911ab))
+
 ## [0.1.31](https://github.com/jjdufu/ggok/compare/v0.1.30...v0.1.31) (2026-09-09)
 
 
