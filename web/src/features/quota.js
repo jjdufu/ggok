@@ -49,10 +49,9 @@ export function bindQuota(ctx) {
     const gap = 8;
     const pad = 8;
     const collapsed = document.documentElement.dataset.sidebar === "collapsed";
-    const mobile = window.matchMedia("(max-width: 900px)").matches;
     let width;
     let left;
-    if (!collapsed || mobile) {
+    if (!collapsed) {
       const row = btn.closest(".foot-quota-row") || btn;
       const rr = row.getBoundingClientRect();
       width = rr.width;
@@ -165,6 +164,10 @@ export function bindQuota(ctx) {
     return !!(st && st.ok !== false && usedPctOf(st) != null);
   }
 
+  function hasBillingWindow(st) {
+    return !!(st && (st.period_start || st.resets_at || st.period));
+  }
+
   function paintAccount(acc) {
     if (ctx.applyAccount) ctx.applyAccount(acc);
     else {
@@ -175,7 +178,7 @@ export function bindQuota(ctx) {
   }
 
   function applyFetchedAccount(acc) {
-    if (accountReady(acc)) {
+    if (accountReady(acc) || (acc && acc.ok !== false && hasBillingWindow(acc))) {
       paintAccount(acc);
       return;
     }

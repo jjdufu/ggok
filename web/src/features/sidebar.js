@@ -54,12 +54,13 @@ export function bindSidebar(ctx) {
   }
   if (collapseSideBtn) {
     collapseSideBtn.addEventListener("click", () => {
-      if (window.matchMedia("(max-width: 900px)").matches) {
-        closeMobile();
-        return;
-      }
-      setSidebarCollapsed(document.documentElement.dataset.sidebar !== "collapsed");
+      const collapse = document.documentElement.dataset.sidebar !== "collapsed";
+      setSidebarCollapsed(collapse);
       syncCollapseTip();
+      if (window.matchMedia("(max-width: 900px)").matches) {
+        if (collapse) closeMobile();
+        else openMobile();
+      }
     });
   }
   syncCollapseTip();

@@ -7,7 +7,7 @@ pub(crate) mod routes;
 pub mod service;
 pub(crate) mod static_files;
 
-pub use account::mask_email;
+pub use account::{AccountView, mask_email, merge_account};
 pub use auth::{
     LoginLimiter, bearer_token, build_session_cookie, clear_session_cookie, constant_time_eq,
     cookie_from_header, cookie_name_for_bind, port_of_bind, sign_cookie, verify_cookie,

@@ -204,12 +204,13 @@ async fn fetch(grok_home: &Path) -> Result<AccountView, String> {
         (profile, credits) => {
             let profile = profile.ok();
             let credits = credits.ok();
-            Ok(merge(profile.as_ref(), credits.as_ref()))
+            Ok(merge_account(profile.as_ref(), credits.as_ref()))
         }
     }
 }
 
-fn merge(profile: Option<&Value>, credits: Option<&Value>) -> AccountView {
+#[must_use]
+pub fn merge_account(profile: Option<&Value>, credits: Option<&Value>) -> AccountView {
     let mut view = AccountView {
         ok: profile.is_some() || credits.is_some(),
         error: None,
@@ -258,6 +259,12 @@ fn merge(profile: Option<&Value>, credits: Option<&Value>) -> AccountView {
                     used_percent: pct,
                 });
             }
+        }
+        if view.used_percent.is_none()
+            && (view.period.is_some() || view.resets_at.is_some() || view.period_start.is_some())
+        {
+            view.used_percent = Some(0.0);
+            view.remaining_percent = Some(100.0);
         }
     }
     if !view.ok {

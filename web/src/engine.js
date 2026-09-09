@@ -121,11 +121,22 @@ export function boot() {
     else document.title = "GGOK";
   };
 
+  function sameBillingWindow(a, b) {
+    if (!a || !b) return false;
+    if (a.period_start && b.period_start) return a.period_start === b.period_start;
+    if (a.resets_at && b.resets_at) return a.resets_at === b.resets_at;
+    return false;
+  }
+
   function applyAccount(acc) {
     if (!acc) return;
     const prev = ctx.lastAccount;
     if (prev && prev.used_percent != null && acc.used_percent == null) {
-      acc = Object.assign({}, prev, acc);
+      if (sameBillingWindow(acc, prev)) {
+        acc = Object.assign({}, prev, acc);
+      } else {
+        acc = Object.assign({}, acc, { used_percent: 0, remaining_percent: 100 });
+      }
     }
     ctx.lastAccount = acc;
     const email = String((acc && acc.email) || "").trim();

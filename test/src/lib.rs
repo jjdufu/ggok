@@ -1,8 +1,8 @@
 #![cfg(test)]
 
 mod agent_session_mode;
-mod cli_update;
 mod agent_slash;
+mod cli_update;
 mod core_occupy;
 mod core_parse;
 mod core_paths;
@@ -23,5 +23,6 @@ mod web_ext_quiet;
 mod web_mode;
 mod web_prompt_editor;
 mod web_quota_usage;
+mod web_sidebar;
 mod web_todos_overlay;
 mod web_turn_map;

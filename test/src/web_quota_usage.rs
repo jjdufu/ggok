@@ -105,8 +105,7 @@ fn quota_poll_pauses_in_background_and_refreshes_on_show() {
         "quota fetch must key off page visibility:\n{quota}"
     );
     assert!(
-        quota.contains("if (!pageVisible()) return")
-            && quota.contains("stopQuotaTimers()"),
+        quota.contains("if (!pageVisible()) return") && quota.contains("stopQuotaTimers()"),
         "hidden pages must skip fetch and timers:\n{quota}"
     );
     assert!(
@@ -169,8 +168,7 @@ fn quota_chip_look_refreshes_usage_click_only_opens() {
         "keyboard focus-visible must query through the look cooldown:\n{focus}"
     );
     assert!(
-        !quota.contains("addEventListener(\"keydown\"")
-            && !quota.contains("key === \"Tab\""),
+        !quota.contains("addEventListener(\"keydown\"") && !quota.contains("key === \"Tab\""),
         "must not bind the Tab key:\n{quota}"
     );
 
@@ -193,5 +191,49 @@ fn quota_hover_does_not_override_usage_color() {
     assert!(
         btn.contains("--quota-color: var(--muted)"),
         "0% quota must stay muted gray:\n{btn}"
+    );
+}
+
+#[test]
+fn quota_fetch_paints_billing_window_even_without_used_percent() {
+    let quota = web_file("src/features/quota.js");
+    assert!(
+        quota.contains("function hasBillingWindow(st)")
+            && quota.contains("st.period_start || st.resets_at || st.period"),
+        "reset payloads are identified by the billing window:\n{quota}"
+    );
+    assert!(
+        quota.contains("accountReady(acc) || (acc && acc.ok !== false && hasBillingWindow(acc))"),
+        "a new period without used_percent must still paint:\n{quota}"
+    );
+}
+
+#[test]
+fn quota_pop_anchors_to_rail_when_collapsed() {
+    let quota = web_file("src/features/quota.js");
+    let place = quota
+        .split("function placeQuotaPop()")
+        .nth(1)
+        .expect("placeQuotaPop");
+    assert!(
+        place.contains("if (!collapsed)") && !place.contains("|| mobile"),
+        "collapsed rail must keep the side popover on every width:\n{place}"
+    );
+}
+
+#[test]
+fn apply_account_drops_stale_percent_when_billing_window_changes() {
+    let engine = web_file("src/engine.js");
+    assert!(
+        engine.contains("function sameBillingWindow(a, b)"),
+        "account apply must compare billing windows:\n{engine}"
+    );
+    assert!(
+        engine.contains("used_percent: 0") && engine.contains("remaining_percent: 100"),
+        "a new period without usage must reset to 0%:\n{engine}"
+    );
+    assert!(
+        engine.contains("if (sameBillingWindow(acc, prev))"),
+        "same-period flakes may still reuse the last percent:\n{engine}"
     );
 }
