@@ -62,18 +62,82 @@ fn no_hamburger_or_offcanvas_sidebar() {
     );
 }
 
+fn fn_body(src: &str, name: &str) -> String {
+    let needle = format!("function {name}(");
+    let rest = src
+        .split(&needle)
+        .nth(1)
+        .unwrap_or_else(|| panic!("missing {name}"));
+    let start = rest.find('{').expect("function block");
+    let mut depth = 0i32;
+    for (i, c) in rest[start..].char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return rest[..=start + i].to_string();
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("unclosed {name}");
+}
+
+fn brace_after(src: &str, needle: &str) -> String {
+    let rest = src.split(needle).nth(1).unwrap_or_else(|| panic!("missing {needle}"));
+    let start = rest.find('{').expect("block");
+    let mut depth = 0i32;
+    for (i, c) in rest[start..].char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return rest[..=start + i].to_string();
+                }
+            }
+            _ => {}
+        }
+    }
+    panic!("unclosed after {needle}");
+}
+
 #[test]
 fn collapse_click_only_toggles_rail() {
     let js = web_file("src/features/sidebar.js");
+    let click = brace_after(&js, "collapseSideBtn.addEventListener(\"click\"");
     assert!(
-        js.contains(
+        click.contains(
             "setSidebarCollapsed(document.documentElement.dataset.sidebar !== \"collapsed\")"
-        ) && js.contains("syncCollapseTip()"),
-        "collapse must toggle the icon rail at every width:\n{js}"
+        ) && click.contains("syncCollapseTip()"),
+        "collapse click must toggle the icon rail:\n{click}"
     );
     assert!(
-        !js.contains("matchMedia(\"(max-width: 900px)\")"),
-        "collapse must not branch on viewport:\n{js}"
+        !click.contains("matchMedia"),
+        "collapse click must not branch on viewport:\n{click}"
+    );
+}
+
+#[test]
+fn narrow_viewport_auto_collapses_icon_rail() {
+    let js = web_file("src/features/sidebar.js");
+    let apply = fn_body(&js, "applySidebarForViewport");
+    assert!(
+        apply.contains("matchMedia(\"(max-width: 900px)\")")
+            && apply.contains("dataset.sidebar = \"collapsed\""),
+        "crossing below 900px must collapse to the icon rail:\n{apply}"
+    );
+    assert!(
+        apply.contains("localStorage.getItem(SIDE_KEY) === \"open\""),
+        "leaving the narrow breakpoint must restore the stored preference:\n{apply}"
+    );
+    assert!(
+        js.contains("addEventListener(\"change\", applySidebarForViewport)")
+            && !js.contains("openMobile")
+            && !js.contains("i-menu"),
+        "viewport collapse must listen for width changes without a hamburger:\n{js}"
     );
 }
 
@@ -110,6 +174,21 @@ fn collapsed_rail_hides_brand_and_matches_expanded_chrome() {
             && css.contains("order: 4;")
             && css.contains("margin-top: auto;"),
         "ext nav must sit second-from-bottom like the expanded footer:\n{css}"
+    );
+    let tokens = web_file("src/tokens.css");
+    assert!(
+        tokens.contains("html[data-sidebar=\"collapsed\"] #ext-btn.side-nav {")
+            && tokens.contains("margin-top: auto;"),
+        "token overrides must not flatten ext to the top of the rail:\n{tokens}"
+    );
+    assert!(
+        !tokens.contains("html[data-sidebar=\"collapsed\"] #ext-btn.side-nav")
+            || !tokens
+                .split("html[data-sidebar=\"collapsed\"] #new-session.side-nav")
+                .nth(1)
+                .unwrap_or("")
+                .contains("margin: 0 auto"),
+        "collapsed ext must not reset margin-top via shorthand:\n{tokens}"
     );
     assert!(
         css.contains("html[data-sidebar=\"collapsed\"] .foot-quota-row { order: 5; }"),

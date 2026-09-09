@@ -39,12 +39,26 @@ export function bindSidebar(ctx) {
     collapseSideBtn.setAttribute("data-i18n-aria", key);
     collapseSideBtn.setAttribute("aria-label", t(key));
   }
+
+  function applySidebarForViewport() {
+    if (window.matchMedia("(max-width: 900px)").matches) {
+      document.documentElement.dataset.sidebar = "collapsed";
+    } else {
+      document.documentElement.dataset.sidebar =
+        localStorage.getItem(SIDE_KEY) === "open" ? "" : "collapsed";
+    }
+    syncCollapseTip();
+  }
+
   if (collapseSideBtn) {
     collapseSideBtn.addEventListener("click", () => {
       setSidebarCollapsed(document.documentElement.dataset.sidebar !== "collapsed");
       syncCollapseTip();
     });
   }
+  const sideMq = window.matchMedia("(max-width: 900px)");
+  if (sideMq.addEventListener) sideMq.addEventListener("change", applySidebarForViewport);
+  else if (sideMq.addListener) sideMq.addListener(applySidebarForViewport);
   syncCollapseTip();
 
   function groupTree(list) {

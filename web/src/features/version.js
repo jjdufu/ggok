@@ -10,10 +10,14 @@ export function bindVersion(ctx) {
 
   function paint(st) {
     const ver = st && st.version;
-    if (ver && curEl) curEl.textContent = fmtVer(ver);
-    const latest = st && st.latest;
-    if (latest && latestEl) latestEl.textContent = fmtVer(latest);
-    if (latestEl) latestEl.classList.toggle("new", !!(st && st.update_available));
+    const cur = ver ? fmtVer(ver) : "";
+    if (cur && curEl) curEl.textContent = cur;
+    const latestRaw = st && st.latest;
+    const latest = latestRaw ? fmtVer(latestRaw) : "";
+    if (latestEl) {
+      latestEl.textContent = latest || cur;
+      latestEl.classList.toggle("new", !!(st && st.update_available));
+    }
     const pop = document.getElementById("quota-pop");
     if (pop && !pop.hidden && ctx.placeQuotaPop) ctx.placeQuotaPop();
   }

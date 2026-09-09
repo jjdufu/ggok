@@ -489,6 +489,7 @@
 html[data-sidebar="collapsed"] #sidebar {
   width: 56px;
   min-width: 56px;
+  height: 100%;
   align-items: center;
   padding: 12px 0;
   gap: 4px;

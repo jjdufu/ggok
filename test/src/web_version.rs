@@ -54,6 +54,17 @@ fn latest_version_is_plain_text_not_a_link() {
 }
 
 #[test]
+fn latest_version_falls_back_to_current_when_unknown() {
+    let js = web_file("src/features/version.js");
+    let paint = fn_body(&js, "paint");
+    assert!(
+        paint.contains("latestEl.textContent = latest || cur")
+            && paint.contains("const cur = ver ? fmtVer(ver) : \"\""),
+        "unknown latest must show the current version, not a blank:\n{paint}"
+    );
+}
+
+#[test]
 fn latest_version_turns_red_when_update_available() {
     let js = web_file("src/features/version.js");
     assert!(

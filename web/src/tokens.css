@@ -576,9 +576,12 @@ html[data-sidebar="collapsed"] #new-session.side-nav,
 html[data-sidebar="collapsed"] #ext-btn.side-nav {
   width: 32px;
   height: 32px;
-  margin: 0 auto;
+  margin-inline: auto;
   padding: 0;
   border-radius: 12px;
+}
+html[data-sidebar="collapsed"] #ext-btn.side-nav {
+  margin-top: auto;
 }
 html[data-sidebar="collapsed"] #new-session .nav-ico {
   width: 18px;
