@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.35](https://github.com/jjdufu/ggok/compare/v0.1.34...v0.1.35) (2026-09-10)
+
+
+### Features
+
+* run clippy in CI and drop unused web CSS/exports ([fd677da](https://github.com/jjdufu/ggok/commit/fd677dac6be619ace0bdd0f66413c63c3b6ae925))
+
+
+### Bug Fixes
+
+* pass clippy -D warnings in ggok-tests ([281ed16](https://github.com/jjdufu/ggok/commit/281ed16debb1df4e77b6bba9240168ef4cb211de))
+
 ## [0.1.34](https://github.com/jjdufu/ggok/compare/v0.1.33...v0.1.34) (2026-09-10)
 
 
