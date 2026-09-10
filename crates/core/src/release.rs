@@ -2,7 +2,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 use std::fs::{self, File};
-use std::io::{self, IsTerminal};
+use std::io;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -313,123 +313,75 @@ pub fn asset_ready_from_http(code: u16) -> Option<bool> {
 pub fn release_asset_ready(ver: &str, os: &str, arch: &str) -> Result<bool> {
     let url = asset_url(ver, os, arch)?;
     let code = curl_http_code(&url)?;
-    asset_ready_from_http(code).ok_or_else(|| anyhow!("could not check for updates"))
+    asset_ready_from_http(code).ok_or_else(|| anyhow!("Could not check for updates"))
 }
 
 fn curl_http_code(url: &str) -> Result<u16> {
-    let output = curl_cmd()
-        .args([
-            "-sS",
-            "-I",
-            "-L",
-            "--retry",
-            "3",
-            "--connect-timeout",
-            "4",
-            "--max-time",
-            "8",
-            "-o",
-            "/dev/null",
-            "-w",
-            "%{http_code}",
-            url,
-        ])
-        .output()
-        .context("run curl")?;
+    let output = curl_probe([
+        "-sS",
+        "-I",
+        "-L",
+        "-o",
+        "/dev/null",
+        "-w",
+        "%{http_code}",
+        url,
+    ])?;
     if !output.status.success() {
-        bail!("could not check for updates");
+        return Err(curl_stderr_error(&output.stderr, CurlOp::Check));
     }
-    let text = String::from_utf8(output.stdout).context("curl HTTP code is not utf-8")?;
+    let text = String::from_utf8_lossy(&output.stdout);
     let text = text.trim();
-    let code: u16 = text.parse().context("could not check for updates")?;
+    let code: u16 = text
+        .parse()
+        .map_err(|_| anyhow!("Could not check for updates"))?;
     Ok(code)
 }
 
 /// # Errors
 /// Returns an error if `curl` fails or the effective URL cannot be read.
 pub fn curl_effective_url(url: &str) -> Result<String> {
-    let output = curl_cmd()
-        .args([
-            "-fsSL",
-            "--retry",
-            "3",
-            "--connect-timeout",
-            "4",
-            "--max-time",
-            "8",
-            "-o",
-            "/dev/null",
-            "-w",
-            "%{url_effective}",
-            url,
-        ])
-        .output()
-        .with_context(|| format!("run {} for effective URL", curl_bin()))?;
-    check_curl(&output)?;
-    String::from_utf8(output.stdout).context("curl effective URL is not utf-8")
+    let output = curl_probe([
+        "-fsSL",
+        "-o",
+        "/dev/null",
+        "-w",
+        "%{url_effective}",
+        url,
+    ])?;
+    check_curl(&output, CurlOp::Check)?;
+    String::from_utf8(output.stdout).map_err(|_| anyhow!("Could not check for updates"))
 }
 
 /// # Errors
 /// Returns an error if `curl` fails or `dest` cannot be written.
 ///
-/// When stderr is a terminal, uses curl's `--progress-bar` so the bar tracks
-/// real downloaded bytes. Otherwise the download is silent.
+/// Always captures curl stderr so retry/timeout noise never reaches the TTY.
 pub fn curl_download(url: &str, dest: &Path) -> Result<()> {
-    let progress = io::stderr().is_terminal();
-    let mut cmd = curl_cmd();
-    cmd.args([
-        "-fL",
-        "--retry",
-        "3",
-        "--connect-timeout",
-        "4",
-        "--max-time",
-        "120",
-    ]);
-    if progress {
-        cmd.arg("--progress-bar");
-    } else {
-        cmd.args(["-sS"]);
-    }
-    cmd.arg("-o").arg(dest).arg(url);
-    if progress {
-        cmd.stdout(Stdio::null());
-        cmd.stderr(Stdio::inherit());
-        let status = cmd
-            .status()
-            .with_context(|| format!("run {} download {}", curl_bin(), dest.display()))?;
-        if status.success() {
-            eprintln!();
-            Ok(())
-        } else {
-            bail!("download failed")
-        }
-    } else {
-        let output = cmd
-            .output()
-            .with_context(|| format!("run {} download {}", curl_bin(), dest.display()))?;
-        check_curl(&output)
-    }
-}
-
-/// # Errors
-/// Returns an error if `curl` fails or the body is not UTF-8.
-pub fn curl_to_string(url: &str) -> Result<String> {
     let output = curl_cmd()
         .args([
             "-fsSL",
             "--retry",
             "3",
             "--connect-timeout",
-            "4",
+            "15",
             "--max-time",
-            "8",
-            url,
+            "120",
+            "-o",
         ])
+        .arg(dest)
+        .arg(url)
         .output()
-        .context("run curl")?;
-    check_curl(&output)?;
-    String::from_utf8(output.stdout).context("curl body is not utf-8")
+        .map_err(|_| anyhow!("Could not download update"))?;
+    check_curl(&output, CurlOp::Download)
+}
+
+/// # Errors
+/// Returns an error if `curl` fails or the body is not UTF-8.
+pub fn curl_to_string(url: &str) -> Result<String> {
+    let output = curl_probe(["-fsSL", url])?;
+    check_curl(&output, CurlOp::Check)?;
+    String::from_utf8(output.stdout).map_err(|_| anyhow!("Could not check for updates"))
 }
 
 /// # Errors
@@ -452,11 +404,49 @@ fn curl_cmd() -> Command {
     cmd
 }
 
-fn check_curl(output: &std::process::Output) -> Result<()> {
+#[derive(Clone, Copy)]
+enum CurlOp {
+    Check,
+    Download,
+}
+
+fn curl_probe<const N: usize>(args: [&str; N]) -> Result<std::process::Output> {
+    curl_cmd()
+        .args([
+            "--retry",
+            "3",
+            "--connect-timeout",
+            "15",
+            "--max-time",
+            "30",
+        ])
+        .args(args)
+        .output()
+        .map_err(|_| anyhow!("Could not check for updates"))
+}
+
+fn check_curl(output: &std::process::Output, op: CurlOp) -> Result<()> {
     if output.status.success() {
         return Ok(());
     }
-    bail!("download failed")
+    Err(curl_stderr_error(&output.stderr, op))
+}
+
+fn curl_stderr_error(stderr: &[u8], op: CurlOp) -> anyhow::Error {
+    let text = String::from_utf8_lossy(stderr);
+    let timeout = text.contains("timed out") || text.contains("Timeout") || text.contains("(28)");
+    let unreachable = text.contains("Could not resolve")
+        || text.contains("Failed to connect")
+        || text.contains("(6)")
+        || text.contains("(7)");
+    let missing = text.contains("404") || text.contains("410");
+    match op {
+        CurlOp::Download if timeout => anyhow!("Network timeout while downloading"),
+        CurlOp::Download if unreachable => anyhow!("Could not reach GitHub"),
+        CurlOp::Download if missing => anyhow!("Release is not ready yet"),
+        CurlOp::Download => anyhow!("Could not download update"),
+        CurlOp::Check => anyhow!("Could not check for updates"),
+    }
 }
 
 /// Replace `dest` with `src` using same-directory rename (never truncate `dest`).
@@ -472,15 +462,10 @@ pub fn replace_file_atomic(src: &Path, dest: &Path) -> Result<()> {
     let backup = parent.join(".ggok.old");
     let result = replace_file_atomic_inner(src, dest, parent, &tmp_installed, &backup);
     if result.is_err() {
-        if backup.exists()
-            && !dest.exists()
-            && let Err(e) = fs::rename(&backup, dest)
-        {
-            eprintln!("restore {} → {}: {e}", backup.display(), dest.display());
+        if backup.exists() && !dest.exists() {
+            let _ = fs::rename(&backup, dest);
         }
-        if let Err(e) = remove_existing(&tmp_installed) {
-            eprintln!("remove {}: {e}", tmp_installed.display());
-        }
+        let _ = remove_existing(&tmp_installed);
     }
     result
 }
@@ -508,11 +493,7 @@ fn replace_file_atomic_inner(
     }
     fs::rename(tmp_installed, dest)
         .with_context(|| format!("rename {} → {}", tmp_installed.display(), dest.display()))?;
-    if let Err(e) = fs::remove_file(backup)
-        && e.kind() != io::ErrorKind::NotFound
-    {
-        eprintln!("remove {}: {e}", backup.display());
-    }
+    let _ = fs::remove_file(backup);
     Ok(())
 }
 

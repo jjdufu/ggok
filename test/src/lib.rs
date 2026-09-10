@@ -2,6 +2,7 @@
 
 mod agent_session_mode;
 mod agent_slash;
+mod cli_ctl;
 mod cli_update;
 mod core_occupy;
 mod core_parse;

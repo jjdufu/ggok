@@ -10,7 +10,7 @@ fn main() {
     let code = match run() {
         Ok(code) => code,
         Err(e) => {
-            eprintln!("{e:#}");
+            eprintln!("{e}");
             1
         }
     };

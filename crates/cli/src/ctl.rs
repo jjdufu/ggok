@@ -20,13 +20,7 @@ use std::time::Duration;
 pub fn start(args: &StartArgs) -> Result<()> {
     let cfg = RuntimeConfig::prepare(args.clone().into_overrides())?;
     if let Some(pid) = running_pid(&cfg.pid_file) {
-        print_report(
-            "already running",
-            Some(pid),
-            &cfg.bind,
-            &cfg.log_file,
-            &cfg.grok_home,
-        );
+        print_report("already running", Some(pid), &cfg.bind);
         return Ok(());
     }
     if cfg.pid_file.exists() {
@@ -35,13 +29,7 @@ pub fn start(args: &StartArgs) -> Result<()> {
     }
     let child = spawn_worker(args)?;
     let pid = wait_for_start(&cfg, child)?;
-    print_report(
-        "started",
-        Some(pid),
-        &cfg.bind,
-        &cfg.log_file,
-        &cfg.grok_home,
-    );
+    print_report("started", Some(pid), &cfg.bind);
     Ok(())
 }
 
@@ -59,18 +47,17 @@ pub fn stop(all: bool) -> Result<i32> {
     let grok_home = saved_grok_home()?;
     let running = running_session_ids(&grok_home);
     if !running.is_empty() {
+        eprintln!("Sessions still running; leader left up");
         for id in running {
             println!("{id}");
         }
-        eprintln!("sessions still running; not stopping leader");
         return Ok(1);
     }
-    match stop_owned_leader(&grok_home) {
-        Ok(()) => Ok(0),
-        Err(e) => {
-            eprintln!("leader: {e:#}");
-            Ok(1)
-        }
+    if stop_owned_leader(&grok_home).is_ok() {
+        Ok(0)
+    } else {
+        eprintln!("Could not stop the leader");
+        Ok(1)
     }
 }
 
@@ -79,7 +66,7 @@ pub(crate) fn stop_web(print: bool) -> Result<()> {
     let Some(pid) = running_pid(&pid_path) else {
         let _ = fs::remove_file(&pid_path);
         if print {
-            println!("not running");
+            println!("Not running");
         }
         return Ok(());
     };
@@ -88,7 +75,7 @@ pub(crate) fn stop_web(print: bool) -> Result<()> {
         if !pid_is_alive(pid) {
             let _ = fs::remove_file(&pid_path);
             if print {
-                println!("stopped pid={pid}");
+                println!("Stopped");
             }
             return Ok(());
         }
@@ -97,7 +84,7 @@ pub(crate) fn stop_web(print: bool) -> Result<()> {
     signal(pid, "KILL");
     let _ = fs::remove_file(&pid_path);
     if print {
-        println!("killed pid={pid}");
+        println!("Stopped");
     }
     Ok(())
 }
@@ -106,8 +93,8 @@ pub(crate) fn stop_web(print: bool) -> Result<()> {
 /// Does not touch `~/.grok` or workspace files.
 ///
 pub fn uninstall() -> i32 {
-    if let Err(err) = stop_web(false) {
-        eprintln!("stop: {err:#}");
+    if stop_web(false).is_err() {
+        eprintln!("Could not stop ggok before uninstall");
     }
     warn_live_leader();
 
@@ -129,15 +116,15 @@ pub fn uninstall() -> i32 {
     leftover.retain(|p| p.exists() || p.symlink_metadata().is_ok());
 
     if leftover.is_empty() {
-        println!("uninstalled");
+        println!("Uninstalled");
         println!("Grok CLI data under ~/.grok was not removed");
         0
     } else {
-        eprintln!("uninstalled with leftovers:");
+        eprintln!("Uninstalled with leftovers:");
         for path in &leftover {
             eprintln!("  {}", path.display());
         }
-        eprintln!("remove those paths manually (sudo if needed)");
+        eprintln!("Remove those paths manually (sudo if needed)");
         1
     }
 }
@@ -203,9 +190,8 @@ fn remove_ggok_tree(path: &Path, leftover: &mut Vec<PathBuf>) {
         leftover.push(path.to_path_buf());
         return;
     };
-    match result {
-        Ok(()) => println!("removed {}", path.display()),
-        Err(_) => leftover.push(path.to_path_buf()),
+    if result.is_err() {
+        leftover.push(path.to_path_buf());
     }
 }
 
@@ -223,9 +209,8 @@ fn remove_ggok_bin(path: &Path, leftover: &mut Vec<PathBuf>) {
         leftover.push(path.to_path_buf());
         return;
     }
-    match fs::remove_file(path) {
-        Ok(()) => println!("removed {}", path.display()),
-        Err(_) => leftover.push(path.to_path_buf()),
+    if fs::remove_file(path).is_err() {
+        leftover.push(path.to_path_buf());
     }
 }
 
@@ -249,14 +234,20 @@ pub fn status(verbose: bool) -> Result<i32> {
     let web_pid = running_pid(&pid_path);
     let code = if web_pid.is_some() { 0 } else { 3 };
     match web_pid {
-        Some(pid) => println!("running pid={pid}"),
-        None => println!("not running"),
+        Some(pid) => println!("Running (pid {pid})"),
+        None => println!("Not running"),
     }
-    println!("listen {bind}");
-    println!("log {}", log.display());
-    println!("login token: {}", display_token());
-    print_leader_line();
-    print_session_summary(&grok_home, verbose);
+    if web_pid.is_some() || verbose {
+        println!("listen {bind}");
+    }
+    if verbose {
+        println!("log {}", log.display());
+        println!("login token: {}", display_token());
+        print_leader_line();
+    }
+    if web_pid.is_some() || verbose {
+        print_session_summary(&grok_home, verbose);
+    }
     Ok(code)
 }
 
@@ -325,14 +316,15 @@ fn wait_for_start(cfg: &RuntimeConfig, mut child: Child) -> Result<u32> {
             let _ = child.try_wait();
             return Ok(pid);
         }
-        if let Some(status) = child.try_wait().context("wait daemon worker")? {
-            if let Some(pid) = running_pid(&cfg.pid_file) {
-                return Ok(pid);
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                if let Some(pid) = running_pid(&cfg.pid_file) {
+                    return Ok(pid);
+                }
+                bail!("Could not start\nSee {}", cfg.log_file.display());
             }
-            bail!(
-                "failed to start (worker {status}); log {}",
-                cfg.log_file.display()
-            );
+            Err(_) => bail!("Could not start\nSee {}", cfg.log_file.display()),
+            Ok(None) => {}
         }
         thread::sleep(Duration::from_millis(100));
     }
@@ -341,7 +333,7 @@ fn wait_for_start(cfg: &RuntimeConfig, mut child: Child) -> Result<u32> {
         return Ok(pid);
     }
     let _ = child.kill();
-    bail!("failed to start; log {}", cfg.log_file.display())
+    bail!("Could not start\nSee {}", cfg.log_file.display())
 }
 
 fn enter_daemon(cfg: &RuntimeConfig) -> Result<()> {
@@ -377,14 +369,15 @@ fn enter_daemon(cfg: &RuntimeConfig) -> Result<()> {
     Ok(())
 }
 
-fn print_report(kind: &str, pid: Option<u32>, bind: &str, log: &Path, grok_home: &Path) {
-    match pid {
-        Some(pid) => println!("{kind} pid={pid}"),
-        None => println!("{kind}"),
+fn print_report(kind: &str, pid: Option<u32>, bind: &str) {
+    match (kind, pid) {
+        ("already running", Some(pid)) => println!("Already running (pid {pid})"),
+        ("already running", None) => println!("Already running"),
+        ("started", Some(pid)) => println!("Started (pid {pid})"),
+        (_, Some(pid)) => println!("{kind} (pid {pid})"),
+        (_, None) => println!("{kind}"),
     }
     println!("listen {bind}");
-    println!("log {}", log.display());
-    println!("sessions {}", grok_home.display());
     println!("login token: {}", display_token());
 }
 
@@ -476,7 +469,7 @@ fn warn_live_leader() {
     if !occupy::cmdline_matches_grok(&cmd) {
         return;
     }
-    println!("leader still running pid={}", rec.pid);
+    println!("Leader still running (pid {})", rec.pid);
     println!(
         "to stop it: grok leader kill --leader-socket {}",
         rec.socket
