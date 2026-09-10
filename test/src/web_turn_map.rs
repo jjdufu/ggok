@@ -61,6 +61,7 @@ fn turn_map_is_overlay_sibling_not_inside_timeline() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn turn_map_ticks_are_quiet_and_preview_matches_say() {
     let css = web_file("src/styles/chat.css");
     let map = css_block(&css, ".turn-map {");

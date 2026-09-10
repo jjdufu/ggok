@@ -14,7 +14,7 @@ fn from_docs_parses_headings_aliases_and_body() {
     fs::create_dir_all(&docs).expect("mkdir");
     fs::write(
         docs.join("04-slash-commands.md"),
-        r#"
+        r"
 ### `/help` `/h` (alias)
 
 Show available commands.
@@ -24,7 +24,7 @@ Show available commands.
 Switch the model.
 
 Ignored text without a command heading.
-"#,
+",
     )
     .expect("write docs");
 

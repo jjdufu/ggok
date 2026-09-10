@@ -17,11 +17,11 @@ fn cmdline_of_self_is_some() {
 #[test]
 fn pid_ppid_of_self_is_alive() {
     let pid = std::process::id();
-    let ppid = pid_ppid(pid).expect("ppid");
-    assert_ne!(ppid, 0);
-    assert!(pid_is_alive(ppid));
+    let parent = pid_ppid(pid).expect("parent");
+    assert_ne!(parent, 0);
+    assert!(pid_is_alive(parent));
     assert!(
-        pid_children(ppid).contains(&pid),
-        "parent {ppid} should list child {pid}"
+        pid_children(parent).contains(&pid),
+        "parent {parent} should list child {pid}"
     );
 }
