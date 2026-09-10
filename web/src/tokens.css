@@ -369,7 +369,6 @@ html, body, #root {
 }
 
 .side-head { padding: 0 8px 0 19px; }
-.hero-mark { display: none; }
 
 #app:not(.has-session) #stage {
   justify-content: flex-start;

@@ -6,7 +6,7 @@ export function shortToolName(block) {
   return m ? m[0] : t.slice(0, 16);
 }
 
-export function pathFromTool(block, raw) {
+function pathFromTool(block, raw) {
   if (raw && typeof raw === "object") {
     const fc = raw.FileContent || (raw.EditsApplied ? { absolute_path: raw.EditsApplied.absolute_path } : null);
     if (fc && fc.absolute_path) return fc.absolute_path;
@@ -17,7 +17,7 @@ export function pathFromTool(block, raw) {
   return m ? m[1] : "";
 }
 
-export function toolCardLabel(block, raw, fallback) {
+function toolCardLabel(block, raw, fallback) {
   const path = pathFromTool(block, raw);
   const name = fileName(path);
   if (name) return name;
@@ -27,7 +27,7 @@ export function toolCardLabel(block, raw, fallback) {
   return fallback || n || "text";
 }
 
-export function asToolText(v) {
+function asToolText(v) {
   if (v == null) return "";
   if (typeof v === "string") return v;
   if (typeof v === "number" || typeof v === "boolean") return String(v);
@@ -46,7 +46,7 @@ export function asToolText(v) {
   return "";
 }
 
-export function collectAcpParts(content, block, raw) {
+function collectAcpParts(content, block, raw) {
   const parts = [];
   if (!Array.isArray(content)) return parts;
   for (const item of content) {
@@ -70,7 +70,7 @@ export function collectAcpParts(content, block, raw) {
   return parts;
 }
 
-export function grepMatchesText(raw) {
+function grepMatchesText(raw) {
   const rows = raw && raw.file_matches;
   if (!Array.isArray(rows) || !rows.length) return asToolText(raw && raw.stdout);
   const lines = [];
@@ -91,7 +91,7 @@ export function grepMatchesText(raw) {
   return lines.join("\n");
 }
 
-export function bashDetailText(raw, block, log) {
+function bashDetailText(raw, block, log) {
   const cmd = String((raw && (raw.command || (raw.Result && raw.Result.command))) || (block && block.input_preview) || "").trim();
   const body = String(log || "").trim()
     || asToolText(raw && raw.output_for_prompt)

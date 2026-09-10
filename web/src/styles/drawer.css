@@ -80,14 +80,6 @@
   gap: 8px;
 }
 
-.account-kv {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
-  column-gap: 12px;
-  row-gap: 7px;
-  align-items: baseline;
-}
-
 .account-empty {
   color: var(--muted);
   font-size: 13px;
@@ -266,11 +258,6 @@
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
-}
-
-.drawer-detail .code-card.terminal pre {
-  max-height: min(70vh, 560px);
-  overflow: auto;
 }
 
 .drawer-detail-err, .drawer-detail-pending {

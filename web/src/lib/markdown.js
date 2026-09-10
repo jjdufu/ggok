@@ -52,7 +52,7 @@ function mdListItem(raw) {
   return "<li>" + inlineMd(raw) + "</li>";
 }
 
-export function inlineMd(s) {
+function inlineMd(s) {
   let t = escapeHtml(s);
   t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
   t = t.replace(/!\[([^\]]*)\]\((https?:[^)\s]+)\)/g, '<img src="$2" alt="$1">');
@@ -66,7 +66,7 @@ export function inlineMd(s) {
   return t;
 }
 
-export function mdTable(rows) {
+function mdTable(rows) {
   const aligns = mdTableSepAligns(rows[1]) || [];
   const head = mdTableCells(rows[0]);
   let html = '<div class="md-table-wrap"><table><thead><tr>';
@@ -86,7 +86,7 @@ export function mdTable(rows) {
   return html + "</tbody></table></div>";
 }
 
-export function renderMdBlock(text) {
+function renderMdBlock(text) {
   const lines = text.split("\n");
   let out = "";
   let i = 0;
@@ -170,7 +170,7 @@ export function renderMdBlock(text) {
   return out;
 }
 
-export function dedentCode(code) {
+function dedentCode(code) {
   const text = String(code == null ? "" : code).replace(/\r\n/g, "\n").replace(/\n$/, "");
   const lines = text.split("\n");
   let min = Infinity;

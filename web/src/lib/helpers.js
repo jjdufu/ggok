@@ -194,7 +194,7 @@ export function mergePromptFiles(dst, extra) {
   return out;
 }
 
-export function filesFromUploadTags(text) {
+function filesFromUploadTags(text) {
   const out = [];
   const src = String(text || "");
   const re = /@!?(\/tmp\/\.ggok-uploads\/[^\s]+)/g;
@@ -206,7 +206,7 @@ export function filesFromUploadTags(text) {
   return out;
 }
 
-export function stripUploadTags(text) {
+function stripUploadTags(text) {
   return String(text || "")
     .replace(/(^|\s)@!?\/tmp\/\.ggok-uploads\/[^\s]+/g, "$1")
     .replace(/\n{3,}/g, "\n\n")
@@ -215,7 +215,7 @@ export function stripUploadTags(text) {
 
 const CAPTION_LINE = /^\[Image #\d+\](?:\s*图\s*\d+)?\s*(?:\n|$)/;
 
-export function stripImageCaptions(text) {
+function stripImageCaptions(text) {
   let s = String(text || "").replace(/^\s+/, "");
   for (;;) {
     const m = CAPTION_LINE.exec(s);
@@ -362,11 +362,6 @@ export function fmtResetDate(iso) {
     opts.minute = "2-digit";
   }
   return d.toLocaleString(locale, opts);
-}
-
-export function i18nOr(key, fallback) {
-  const tr = t(key);
-  return tr !== key ? tr : fallback;
 }
 
 export function isMac() {

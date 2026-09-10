@@ -11,7 +11,7 @@ export function toast(msg) {
   setTimeout(() => n.remove(), 2800);
 }
 
-export function copyFallback(text) {
+function copyFallback(text) {
   const ta = document.createElement("textarea");
   ta.value = text;
   ta.setAttribute("readonly", "");

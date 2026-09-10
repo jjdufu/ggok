@@ -16,5 +16,5 @@ serde_json = { workspace = true }
 tempfile = { workspace = true }
 uuid = { workspace = true }
 
-[lints.rust]
-unsafe_code = "forbid"
+[lints]
+workspace = true

@@ -20,20 +20,6 @@
 
 .side-head-actions { display: flex; gap: 2px; }
 
-.side-search-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 4px 10px 8px;
-  padding: 0 12px;
-  height: 36px;
-  overflow: hidden;
-  border-radius: 12px;
-  background: var(--composer);
-  border: 1px solid var(--composer-border);
-  color: var(--muted);
-}
-
 #search {
   flex: 1;
   min-width: 0;
@@ -565,11 +551,6 @@ html[data-sidebar="collapsed"] .side-nav:hover svg,
 html[data-sidebar="collapsed"] .quota-btn:hover {
   color: var(--fg);
 }
-
-html[data-sidebar="collapsed"] .ctx-nums,
-html[data-sidebar="collapsed"] .ctx-left { display: none; }
-
-html[data-sidebar="collapsed"] .ctx-meta { justify-content: center; }
 
 .sess.running .name::before {
   content: "";

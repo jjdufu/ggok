@@ -1,4 +1,4 @@
-export const SLASH_LOCAL = new Set([
+const SLASH_LOCAL = new Set([
   "model",
   "m",
   "effort",
@@ -26,7 +26,7 @@ export const SLASH_LOCAL = new Set([
   "personas"
 ]);
 
-export const SLASH_RPC = new Set([
+const SLASH_RPC = new Set([
   "rewind",
   "undo",
   "fork",
@@ -41,7 +41,7 @@ export const SLASH_RPC = new Set([
   "btw"
 ]);
 
-export const SLASH_SHELL = new Set([
+const SLASH_SHELL = new Set([
   "imagine",
   "imagine-video",
   "loop",
@@ -55,7 +55,7 @@ export const SLASH_SHELL = new Set([
   "delete"
 ]);
 
-export const SLASH_TUI = new Set([
+const SLASH_TUI = new Set([
   "quit",
   "exit",
   "home",
