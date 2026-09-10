@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.34](https://github.com/jjdufu/ggok/compare/v0.1.33...v0.1.34) (2026-09-10)
+
+
+### Bug Fixes
+
+* quiet CLI output and map network errors ([9718a0a](https://github.com/jjdufu/ggok/commit/9718a0a05af1094aaa9d761e62d89650e86438c3))
+
 ## [0.1.33](https://github.com/jjdufu/ggok/compare/v0.1.32...v0.1.33) (2026-09-09)
 
 
