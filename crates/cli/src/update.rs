@@ -4,8 +4,7 @@ use ggok_core::config::{log_file, pid_file, running_pid};
 use ggok_core::paths::is_under;
 use ggok_core::release::{
     CURRENT_VERSION, asset_filename, asset_url, fetch_latest_version, is_newer, os_arch,
-    parse_sha256sums, release_asset_ready, replace_file_atomic, sha256sums_url,
-    verify_file_sha256,
+    parse_sha256sums, release_asset_ready, replace_file_atomic, sha256sums_url, verify_file_sha256,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -43,7 +42,8 @@ pub(crate) fn run() -> Result<i32> {
     curl_and_verify(&latest, &os, &arch, &filename, &archive)?;
     println!("Installing");
     let extracted = extract_ggok(&archive, &tmp.0)?;
-    replace_file_atomic(&extracted, &dest).map_err(|_| anyhow!("Could not replace the ggok binary"))?;
+    replace_file_atomic(&extracted, &dest)
+        .map_err(|_| anyhow!("Could not replace the ggok binary"))?;
     println!("Updated to {latest}");
     restart_web_if_running(&dest, &latest)?;
     Ok(0)
@@ -72,9 +72,9 @@ fn annotate_download(err: &anyhow::Error, latest: &str) -> anyhow::Error {
         "Network timeout while downloading" => anyhow!(
             "Network timeout while downloading {latest}\nCheck the connection and run ggok update again"
         ),
-        "Could not download update" => anyhow!(
-            "Could not download update\nCheck the connection and run ggok update again"
-        ),
+        "Could not download update" => {
+            anyhow!("Could not download update\nCheck the connection and run ggok update again")
+        }
         "Release is not ready yet" => anyhow!("Release {latest} is not ready yet"),
         other => anyhow!("{other}"),
     }
@@ -152,9 +152,6 @@ fn restart_web_if_running(dest: &Path, latest: &str) -> Result<()> {
 }
 
 fn restart_failed(latest: &str) -> anyhow::Error {
-    let log = log_file().map_or_else(
-        |_| "the log".to_string(),
-        |p| p.display().to_string(),
-    );
+    let log = log_file().map_or_else(|_| "the log".to_string(), |p| p.display().to_string());
     anyhow!("Updated to {latest} but could not restart\nSee {log}")
 }

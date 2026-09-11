@@ -92,7 +92,9 @@ struct ActiveRow {
 struct JsonlKey {
     mtime_ns: u128,
     size: u64,
-    running: bool,
+    /// Content verdict only. Age is applied on every call so a true result
+    /// cannot stick for the life of the process after `RUNNING_AGE`.
+    ended: bool,
 }
 
 static JSONL_CACHE: LazyLock<Mutex<HashMap<PathBuf, JsonlKey>>> =
@@ -382,6 +384,10 @@ pub fn conflict_busy(occ: Occupancy, op: SessionOp) -> bool {
 
 #[must_use]
 pub fn jsonl_running(session_dir: &Path) -> bool {
+    jsonl_running_as_of(session_dir, SystemTime::now())
+}
+
+fn jsonl_running_as_of(session_dir: &Path, now: SystemTime) -> bool {
     let path = session_dir.join("updates.jsonl");
     let Ok(meta) = fs::metadata(&path) else {
         return false;
@@ -389,7 +395,7 @@ pub fn jsonl_running(session_dir: &Path) -> bool {
     let mtime = meta.modified().unwrap_or(UNIX_EPOCH);
     let size = meta.len();
     let mtime_ns = mtime.duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos());
-    {
+    let ended = {
         let cache = JSONL_CACHE
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -397,48 +403,49 @@ pub fn jsonl_running(session_dir: &Path) -> bool {
             && hit.mtime_ns == mtime_ns
             && hit.size == size
         {
-            return hit.running;
+            hit.ended
+        } else {
+            drop(cache);
+            let ended = last_jsonl_ended(&path, size);
+            let mut cache = JSONL_CACHE
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            cache.insert(
+                path,
+                JsonlKey {
+                    mtime_ns,
+                    size,
+                    ended,
+                },
+            );
+            ended
         }
-    }
-    let running = jsonl_running_uncached(&path, mtime, size);
-    let mut cache = JSONL_CACHE
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    cache.insert(
-        path,
-        JsonlKey {
-            mtime_ns,
-            size,
-            running,
-        },
-    );
-    running
-}
-
-fn jsonl_running_uncached(path: &Path, mtime: SystemTime, size: u64) -> bool {
-    let last = last_session_update(path, size);
-    if last.as_deref() == Some("turn_completed") {
+    };
+    if ended {
         return false;
     }
-    let age = SystemTime::now()
-        .duration_since(mtime)
-        .unwrap_or(Duration::MAX);
-    age <= RUNNING_AGE
+    now.duration_since(mtime).unwrap_or(Duration::MAX) <= RUNNING_AGE
 }
 
-fn last_session_update(path: &Path, size: u64) -> Option<String> {
+fn last_jsonl_ended(path: &Path, size: u64) -> bool {
     let start = size.saturating_sub(JSONL_WINDOW);
-    let mut file = File::open(path).ok()?;
-    file.seek(SeekFrom::Start(start)).ok()?;
+    let Ok(mut file) = File::open(path) else {
+        return false;
+    };
+    if file.seek(SeekFrom::Start(start)).is_err() {
+        return false;
+    }
     let mut buf = Vec::new();
-    file.read_to_end(&mut buf).ok()?;
+    if file.read_to_end(&mut buf).is_err() {
+        return false;
+    }
     let text = String::from_utf8_lossy(&buf);
     let body = if start > 0 {
         text.split_once('\n').map_or("", |(_, rest)| rest)
     } else {
         text.as_ref()
     };
-    let mut last = None;
+    let mut ended = false;
     for line in body.lines() {
         let line = line.trim();
         if line.is_empty() {
@@ -447,14 +454,39 @@ fn last_session_update(path: &Path, size: u64) -> Option<String> {
         let Ok(v) = serde_json::from_str::<Value>(line) else {
             continue;
         };
-        if let Some(kind) = v
-            .pointer("/params/update/sessionUpdate")
-            .and_then(Value::as_str)
-        {
-            last = Some(kind.to_string());
+        if let Some(is_end) = jsonl_update_ended(&v) {
+            ended = is_end;
         }
     }
-    last
+    ended
+}
+
+fn jsonl_update_ended(v: &Value) -> Option<bool> {
+    let update = v.pointer("/params/update")?;
+    let kind = update.get("sessionUpdate").and_then(Value::as_str)?;
+    if kind == "turn_completed" {
+        return Some(true);
+    }
+    let stop = update
+        .get("stopReason")
+        .or_else(|| update.get("stop_reason"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    if matches!(
+        stop,
+        "cancelled" | "canceled" | "interrupted" | "user_cancelled"
+    ) {
+        return Some(true);
+    }
+    match kind {
+        "agent_message_chunk"
+        | "agent_thought_chunk"
+        | "user_message_chunk"
+        | "tool_call"
+        | "tool_call_update" => Some(false),
+        // hook / background_tasks / retry_state trail a finished turn.
+        _ => None,
+    }
 }
 
 #[must_use]
@@ -612,4 +644,38 @@ pub fn our_runtime_pid(live_pid: Option<u32>) -> Option<u32> {
     }
     let cmd = crate::sys::pid_cmdline(pid);
     cmdline_matches_grok(&cmd).then_some(pid)
+}
+
+#[cfg(test)]
+mod jsonl_running_as_of_tests {
+    use super::{RUNNING_AGE, jsonl_running_as_of};
+    use std::fs;
+    use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn in_progress_cache_respects_age() {
+        let sess = std::env::temp_dir().join(format!("ggok-jsonl-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&sess).expect("mkdir");
+        fs::write(
+            sess.join("updates.jsonl"),
+            concat!(
+                r#"{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"agent_message_chunk"}}}"#,
+                "\n"
+            ),
+        )
+        .expect("write");
+        let now = SystemTime::now();
+        fs::File::options()
+            .write(true)
+            .open(sess.join("updates.jsonl"))
+            .expect("open")
+            .set_modified(now)
+            .expect("mtime");
+        assert!(jsonl_running_as_of(&sess, now));
+        assert!(
+            !jsonl_running_as_of(&sess, now + RUNNING_AGE + Duration::from_secs(1)),
+            "cached in-progress jsonl must still expire after RUNNING_AGE"
+        );
+        let _ = fs::remove_dir_all(&sess);
+    }
 }

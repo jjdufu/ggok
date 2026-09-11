@@ -114,7 +114,11 @@ pub(crate) async fn api_rewind(
         Ok(c) => c,
         Err(f) => return gate_response(f),
     };
-    match state.agent.rewind_execute(&id, &cwd, body.prompt_index).await {
+    match state
+        .agent
+        .rewind_execute(&id, &cwd, body.prompt_index)
+        .await
+    {
         Ok(prompt_index) => json_ok(&json!({ "ok": true, "prompt_index": prompt_index })),
         Err(e) => map_agent_err(&e),
     }

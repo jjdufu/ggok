@@ -14,7 +14,9 @@ fn load_catch(src: &str, name: &str) -> String {
         .find(&needle)
         .unwrap_or_else(|| panic!("missing {name}"));
     let rest = &src[start..];
-    let catch_at = rest.find("} catch").unwrap_or_else(|| panic!("{name} has no catch"));
+    let catch_at = rest
+        .find("} catch")
+        .unwrap_or_else(|| panic!("{name} has no catch"));
     let after = &rest[catch_at..];
     let end = after
         .find("\n  async function")

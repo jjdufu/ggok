@@ -63,10 +63,7 @@ impl Agent {
         self.require_attached(id).await?;
         self.ensure().await?;
         self.session_load_inner(id, cwd).await?;
-        match self
-            .call(REWIND_POINTS, json!({ "sessionId": id }))
-            .await
-        {
+        match self.call(REWIND_POINTS, json!({ "sessionId": id })).await {
             Ok(v) => {
                 let mut points = normalize_rewind_points(&v);
                 if points.is_empty() {
@@ -208,11 +205,7 @@ impl Agent {
             obj.insert("context".into(), json!(ctx));
         }
         tracing::info!(session_id = %id, "compact conversation");
-        self.emit(
-            id,
-            "compact",
-            &json!({ "phase": "start", "message": "" }),
-        );
+        self.emit(id, "compact", &json!({ "phase": "start", "message": "" }));
         match self.call(COMPACT, params).await {
             Ok(_) => {
                 self.emit(id, "compact", &json!({ "phase": "done", "message": "" }));
@@ -277,7 +270,10 @@ impl Agent {
         self.ensure().await?;
         self.session_load_inner(id, cwd).await?;
         match self
-            .call(BTW, json!({ "sessionId": id, "text": text, "prompt": text }))
+            .call(
+                BTW,
+                json!({ "sessionId": id, "text": text, "prompt": text }),
+            )
             .await
         {
             Ok(_) => Ok(()),
@@ -329,11 +325,7 @@ impl Agent {
     pub async fn session_plan(&self, id: &str, cwd: &str) -> Result<SessionPlan> {
         let todos = {
             let live = self.live_todos(id).await;
-            if live.is_empty() {
-                None
-            } else {
-                Some(live)
-            }
+            if live.is_empty() { None } else { Some(live) }
         };
         let dir = session_dir(&self.grok_home, cwd, id);
         let markdown = std::fs::read_to_string(dir.join("plan.md")).unwrap_or_default();
@@ -497,7 +489,10 @@ fn json_str(v: &Value, keys: &[&str]) -> String {
         {
             return s.to_string();
         }
-        if let Some(s) = v.pointer(&format!("/{key}")).and_then(Value::as_str).map(str::trim)
+        if let Some(s) = v
+            .pointer(&format!("/{key}"))
+            .and_then(Value::as_str)
+            .map(str::trim)
             && !s.is_empty()
         {
             return s.to_string();
@@ -592,11 +587,7 @@ fn normalize_tasks(v: &Value) -> Vec<TaskRow> {
             }
             let title = json_str(row, &["title", "name", "description"]);
             let status = json_str(row, &["status", "state"]);
-            Some(TaskRow {
-                id,
-                title,
-                status,
-            })
+            Some(TaskRow { id, title, status })
         })
         .collect()
 }

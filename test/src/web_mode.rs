@@ -24,7 +24,12 @@ fn mode_menu_lists_short_descriptions() {
     );
 
     let i18n = web_file("public/i18n.js");
-    for key in ["modeAskDesc", "modePlanDesc", "modeAutoDesc", "modeAlwaysDesc"] {
+    for key in [
+        "modeAskDesc",
+        "modePlanDesc",
+        "modeAutoDesc",
+        "modeAlwaysDesc",
+    ] {
         let hits = i18n.matches(&format!("{key}:")).count();
         assert!(hits >= 2, "{key} must exist in zh and en, found {hits}");
     }
@@ -71,7 +76,9 @@ fn empty_session_can_pick_mode_before_id() {
         "mode button must not disable just because there is no session id:\n{js}"
     );
     let toggle_at = js.find("function toggleModeMenu").expect("toggleModeMenu");
-    let toggle = js.get(toggle_at..toggle_at.saturating_add(500)).unwrap_or("");
+    let toggle = js
+        .get(toggle_at..toggle_at.saturating_add(500))
+        .unwrap_or("");
     assert!(
         !toggle.contains("if (!ctx.currentId) return"),
         "empty session must open the mode menu:\n{toggle}"

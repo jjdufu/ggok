@@ -11,9 +11,7 @@ pub mod tail;
 
 pub use mcp_ask::run_mcp_ask;
 pub use question::{AskBridge, AskOption, AskQuestion, QuestionReply, QuestionView};
-pub use session_control::{
-    ACP_UNAVAILABLE, ForkedSession, RewindPoint, SessionPlan, TaskRow,
-};
+pub use session_control::{ACP_UNAVAILABLE, ForkedSession, RewindPoint, SessionPlan, TaskRow};
 
 use ggok_core::occupy::{self, LiveView};
 use ggok_core::parse::Parser;

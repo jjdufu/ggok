@@ -786,8 +786,7 @@ fn ingest_usage_field(parser: &mut Parser, update: &Value) -> Ingest {
 }
 
 fn billed_counters_present(v: &Value) -> bool {
-    json_u64_opt(v, &["inputTokens", "input_tokens"])
-        .is_some_and(|n| n > 0)
+    json_u64_opt(v, &["inputTokens", "input_tokens"]).is_some_and(|n| n > 0)
         || json_u64_opt(v, &["outputTokens", "output_tokens"]).is_some_and(|n| n > 0)
 }
 

@@ -137,11 +137,15 @@ fn tool_call(params: &Value, base: &str, token: &str) -> Result<Value> {
         .or_else(|| json_string(params.get("sessionId")))
         .or_else(|| json_string(params.get("session_id")))
         .or_else(|| {
-            params
-                .get("_meta")
-                .and_then(|m| json_string(m.get("sessionId")).or_else(|| json_string(m.get("session_id"))))
+            params.get("_meta").and_then(|m| {
+                json_string(m.get("sessionId")).or_else(|| json_string(m.get("session_id")))
+            })
         })
-        .or_else(|| std::env::var("GGOK_ASK_SESSION_ID").ok().filter(|s| !s.is_empty()))
+        .or_else(|| {
+            std::env::var("GGOK_ASK_SESSION_ID")
+                .ok()
+                .filter(|s| !s.is_empty())
+        })
         .unwrap_or_default();
     let bind = std::env::var("GGOK_ASK_BIND")
         .ok()

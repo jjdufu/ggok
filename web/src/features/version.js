@@ -7,11 +7,13 @@ function fmtVer(ver) {
 export function bindVersion(ctx) {
   const curEl = document.getElementById("quota-ver-cur");
   const latestEl = document.getElementById("quota-ver-latest");
+  let lastCur = "";
 
   function paint(st) {
     const ver = st && st.version;
-    const cur = ver ? fmtVer(ver) : "";
-    if (cur && curEl) curEl.textContent = cur;
+    const cur = ver ? fmtVer(ver) : lastCur;
+    if (cur) lastCur = cur;
+    if (curEl) curEl.textContent = cur;
     const latestRaw = st && st.latest;
     const latest = latestRaw ? fmtVer(latestRaw) : "";
     if (latestEl) {
@@ -26,7 +28,7 @@ export function bindVersion(ctx) {
     try {
       paint(await api("/api/version"));
     } catch {
-      /* keep whatever is already on screen */
+      if (lastCur) paint({ version: lastCur });
     }
   }
 

@@ -36,7 +36,7 @@ fn version_view_newer_sets_flag() {
 }
 
 #[test]
-fn version_look_waits_when_cache_is_stale() {
+fn version_look_returns_current_without_waiting_on_github() {
     let src = server_file("src/release.rs");
     assert!(
         src.contains("const CACHE_OK: Duration = Duration::from_secs(60)")
@@ -44,17 +44,21 @@ fn version_look_waits_when_cache_is_stale() {
         "version cache must match the 60s account look, not 6h:\n{src}"
     );
     assert!(
-        src.contains("pub async fn snapshot()")
-            && src.contains("Hit::StaleOk | Hit::Miss => load_shared().await"),
-        "a stale look must wait for GitHub instead of returning the old tag:\n{src}"
+        src.contains("pub fn snapshot()")
+            && src.contains("Hit::StaleOk | Hit::Miss =>")
+            && src.contains("refresh();")
+            && src.contains("version_view(CURRENT_VERSION, last_ok().as_deref())")
+            && !src.contains("Hit::StaleOk | Hit::Miss => load_shared().await"),
+        "stale/miss must return current immediately and refresh in the background:\n{src}"
     );
 }
 
 #[test]
-fn api_version_awaits_snapshot() {
+fn api_version_uses_snapshot() {
     let src = server_file("src/routes/meta.rs");
     assert!(
-        src.contains("crate::release::snapshot().await"),
-        "/api/version must wait for the look-path snapshot:\n{src}"
+        src.contains("crate::release::snapshot()")
+            && !src.contains("crate::release::snapshot().await"),
+        "/api/version must return the look-path snapshot without waiting on GitHub:\n{src}"
     );
 }

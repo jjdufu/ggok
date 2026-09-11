@@ -221,7 +221,15 @@ impl Agent {
             bail!(SESSION_BUSY);
         }
         self.notify("session/cancel", json!({ "sessionId": id }))
-            .await
+            .await?;
+        {
+            let mut g = self.inner.lock().await;
+            if let Some(sess) = g.sessions.get_mut(id) {
+                sess.running = false;
+            }
+        }
+        self.emit_live(id, false).await;
+        Ok(())
     }
 
     pub async fn drop_session(&self, id: &str) {

@@ -10,9 +10,7 @@ fn web_file(rel: &str) -> String {
 }
 
 fn fn_body(src: &str, sig: &str) -> String {
-    let start = src
-        .find(sig)
-        .unwrap_or_else(|| panic!("missing {sig}"));
+    let start = src.find(sig).unwrap_or_else(|| panic!("missing {sig}"));
     let rest = &src[start..];
     let open = rest
         .find('{')

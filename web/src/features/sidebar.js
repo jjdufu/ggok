@@ -164,6 +164,18 @@ export function bindSidebar(ctx) {
     return ctx.sessions.find((s) => s.id === id);
   }
 
+  function markSessionRunning(id, on) {
+    if (!id) return;
+    let changed = false;
+    for (const s of ctx.sessions) {
+      if (s.id === id && !!s.running !== !!on) {
+        s.running = !!on;
+        changed = true;
+      }
+    }
+    if (changed) renderTree();
+  }
+
   function openSessMenu(btn, s) {
     if (!sessMenu || !s) return;
     const already = !sessMenu.hidden && sessMenu.dataset.id === s.id;
@@ -407,6 +419,7 @@ export function bindSidebar(ctx) {
   ctx.renderTree = renderTree;
   ctx.loadList = loadList;
   ctx.sessionById = sessionById;
+  ctx.markSessionRunning = markSessionRunning;
   ctx.applySessionTitle = applySessionTitle;
   ctx.applySessionPinned = applySessionPinned;
   ctx.saveSessionTitle = saveSessionTitle;

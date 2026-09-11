@@ -341,14 +341,7 @@ fn curl_http_code(url: &str) -> Result<u16> {
 /// # Errors
 /// Returns an error if `curl` fails or the effective URL cannot be read.
 pub fn curl_effective_url(url: &str) -> Result<String> {
-    let output = curl_probe([
-        "-fsSL",
-        "-o",
-        "/dev/null",
-        "-w",
-        "%{url_effective}",
-        url,
-    ])?;
+    let output = curl_probe(["-fsSL", "-o", "/dev/null", "-w", "%{url_effective}", url])?;
     check_curl(&output, CurlOp::Check)?;
     String::from_utf8(output.stdout).map_err(|_| anyhow!("Could not check for updates"))
 }

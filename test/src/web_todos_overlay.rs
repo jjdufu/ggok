@@ -224,8 +224,14 @@ fn ctx_chip_click_opens_session_usage_popover() {
         .nth(1)
         .and_then(|rest| rest.split("id=\"chips\"").next())
         .expect("ctx-bar block");
-    assert!(bar.contains("id=\"ctx-usage\""), "usage popover must live on the ctx chip");
-    assert!(bar.contains("id=\"usage-body\""), "usage-body must move onto the ctx chip");
+    assert!(
+        bar.contains("id=\"ctx-usage\""),
+        "usage popover must live on the ctx chip"
+    );
+    assert!(
+        bar.contains("id=\"usage-body\""),
+        "usage-body must move onto the ctx chip"
+    );
     assert!(bar.contains("sessionUsage"), "{bar}");
 
     let drawer = app

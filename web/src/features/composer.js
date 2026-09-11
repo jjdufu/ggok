@@ -1011,6 +1011,7 @@ export function bindComposer(ctx) {
         if (detail.work_started_ms) ctx.current.work_started_ms = detail.work_started_ms;
       }
       applyOccupancy(detail);
+      if (ctx.markSessionRunning) ctx.markSessionRunning(id, !!ctx.running);
       if (detail.mode) {
         ctx.mode = detail.mode;
         if (ctx.current) ctx.current.mode = detail.mode;
@@ -1226,12 +1227,14 @@ export function bindComposer(ctx) {
     }
     ctx.awaitingAgent = true;
     ctx.running = true;
+    if (ctx.markSessionRunning && ctx.currentId) ctx.markSessionRunning(ctx.currentId, true);
     syncSendBtn();
     if (ctx.scheduleRender) ctx.scheduleRender();
     armWorkWatch();
 
     try {
       const id = await ensureSession();
+      if (ctx.markSessionRunning) ctx.markSessionRunning(id, true);
       if (!ctx.es || ctx.es.readyState === EventSource.CLOSED) {
         if (ctx.connectEvents) await ctx.connectEvents(id);
       }
@@ -1372,6 +1375,7 @@ export function bindComposer(ctx) {
     ctx.running = false;
     ctx.awaitingAgent = false;
     stopWorkWatch();
+    if (ctx.markSessionRunning && ctx.currentId) ctx.markSessionRunning(ctx.currentId, false);
     if (ctx.current && ctx.current.blocks && ctx.current.blocks.length) {
       const last = ctx.current.blocks[ctx.current.blocks.length - 1];
       last.cancelled = true;

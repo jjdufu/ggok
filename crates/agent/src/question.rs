@@ -150,10 +150,7 @@ pub(crate) fn is_plan_tool(title: &str, name: &str, update: &Value) -> bool {
 #[must_use]
 pub(crate) fn is_plan_payload(params: &Value) -> bool {
     let title = json_str(params, &["title"]);
-    let name = json_str(
-        params,
-        &["name", "tool", "toolName", "tool_name"],
-    );
+    let name = json_str(params, &["name", "tool", "toolName", "tool_name"]);
     let name = if name.is_empty() {
         params
             .pointer("/_meta/x.ai/tool/name")
@@ -169,7 +166,9 @@ pub(crate) fn is_plan_payload(params: &Value) -> bool {
 /// Whether a session `tool_call` update should open a question card.
 #[must_use]
 pub(crate) fn should_present_tool_call_as_ask(title: &str, name: &str, update: &Value) -> bool {
-    !is_mcp_ask_tool(title, name) && !is_plan_tool(title, name, update) && looks_like_ask_user(update)
+    !is_mcp_ask_tool(title, name)
+        && !is_plan_tool(title, name, update)
+        && looks_like_ask_user(update)
 }
 
 #[must_use]
@@ -945,10 +944,7 @@ impl Agent {
             return None;
         }
         let g = self.inner.lock().await;
-        g.ask_binds
-            .get(bind)
-            .cloned()
-            .filter(|id| !id.is_empty())
+        g.ask_binds.get(bind).cloned().filter(|id| !id.is_empty())
     }
 
     /// # Errors
@@ -1183,10 +1179,14 @@ mod tests {
         assert_eq!(servers[0]["name"], json!(ASK_MCP_NAME));
         assert_eq!(servers[0]["args"][0], json!("__mcp-ask"));
         let env = servers[0]["env"].as_array().cloned().unwrap_or_default();
-        assert!(env.iter().any(|e| e["name"] == json!("GGOK_ASK_SESSION_ID")
-            && e["value"] == json!("sid-1")));
-        assert!(env.iter().any(|e| e["name"] == json!("GGOK_ASK_BIND")
-            && e["value"] == json!("bind-1")));
+        assert!(
+            env.iter()
+                .any(|e| e["name"] == json!("GGOK_ASK_SESSION_ID") && e["value"] == json!("sid-1"))
+        );
+        assert!(
+            env.iter()
+                .any(|e| e["name"] == json!("GGOK_ASK_BIND") && e["value"] == json!("bind-1"))
+        );
     }
 
     #[test]
@@ -1199,11 +1199,7 @@ mod tests {
             },
             "_meta": { "x.ai": { "tool": { "kind": "plan", "name": "exit_plan_mode" } } }
         });
-        assert!(is_plan_tool(
-            "exit_plan_mode",
-            "exit_plan_mode",
-            &update
-        ));
+        assert!(is_plan_tool("exit_plan_mode", "exit_plan_mode", &update));
         assert!(!should_present_tool_call_as_ask(
             "exit_plan_mode",
             "exit_plan_mode",

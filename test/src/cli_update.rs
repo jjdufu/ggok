@@ -2,7 +2,9 @@ use std::fs;
 use std::path::PathBuf;
 
 fn crate_file(rel: &str) -> String {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join(rel);
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join(rel);
     fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
 }
 
@@ -50,7 +52,9 @@ fn update_maps_network_errors_without_curl_noise() {
 fn curl_download_captures_stderr_and_skips_progress_bar() {
     let src = crate_file("crates/core/src/release.rs");
     assert!(
-        !src.contains("--progress-bar") && !src.contains("eprintln!()") && !src.contains("IsTerminal"),
+        !src.contains("--progress-bar")
+            && !src.contains("eprintln!()")
+            && !src.contains("IsTerminal"),
         "curl must not inherit a TTY progress bar:\n{src}"
     );
     assert!(

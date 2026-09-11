@@ -108,8 +108,12 @@ export function bindDirModal(ctx) {
       g.appendChild(svgUse("i-git"));
       b.appendChild(g);
     }
-    setTip(b, up ? t("wsUp") : path || name);
-    if (up) b.setAttribute("aria-label", t("wsUp"));
+    if (up) {
+      setTip(b, t("wsUp"));
+      b.setAttribute("aria-label", t("wsUp"));
+    } else {
+      b.setAttribute("aria-pressed", dirSel && dirSel === path ? "true" : "false");
+    }
     b.addEventListener("click", onClick);
     dirModalList.appendChild(b);
   }
@@ -123,7 +127,7 @@ export function bindDirModal(ctx) {
     const atStart = !path;
     if (dirModalPath) {
       dirModalPath.textContent = path || t("allowedRoots");
-      setTip(dirModalPath, path || "");
+      dirModalPath.removeAttribute("data-tip");
     }
     openOverlay(dirScrim, dirModal);
     dirModal.focus();
@@ -183,7 +187,11 @@ export function bindDirModal(ctx) {
             }
             dirSel = full;
             dirModalList.querySelectorAll(".dir-item").forEach((el) => {
-              el.classList.toggle("on", el.dataset.path === dirSel);
+              const on = el.dataset.path === dirSel;
+              el.classList.toggle("on", on);
+              if (el.hasAttribute("aria-pressed")) {
+                el.setAttribute("aria-pressed", on ? "true" : "false");
+              }
             });
             syncChoose();
             return;

@@ -44,19 +44,29 @@ enum Hit {
     Miss,
 }
 
-/// Look-path snapshot: serve a minute-fresh hit, otherwise wait for GitHub.
-pub async fn snapshot() -> VersionView {
+/// Look-path snapshot: current version is always local and returned
+/// immediately. A minute-fresh GitHub tag is included when cached;
+/// otherwise a background fetch updates the next look and the payload
+/// keeps the last known tag (or `None` if GitHub has not succeeded yet).
+pub fn snapshot() -> VersionView {
     match cached() {
         Hit::FreshOk(ver) => version_view(CURRENT_VERSION, Some(&ver)),
         Hit::FreshErr => version_view(CURRENT_VERSION, None),
-        Hit::StaleOk | Hit::Miss => load_shared().await,
+        Hit::StaleOk | Hit::Miss => {
+            refresh();
+            version_view(CURRENT_VERSION, last_ok().as_deref())
+        }
     }
 }
 
-pub fn warm() {
+fn refresh() {
     tokio::spawn(async {
-        let _ = snapshot().await;
+        let _ = load_shared().await;
     });
+}
+
+pub fn warm() {
+    refresh();
 }
 
 async fn wait_shared(mut rx: watch::Receiver<Option<VersionView>>) -> Option<VersionView> {

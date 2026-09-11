@@ -70,7 +70,10 @@ fn turn_map_ticks_are_quiet_and_preview_matches_say() {
         !map.contains("right: 6px"),
         "map must sit inboard of the window edge:\n{map}"
     );
-    assert!(map.contains("50%"), "map should track the centered transcript:\n{map}");
+    assert!(
+        map.contains("50%"),
+        "map should track the centered transcript:\n{map}"
+    );
     assert!(
         map.contains("352px") && map.contains("clamp(24px, 3.2vw, 44px)"),
         "map gutter should track the 704px column with a flexible inset:\n{map}"
@@ -160,7 +163,9 @@ fn turn_map_ticks_are_quiet_and_preview_matches_say() {
     );
     let out = css_block(&css, ".turn-map[data-side=\"out\"] .turn-map-panel {");
     assert!(
-        out.contains("left: 22px") && out.contains("right: auto") && out.contains("padding: 0 0 0 20px"),
+        out.contains("left: 22px")
+            && out.contains("right: auto")
+            && out.contains("padding: 0 0 0 20px"),
         "wide pages must open the list outward with the same tick gap:\n{out}"
     );
     assert!(

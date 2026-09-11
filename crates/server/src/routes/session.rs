@@ -113,7 +113,9 @@ pub(crate) async fn api_create_session(
                     }
                 })
                 .or(body.effort);
-            json_ok(&json!({ "id": s.id, "cwd": s.cwd, "model": s.model, "effort": effort, "mode": s.mode }))
+            json_ok(
+                &json!({ "id": s.id, "cwd": s.cwd, "model": s.model, "effort": effort, "mode": s.mode }),
+            )
         }
         Err(e) => super::map_agent_err(&e),
     }

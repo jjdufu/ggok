@@ -144,6 +144,7 @@ export function bindSse(ctx) {
       } else if (ctx.stopWorkWatch) {
         ctx.stopWorkWatch();
       }
+      if (ctx.markSessionRunning) ctx.markSessionRunning(id, !!ctx.running);
       if (ctx.syncSendBtn) ctx.syncSendBtn();
       if (ctx.scheduleRender) ctx.scheduleRender();
       if (prev !== "attached" && ev.source === "attached" && id === ctx.currentId) {
@@ -159,6 +160,7 @@ export function bindSse(ctx) {
       ctx.awaitingAgent = false;
       ctx.running = false;
       if (ctx.stopWorkWatch) ctx.stopWorkWatch();
+      if (ctx.markSessionRunning) ctx.markSessionRunning(id, false);
       if (ctx.syncSendBtn) ctx.syncSendBtn();
       if (ctx.loadList) ctx.loadList();
       if (ctx.refreshSessionUsage) ctx.refreshSessionUsage();
@@ -171,6 +173,7 @@ export function bindSse(ctx) {
       ctx.awaitingAgent = false;
       ctx.running = false;
       if (ctx.stopWorkWatch) ctx.stopWorkWatch();
+      if (ctx.markSessionRunning) ctx.markSessionRunning(id, false);
       if (ctx.syncSendBtn) ctx.syncSendBtn();
       toast((ev && ev.message) || t("agentError"));
       if (ctx.scheduleRender) ctx.scheduleRender();

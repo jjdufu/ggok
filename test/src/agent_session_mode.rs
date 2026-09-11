@@ -9,9 +9,7 @@ fn crate_file(rel: &str) -> String {
 }
 
 fn fn_body(src: &str, sig: &str) -> String {
-    let start = src
-        .find(sig)
-        .unwrap_or_else(|| panic!("missing {sig}"));
+    let start = src.find(sig).unwrap_or_else(|| panic!("missing {sig}"));
     let rest = &src[start..];
     let open = rest
         .find('{')
@@ -41,7 +39,9 @@ fn set_session_mode_does_not_inject_slash_prompts() {
         "mode changes must not write /auto into the transcript:\n{body}"
     );
     assert!(
-        !body.contains("\"/auto\"") && !body.contains("\"/always-approve\"") && !body.contains("\"/plan\""),
+        !body.contains("\"/auto\"")
+            && !body.contains("\"/always-approve\"")
+            && !body.contains("\"/plan\""),
         "mode changes must not fall back to slash text:\n{body}"
     );
     assert!(
@@ -89,5 +89,19 @@ fn session_new_applies_requested_mode() {
     assert!(
         routes.contains("body.mode.as_deref()"),
         "create session must pass mode into session_new:\n{routes}"
+    );
+}
+
+#[test]
+fn cancel_clears_running_before_prompt_result() {
+    let src = crate_file("crates/agent/src/session.rs");
+    let body = fn_body(&src, "pub async fn cancel");
+    assert!(
+        body.contains("sess.running = false") && body.contains("emit_live(id, false)"),
+        "cancel must drop live running immediately:\n{body}"
+    );
+    assert!(
+        body.contains("session/cancel"),
+        "cancel must still notify grok:\n{body}"
     );
 }

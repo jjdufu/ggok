@@ -416,11 +416,23 @@ fn cli_sessions_skips_stale_cmdline_and_bad_json() {
 }
 
 fn write_jsonl(dir: &std::path::Path, kind: &str) {
-    fs::create_dir_all(dir).expect("mkdir");
-    let line = format!(
-        r#"{{"jsonrpc":"2.0","method":"session/update","params":{{"update":{{"sessionUpdate":"{kind}"}}}}}}"#
+    write_jsonl_lines(
+        dir,
+        &[format!(
+            r#"{{"jsonrpc":"2.0","method":"session/update","params":{{"update":{{"sessionUpdate":"{kind}"}}}}}}"#
+        )],
     );
-    fs::write(dir.join("updates.jsonl"), format!("{line}\n")).expect("write jsonl");
+}
+
+fn write_jsonl_lines(dir: &std::path::Path, lines: &[String]) {
+    fs::create_dir_all(dir).expect("mkdir");
+    fs::write(dir.join("updates.jsonl"), format!("{}\n", lines.join("\n"))).expect("write jsonl");
+}
+
+fn touch_jsonl(dir: &std::path::Path, age: Duration) {
+    let path = dir.join("updates.jsonl");
+    let f = File::options().write(true).open(&path).expect("open jsonl");
+    f.set_modified(SystemTime::now() - age).expect("mtime");
 }
 
 #[test]
@@ -436,9 +448,7 @@ fn jsonl_running_recent_other_is_true() {
     let dir = tempfile::tempdir().expect("tempdir");
     let sess = dir.path().join("s");
     write_jsonl(&sess, "agent_message_chunk");
-    let path = sess.join("updates.jsonl");
-    let f = File::options().write(true).open(&path).expect("open jsonl");
-    f.set_modified(SystemTime::now()).expect("mtime now");
+    touch_jsonl(&sess, Duration::ZERO);
     assert!(jsonl_running(&sess));
 }
 
@@ -447,10 +457,7 @@ fn jsonl_running_old_mtime_is_false() {
     let dir = tempfile::tempdir().expect("tempdir");
     let sess = dir.path().join("s");
     write_jsonl(&sess, "agent_message_chunk");
-    let path = sess.join("updates.jsonl");
-    let f = File::options().write(true).open(&path).expect("open jsonl");
-    f.set_modified(SystemTime::now() - Duration::from_secs(30))
-        .expect("mtime old");
+    touch_jsonl(&sess, Duration::from_secs(30));
     assert!(!jsonl_running(&sess));
 }
 
@@ -458,4 +465,50 @@ fn jsonl_running_old_mtime_is_false() {
 fn jsonl_running_missing_file_is_false() {
     let dir = tempfile::tempdir().expect("tempdir");
     assert!(!jsonl_running(&dir.path().join("nope")));
+}
+
+#[test]
+fn jsonl_running_cancelled_stop_reason_is_false() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let sess = dir.path().join("s");
+    write_jsonl_lines(
+        &sess,
+        &[r#"{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"agent_message_chunk","stopReason":"cancelled"}}}"#.into()],
+    );
+    touch_jsonl(&sess, Duration::ZERO);
+    assert!(!jsonl_running(&sess));
+}
+
+#[test]
+fn jsonl_running_ignores_background_tasks_after_cancelled_turn() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let sess = dir.path().join("s");
+    write_jsonl_lines(
+        &sess,
+        &[
+            r#"{"jsonrpc":"2.0","method":"_x.ai/session/update","params":{"update":{"sessionUpdate":"turn_completed","prompt_id":"p1","stop_reason":"cancelled"}}}"#.into(),
+            r#"{"jsonrpc":"2.0","method":"_x.ai/session/update","params":{"update":{"sessionUpdate":"background_tasks","tasks":[]}}}"#.into(),
+        ],
+    );
+    touch_jsonl(&sess, Duration::ZERO);
+    assert!(
+        !jsonl_running(&sess),
+        "trailing background_tasks must not reopen a cancelled turn"
+    );
+    assert!(!jsonl_running(&sess), "ended verdict must stay cached");
+}
+
+#[test]
+fn jsonl_running_hook_after_tool_stays_running() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let sess = dir.path().join("s");
+    write_jsonl_lines(
+        &sess,
+        &[
+            r#"{"jsonrpc":"2.0","method":"session/update","params":{"update":{"sessionUpdate":"tool_call_update","status":"completed"}}}"#.into(),
+            r#"{"jsonrpc":"2.0","method":"_x.ai/session/update","params":{"update":{"sessionUpdate":"hook_execution","event_name":"postToolUse"}}}"#.into(),
+        ],
+    );
+    touch_jsonl(&sess, Duration::ZERO);
+    assert!(jsonl_running(&sess));
 }

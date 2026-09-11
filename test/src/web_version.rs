@@ -36,7 +36,9 @@ fn fn_body(src: &str, name: &str) -> String {
 fn latest_version_is_plain_text_not_a_link() {
     let app = web_file("src/App.jsx");
     assert!(
-        app.contains("<span id=\"quota-ver-latest\" className=\"quota-row-v quota-ver-latest\"></span>"),
+        app.contains(
+            "<span id=\"quota-ver-latest\" className=\"quota-row-v quota-ver-latest\"></span>"
+        ),
         "latest version must be a non-interactive span:\n{app}"
     );
     assert!(
@@ -59,8 +61,15 @@ fn latest_version_falls_back_to_current_when_unknown() {
     let paint = fn_body(&js, "paint");
     assert!(
         paint.contains("latestEl.textContent = latest || cur")
-            && paint.contains("const cur = ver ? fmtVer(ver) : \"\""),
+            && paint.contains("const cur = ver ? fmtVer(ver) : lastCur")
+            && paint.contains("if (curEl) curEl.textContent = cur"),
         "unknown latest must show the current version, not a blank:\n{paint}"
+    );
+
+    let refresh = fn_body(&js, "refreshVersion");
+    assert!(
+        refresh.contains("if (lastCur) paint({ version: lastCur })"),
+        "a failed look must keep the current version on screen:\n{refresh}"
     );
 }
 

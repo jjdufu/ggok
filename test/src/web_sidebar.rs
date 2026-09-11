@@ -86,7 +86,10 @@ fn fn_body(src: &str, name: &str) -> String {
 }
 
 fn brace_after(src: &str, needle: &str) -> String {
-    let rest = src.split(needle).nth(1).unwrap_or_else(|| panic!("missing {needle}"));
+    let rest = src
+        .split(needle)
+        .nth(1)
+        .unwrap_or_else(|| panic!("missing {needle}"));
     let start = rest.find('{').expect("block");
     let mut depth = 0i32;
     for (i, c) in rest[start..].char_indices() {
