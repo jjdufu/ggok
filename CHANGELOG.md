@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.37](https://github.com/jjdufu/ggok/compare/v0.1.36...v0.1.37) (2026-09-11)
+
+
+### Bug Fixes
+
+* do not pre-select the first workspace root in the dir picker ([fd88e5d](https://github.com/jjdufu/ggok/commit/fd88e5d56f14313fc5cf407c31584737c3f3803e))
+
 ## [0.1.36](https://github.com/jjdufu/ggok/compare/v0.1.35...v0.1.36) (2026-09-11)
 
 
