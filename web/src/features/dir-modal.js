@@ -151,7 +151,7 @@ export function bindDirModal(ctx) {
     if (seq !== dirRenderSeq) return;
     if (atStart) {
       const paths = rows.map((r) => r.path).filter(Boolean);
-      if (!paths.includes(dirSel)) dirSel = paths[0] || "";
+      if (!paths.includes(dirSel)) dirSel = "";
     } else {
       dirSel = "";
     }

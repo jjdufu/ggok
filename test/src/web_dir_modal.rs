@@ -10,6 +10,19 @@ fn web_file(rel: &str) -> String {
 }
 
 #[test]
+fn start_dir_does_not_auto_select_first_root() {
+    let js = web_file("src/features/dir-modal.js");
+    assert!(
+        !js.contains("dirSel = paths[0]"),
+        "start list must not pre-select the first root:\n{js}"
+    );
+    assert!(
+        js.contains("if (!paths.includes(dirSel)) dirSel = \"\""),
+        "stale start selection must clear instead of falling back to paths[0]:\n{js}"
+    );
+}
+
+#[test]
 fn start_dir_rows_do_not_use_path_tooltips() {
     let js = web_file("src/features/dir-modal.js");
     assert!(
