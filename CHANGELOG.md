@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.36](https://github.com/jjdufu/ggok/compare/v0.1.35...v0.1.36) (2026-09-11)
+
+
+### Features
+
+* live sidebar running and expire stale jsonl occupancy ([8fdc314](https://github.com/jjdufu/ggok/commit/8fdc31460c00706683ff914d907e08748f1da410))
+
 ## [0.1.35](https://github.com/jjdufu/ggok/compare/v0.1.34...v0.1.35) (2026-09-10)
 
 
